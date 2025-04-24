@@ -1,0 +1,21 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+canvas#app, body, html {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
