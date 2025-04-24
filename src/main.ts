@@ -1,8 +1,6 @@
 import './style.css'
 
-// @ts-ignore this uses a custom vite plugin to support #includes
 import vertexShader from "./shaders/vertex.vert"
-// @ts-ignore this uses a custom vite plugin to support #includes
 import fragmentShader from "./shaders/fragment.frag"
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
