@@ -4,6 +4,8 @@ precision highp float;
 
 out vec4 outColor;
 
+#include "utils.glsl"
+
 void main() {
-    outColor = vec4(0, 1, 1, 1);
+    outColor = defaultColor;
 }
