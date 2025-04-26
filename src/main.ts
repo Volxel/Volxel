@@ -155,12 +155,16 @@ class State {
     this.gl.uniform1i(this.textureLoc, 0);
     this.gl.uniform1f(this.depthLoc, this.input.depth);
   }
+
+  private static INSTANCE: State | null = null;
+  static instance(): State {
+    this.INSTANCE ??= new State();
+    return this.INSTANCE;
+  }
 }
 
-let state: State | undefined;
-
 function main() {
-  state = new State();
+  State.instance();
 }
 
 main();
