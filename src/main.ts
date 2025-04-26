@@ -48,7 +48,8 @@ class State {
   private program: WebGLProgram;
 
   private textureLoc: WebGLUniformLocation;
-  private depthLoc: WebGLUniformLocation;
+  private volumeAABBLoc: WebGLUniformLocation;
+  private resLoc: WebGLUniformLocation;
 
   private input: InputState = {
     depth: 1
@@ -107,9 +108,13 @@ class State {
     if (!textureLoc) throw new Error("Failed to get u_texture uniform location");
     this.textureLoc = textureLoc;
   
-    const depthLoc = gl.getUniformLocation(this.program, "u_depth");
-    if (!depthLoc) throw new Error("Failed to get u_depth uniform location: " + depthLoc);
-    this.depthLoc = depthLoc;
+    const volumeAABBLoc = gl.getUniformLocation(this.program, "u_volume_aabb");
+    if (!volumeAABBLoc) throw new Error("Failed to get u_volume_aabb uniform location: " + volumeAABBLoc);
+    this.volumeAABBLoc = volumeAABBLoc;
+
+    const resLoc = gl.getUniformLocation(this.program, "u_res");
+    if (!resLoc) throw new Error("Failed to get u_res uniform location: " + resLoc);
+    this.resLoc = resLoc;
 
     // Prepare automatic resizing of canvas (TODO: This could be better, including taking into account DPI etc.)
     const resizeObserver = new ResizeObserver((entries) => {
@@ -153,7 +158,8 @@ class State {
 
   bindUniforms() {
     this.gl.uniform1i(this.textureLoc, 0);
-    this.gl.uniform1f(this.depthLoc, this.input.depth);
+    this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array([-1, -1, -1, 1, 1, 1]));
+    this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
   }
 
   private static INSTANCE: State | null = null;
