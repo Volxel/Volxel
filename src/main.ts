@@ -109,7 +109,7 @@ function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) 
   element.addEventListener("mousemove", e => {
     if (!isDragging) return;
     const current = new Vector2(e.clientX, e.clientY);
-    onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+    onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(2 * Math.PI, Math.PI)));
     lastPos = current;
   });
   element.addEventListener("touchmove", e => {
@@ -119,7 +119,7 @@ function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) 
         return;
       }
       const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
-      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(2 * Math.PI, Math.PI)));
       lastPos = current;
     } else if (isZooming) {
       if (e.touches.length !== 2) {
