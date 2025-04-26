@@ -39,5 +39,5 @@ bool intersect_ray_aabb(vec2 ray_ss, vec3 aabb[2]) {
 }
 
 void main() {
-    outColor = intersect_ray_aabb(tex, u_volume_aabb) ? vec4(1, 1, 1, 1) : texture(u_texture, vec3(1, 0, 0));
+    outColor = intersect_ray_aabb(tex, u_volume_aabb) ? vec4(1, 1, 1, 1) : texture(u_texture, vec3(tex * 0.5 + 0.5, 0.5));
 }

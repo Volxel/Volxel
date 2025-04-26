@@ -93,8 +93,8 @@ class State {
     const width = 128, height = 128, depth = 128;
     const data: [number, number, number, number][] = [];
     for (let z = 0; z < depth; z++) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const distance = Math.pow(x - width / 2, 2) / Math.pow(width / 2, 2);
-      data.push([distance, z / depth, 0, 1]);
+      const distance = 1 - (Math.pow(x - width / 2, 2) + Math.pow(y - height / 2, 2) + Math.pow(z - depth / 2, 2)) / Math.pow(Math.min(width, height, depth) / 2, 2);
+      data.push([distance, 0, 0, 1]);
     }
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA32F, width, height, depth, 0, gl.RGBA, gl.FLOAT, new Float32Array(data.flat()))
