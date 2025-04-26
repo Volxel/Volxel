@@ -2,6 +2,7 @@ import './style.css'
 
 import vertexShader from "./shaders/vertex.vert"
 import fragmentShader from "./shaders/fragment.frag"
+import {Quaternion, Vector2, Vector3} from "math.gl";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -27,7 +28,7 @@ function createProgram(gl: WebGL2RenderingContext, vertex: WebGLShader, fragment
   gl.attachShader(program, vertex);
   gl.attachShader(program, fragment);
   gl.linkProgram(program);
-  
+
   const success = gl.getProgramParameter(program, gl.LINK_STATUS);
   if (success) return program;
   else {
@@ -39,7 +40,75 @@ function createProgram(gl: WebGL2RenderingContext, vertex: WebGLShader, fragment
 }
 
 type InputState = {
-  depth: number;
+  cameraDistance: number;
+}
+
+class Camera {
+  pos: Vector3;
+  view: Vector3;
+  static up: Vector3 = new Vector3(0, 1, 0);
+
+  constructor(distance: number,
+              private posLoc: WebGLUniformLocation,
+              private viewLoc: WebGLUniformLocation) {
+    this.view = new Vector3();
+    this.pos = new Vector3(0, 0, distance);
+  }
+
+  rotateAroundView(by: Vector2) {
+    const dir = this.pos.clone().subtract(this.view);
+
+    const yaw = new Quaternion().fromAxisRotation(Camera.up, -by.x);
+
+    const dirYawed = dir.clone().transformByQuaternion(yaw);
+    const right = dirYawed.clone().cross(Camera.up).normalize();
+
+    const pitch = new Quaternion().fromAxisRotation(right, by.y);
+    const combined_rot = pitch.multiplyLeft(yaw);
+
+    const finalDir = dir.clone().transformByQuaternion(combined_rot);
+
+    this.pos = finalDir.clone().add(this.view);
+  }
+
+  zoom(by: number) {
+    const dir = this.pos.clone().subtract(this.view);
+    if (dir.len() * by <= 1 || dir.len() * by >= 10) return;
+    this.pos = dir.multiplyByScalar(by).add(this.view);
+  }
+
+  bindAsUniforms(gl: WebGL2RenderingContext) {
+    gl.uniform3f(this.posLoc, this.pos.x, this.pos.y, this.pos.z);
+    const viewDir = this.view.clone().subtract(this.pos);
+    gl.uniform3f(this.viewLoc, viewDir.x, viewDir.y, viewDir.z);
+  }
+}
+
+function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) => void, onZoom: (by: number) => void) {
+  let isDragging = false;
+  let lastPos = Vector2.from([0, 0]);
+
+  element.addEventListener("mousedown", e => {
+    isDragging = true;
+    lastPos = new Vector2(e.clientX, e.clientY);
+  })
+
+  element.addEventListener("mousemove", e => {
+    if (!isDragging) return;
+    const current = new Vector2(e.clientX, e.clientY);
+    onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+    lastPos = current;
+  });
+
+  element.addEventListener("mouseup", () => isDragging = false);
+  element.addEventListener("mouseleave", () => isDragging = false);
+
+  element.addEventListener("wheel", e => {
+    let by = 1;
+    if (e.deltaY < 0) by = 0.9
+    if (e.deltaY > 0) by = 1.1
+    onZoom(by)
+  })
 }
 
 class State {
@@ -52,11 +121,12 @@ class State {
   private resLoc: WebGLUniformLocation;
 
   private input: InputState = {
-    depth: 1
+    cameraDistance: 5
   }
 
-  constructor(
-  ) {
+  private camera: Camera;
+
+  constructor() {
     // Get canvas to render to
     this.canvas = document.getElementById("app") as HTMLCanvasElement;
 
@@ -77,7 +147,7 @@ class State {
     // -- Create and prepare Data in Buffer
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1,  -1, 1,  1, -1,  1, 1,  -1, 1,  1, -1,]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, -1,]), gl.STATIC_DRAW);
     // -- Create and configure Vertex Array Object
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -103,18 +173,13 @@ class State {
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
 
-    // get texture uniform location
-    const textureLoc = gl.getUniformLocation(this.program, "u_texture");
-    if (!textureLoc) throw new Error("Failed to get u_texture uniform location");
-    this.textureLoc = textureLoc;
-  
-    const volumeAABBLoc = gl.getUniformLocation(this.program, "u_volume_aabb");
-    if (!volumeAABBLoc) throw new Error("Failed to get u_volume_aabb uniform location: " + volumeAABBLoc);
-    this.volumeAABBLoc = volumeAABBLoc;
+    // get uniform locations
+    this.textureLoc = this.getUniformLocation("u_texture");
+    this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
+    this.resLoc = this.getUniformLocation("u_res");
 
-    const resLoc = gl.getUniformLocation(this.program, "u_res");
-    if (!resLoc) throw new Error("Failed to get u_res uniform location: " + resLoc);
-    this.resLoc = resLoc;
+    // Setup camera
+    this.camera = new Camera(this.input.cameraDistance, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
     // Prepare automatic resizing of canvas (TODO: This could be better, including taking into account DPI etc.)
     const resizeObserver = new ResizeObserver((entries) => {
@@ -134,25 +199,33 @@ class State {
     resizeObserver.observe(this.canvas);
 
     // Prepare inputs
-    const depthSlider = document.getElementById("depth") as HTMLInputElement;
-    depthSlider.value = this.input.depth + "";
-    depthSlider.addEventListener("change", () => {
-      this.input.depth = depthSlider.valueAsNumber;
+    setupPanningListeners(this.canvas, (by) => {
+      this.camera.rotateAroundView(by);
       this.render();
-    });
+    }, (by) => {
+      this.camera.zoom(by);
+      this.render();
+    })
+  }
+
+  private getUniformLocation(name: string): WebGLUniformLocation {
+    const loc = this.gl.getUniformLocation(this.program, name);
+    if (!loc) throw new Error("Failed to get uniform location of '" + name + "'");
+    return loc;
   }
 
   render() {
     // Set up viewport size, since canvas size can change
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-  
+
     // Clear stuff
     this.gl.clearColor(0, 0, 0, 0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-  
+
     // Execute this.program
     this.gl.useProgram(this.program);
     this.bindUniforms();
+    this.camera.bindAsUniforms(this.gl);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
   }
 
@@ -163,6 +236,7 @@ class State {
   }
 
   private static INSTANCE: State | null = null;
+
   static instance(): State {
     this.INSTANCE ??= new State();
     return this.INSTANCE;

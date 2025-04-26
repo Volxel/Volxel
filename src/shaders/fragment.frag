@@ -11,8 +11,8 @@ uniform sampler3D u_texture;
 uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
 
-const vec3 camera_pos = vec3(0, 4, -10);
-const vec3 camera_view = vec3(0, 0, 1);
+uniform vec3 camera_pos;
+uniform vec3 camera_view;
 const vec3 camera_up = vec3(0, 1, 0);
 
 // raycasting for debugging
