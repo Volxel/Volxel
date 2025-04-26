@@ -11,13 +11,15 @@ uniform sampler3D u_texture;
 uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
 
+// Camera Info
 uniform vec3 camera_pos;
 uniform vec3 camera_view;
 const vec3 camera_up = vec3(0, 1, 0);
 
+// Shows ray intersection with AABB instead of volume
 uniform bool u_debugHits;
 
-// raycasting for debugging
+// Raycast function that additionally outputs the two hit positions
 bool intersect_ray_aabb(vec2 ray_ss, vec3 aabb[2], out vec3 hit_min, out vec3 hit_max) {
     float aspect = float(u_res.x) / float(u_res.y);
     // set up world space ray from screen space position
@@ -26,6 +28,7 @@ bool intersect_ray_aabb(vec2 ray_ss, vec3 aabb[2], out vec3 hit_min, out vec3 hi
     vec3 up = cross(right, forward);
 
     vec3 ray_camera = normalize(tex.x * aspect * right + tex.y * up + forward);
+
     // intersect world space ray with aabb
     vec3 inv_dir = 1.0 / ray_camera;
 
@@ -47,10 +50,13 @@ bool intersect_ray_aabb(vec2 ray_ss, vec3 aabb[2], out vec3 hit_min, out vec3 hi
     return hit;
 }
 
+// Converts from world space positions to interpolated positions inside AABB,
+// used to sample 3D volumetric data
 vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
     return (world - aabb[0]) / (aabb[1] - aabb[0]);
 }
 
+// Simple raymarch that accumulates a float value, early break if it reaches 1
 const float stepsize = 0.01;
 
 float raymarch(vec3 from, vec3 to, vec3 aabb[2]) {
