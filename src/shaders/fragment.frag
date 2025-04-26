@@ -75,7 +75,7 @@ void main() {
     if (intersect_ray_aabb(tex, u_volume_aabb, hit_min, hit_max)) {
         float alpha = raymarch(hit_min, hit_max, u_volume_aabb);
         outColor = vec4(alpha, 0, 0, 1);
-        if(u_debugHits) outColor = vec4(hit_max, 1);
+        if(u_debugHits) outColor = vec4(world_to_aabb(hit_min, u_volume_aabb), 1);
     } else {
         outColor = texture(u_texture, vec3(tex * 0.5 + 0.5, 0.5));
     }
