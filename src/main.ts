@@ -145,6 +145,7 @@ class State {
       this.render();
     });
     const debugHitsCheckbox = document.getElementById("debug_hit") as HTMLInputElement;
+    debugHitsCheckbox.checked = this.input.debugHits;
     debugHitsCheckbox.addEventListener("change", () => {
       this.input.debugHits = debugHitsCheckbox.checked;
       this.render();
