@@ -38,62 +38,129 @@ function createProgram(gl: WebGL2RenderingContext, vertex: WebGLShader, fragment
   }
 }
 
-function render(gl: WebGL2RenderingContext, program: WebGLProgram) {
-  // Set up viewport size, since canvas size can change
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-  // Clear stuff
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-
-  // Execute program
-  gl.useProgram(program);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+type InputState = {
+  depth: number;
 }
 
-function main() {
-  // Get canvas to render to
-  const canvas = document.getElementById("app") as HTMLCanvasElement;
+class State {
+  private canvas: HTMLCanvasElement;
+  private gl: WebGL2RenderingContext;
+  private program: WebGLProgram;
 
-  // set up GL context
-  const gl = canvas.getContext("webgl2");
-  if (!gl) throw new Error("WebGL 2 not supported on this Browser");
+  private textureLoc: WebGLUniformLocation;
+  private depthLoc: WebGLUniformLocation;
 
-  // Set up shaders
-  const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
-  const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
-  const program = createProgram(gl, vertex, fragment);
+  private input: InputState = {
+    depth: 1
+  }
 
-  // Prepare data for drawing
-  // -- Fetch Attribute location from Program
-  const positionAttribute = gl.getAttribLocation(program, "a_position");
-  if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in vertex shader");
-  // -- Create and prepare Data in Buffer
-  const positionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1,  -1, 1,  1, -1,  1, 1,  -1, 1,  1, -1,]), gl.STATIC_DRAW);
-  // -- Create and configure Vertex Array Object
-  const vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
-  gl.enableVertexAttribArray(positionAttribute);
-  gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
-  
-  // Prepare automatic resizing of canvas (TODO: This could be better, including taking into account DPI etc.)
-  const resizeObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) if (entry.target === canvas) {
-      const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
-      c.width = Math.max(
-        1,
-        entry.contentBoxSize[0].inlineSize
-      );
-      c.height = Math.max(
-        1,
-        entry.contentBoxSize[0].blockSize
-      );
+  constructor(
+  ) {
+    // Get canvas to render to
+    this.canvas = document.getElementById("app") as HTMLCanvasElement;
+
+    // set up GL context
+    const gl = this.canvas.getContext("webgl2");
+    if (!gl) throw new Error("WebGL 2 not supported on this Browser");
+    this.gl = gl;
+
+    // Set up shaders
+    const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
+    const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
+    this.program = createProgram(gl, vertex, fragment);
+
+    // Prepare data for drawing
+    // -- Fetch Attribute location from Program
+    const positionAttribute = gl.getAttribLocation(this.program, "a_position");
+    if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in vertex shader");
+    // -- Create and prepare Data in Buffer
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1,  -1, 1,  1, -1,  1, 1,  -1, 1,  1, -1,]), gl.STATIC_DRAW);
+    // -- Create and configure Vertex Array Object
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.enableVertexAttribArray(positionAttribute);
+    gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
+
+    // Prepare Texture for drawing
+    const texture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0 + 0);
+    gl.bindTexture(gl.TEXTURE_3D, texture);
+    const width = 128, height = 128, depth = 128;
+    const data: [number, number, number, number][] = [];
+    for (let z = 0; z < depth; z++) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const distance = Math.pow(x - width / 2, 2) / Math.pow(width / 2, 2);
+      data.push([distance, z / depth, 0, 1]);
     }
-    render(gl, program);
-  });
-  resizeObserver.observe(canvas);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA32F, width, height, depth, 0, gl.RGBA, gl.FLOAT, new Float32Array(data.flat()))
+    // set the filtering so we don't need mips
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+
+    // get texture uniform location
+    const textureLoc = gl.getUniformLocation(this.program, "u_texture");
+    if (!textureLoc) throw new Error("Failed to get u_texture uniform location");
+    this.textureLoc = textureLoc;
+  
+    const depthLoc = gl.getUniformLocation(this.program, "u_depth");
+    if (!depthLoc) throw new Error("Failed to get u_depth uniform location: " + depthLoc);
+    this.depthLoc = depthLoc;
+
+    // Prepare automatic resizing of canvas (TODO: This could be better, including taking into account DPI etc.)
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) if (entry.target === this.canvas) {
+        const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
+        c.width = Math.max(
+          1,
+          entry.contentBoxSize[0].inlineSize
+        );
+        c.height = Math.max(
+          1,
+          entry.contentBoxSize[0].blockSize
+        );
+      }
+      this.render();
+    });
+    resizeObserver.observe(this.canvas);
+
+    // Prepare inputs
+    const depthSlider = document.getElementById("depth") as HTMLInputElement;
+    depthSlider.value = this.input.depth + "";
+    depthSlider.addEventListener("change", () => {
+      this.input.depth = depthSlider.valueAsNumber;
+      this.render();
+    });
+  }
+
+  render() {
+    // Set up viewport size, since canvas size can change
+    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+  
+    // Clear stuff
+    this.gl.clearColor(0, 0, 0, 0);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+  
+    // Execute this.program
+    this.gl.useProgram(this.program);
+    this.bindUniforms();
+    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+  }
+
+  bindUniforms() {
+    this.gl.uniform1i(this.textureLoc, 0);
+    this.gl.uniform1f(this.depthLoc, this.input.depth);
+  }
+}
+
+let state: State | undefined;
+
+function main() {
+  state = new State();
 }
 
 main();
