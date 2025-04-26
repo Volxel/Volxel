@@ -16,7 +16,7 @@ uniform vec3 camera_view;
 const vec3 camera_up = vec3(0, 1, 0);
 
 // raycasting for debugging
-bool intersect_ray_aabb(vec2 ray_ss, vec3 aabb[2]) {
+bool intersect_ray_aabb(vec2 ray_ss, vec3 aabb[2], out vec3 local_min, out vec3 local_max) {
     float aspect = float(u_res.x) / float(u_res.y);
     // set up world space ray from screen space position
     vec3 forward = normalize(camera_view);
@@ -35,9 +35,21 @@ bool intersect_ray_aabb(vec2 ray_ss, vec3 aabb[2]) {
 
     float t_min = max(max(tsmaller.x, tsmaller.y), tsmaller.z);
     float t_max = min(min(tbigger.x, tbigger.y), tbigger.z);
-    return t_max > max(t_min, 0.0);
+    bool hit = t_max > max(t_min, 0.0);
+
+    if (hit) {
+        vec3 hit_min = camera_pos + t_min * ray_camera;
+        vec3 hit_max = camera_pos + t_max * ray_camera;
+
+        local_min = (hit_min - aabb[0]) / (aabb[1] - aabb[0]);
+        local_max = (hit_max - aabb[0]) / (aabb[1] - aabb[0]);
+    }
+
+    return hit;
 }
 
 void main() {
-    outColor = intersect_ray_aabb(tex, u_volume_aabb) ? vec4(1, 1, 1, 1) : texture(u_texture, vec3(tex * 0.5 + 0.5, 0.5));
+    vec3 texel_min;
+    vec3 texel_max;
+    outColor = intersect_ray_aabb(tex, u_volume_aabb, texel_min, texel_max) ? texture(u_texture, vec3(texel_min.xy, 0.5)) : vec4(0.1, 0.1, 0.1, 1);
 }
