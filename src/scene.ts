@@ -1,0 +1,139 @@
+import {Quaternion, Vector2, Vector3} from "math.gl";
+
+export class Camera {
+  pos: Vector3;
+  view: Vector3;
+  static up: Vector3 = new Vector3(0, 1, 0);
+
+  constructor(distance: number,
+              private posLoc: WebGLUniformLocation,
+              private viewLoc: WebGLUniformLocation) {
+    this.view = new Vector3();
+    this.pos = new Vector3(0, 0, distance);
+  }
+
+  rotateAroundView(by: Vector2) {
+    const dir = this.pos.clone().subtract(this.view);
+
+    const yaw = new Quaternion().fromAxisRotation(Camera.up, -by.x);
+
+    const dirYawed = dir.clone().transformByQuaternion(yaw);
+    const right = dirYawed.clone().cross(Camera.up).normalize();
+
+    const pitch = new Quaternion().fromAxisRotation(right, by.y);
+    const combined_rot = pitch.multiplyLeft(yaw);
+
+    const finalDir = dir.clone().transformByQuaternion(combined_rot);
+
+    this.pos = finalDir.clone().add(this.view);
+  }
+
+  zoom(by: number) {
+    const dir = this.pos.clone().subtract(this.view);
+    if (dir.len() * by <= 1 || dir.len() * by >= 10) return;
+    this.pos = dir.multiplyByScalar(by).add(this.view);
+  }
+
+  translateOnPlane(by: Vector2) {
+    const dir = this.pos.clone().subtract(this.view);
+    const right = dir.clone().cross(Camera.up).normalize();
+    const localUp = dir.clone().cross(right).normalize();
+    this.translate(right.clone().multiplyByScalar(by.x * 5).add(localUp.clone().multiplyByScalar(-by.y * 5)))
+  }
+
+  translate(by: Vector3) {
+    this.pos = this.pos.add(by);
+    this.view = this.view.add(by);
+  }
+
+  bindAsUniforms(gl: WebGL2RenderingContext) {
+    gl.uniform3f(this.posLoc, this.pos.x, this.pos.y, this.pos.z);
+    const viewDir = this.view.clone().subtract(this.pos);
+    gl.uniform3f(this.viewLoc, viewDir.x, viewDir.y, viewDir.z);
+  }
+}
+
+export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) => void, onZoom: (by: number) => void, onMove: (by: Vector2) => void) {
+  let isDragging = false;
+  let isZooming = false;
+  let isMoving = false;
+  let lastPos = Vector2.from([0, 0]);
+  let lastTouchDistance = 0;
+
+  element.addEventListener("mousedown", e => {
+    if (e.shiftKey) {
+      isMoving = true;
+    } else {
+      isDragging = true;
+    }
+    lastPos = new Vector2(e.clientX, e.clientY);
+  });
+  element.addEventListener("touchstart", e => {
+    if (e.touches.length === 1 || e.touches.length === 3) {
+      e.preventDefault();
+      isDragging = e.touches.length === 1;
+      isMoving = e.touches.length === 3;
+      lastPos = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
+    } else if (e.touches.length === 2) {
+      e.preventDefault();
+      isZooming = true;
+      lastTouchDistance = new Vector2(e.touches[0].clientX, e.touches[0].clientY).distance(new Vector2(e.touches[1].clientX, e.touches[1].clientY));
+    }
+  })
+
+  element.addEventListener("mousemove", e => {
+    if (!isDragging && !isMoving) return;
+    const current = new Vector2(e.clientX, e.clientY);
+    if (isDragging) {
+      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(Math.PI, Math.PI)));
+    } else if (isMoving) {
+      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+    }
+    lastPos = current;
+  });
+  element.addEventListener("touchmove", e => {
+    if (isDragging) {
+      if (e.touches.length !== 1) {
+        isDragging = false;
+        return;
+      }
+      const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
+      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(Math.PI, Math.PI)));
+      lastPos = current;
+    } else if (isZooming) {
+      if (e.touches.length !== 2) {
+        isZooming = false;
+        return;
+      }
+      const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY).distance(new Vector2(e.touches[1].clientX, e.touches[1].clientY));;
+      onZoom(lastTouchDistance / current);
+      lastTouchDistance = current;
+    } else if (isMoving) {
+      if (e.touches.length !== 3) {
+        isMoving = false;
+        return;
+      }
+      const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
+      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+      lastPos = current;
+    }
+  })
+
+  const stop = () => {
+    isDragging = false;
+    isZooming = false;
+    isMoving = false;
+  }
+
+  element.addEventListener("mouseup", stop);
+  element.addEventListener("mouseleave", stop);
+  element.addEventListener("touchend", stop);
+  element.addEventListener("touchcancel", stop);
+
+  element.addEventListener("wheel", e => {
+    let by = 1;
+    if (e.deltaY < 0) by = 0.9
+    if (e.deltaY > 0) by = 1.1
+    onZoom(by)
+  })
+}
