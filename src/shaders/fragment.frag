@@ -56,13 +56,14 @@ const float stepsize = 0.01;
 float raymarch(vec3 from, vec3 to, vec3 aabb[2]) {
     vec3 diff = to - from;
     vec3 step = diff * (stepsize / length(diff));
+    float dt = 1.0 / (length(diff) / stepsize);
 
     float alpha = 0.0;
 
     for (uint i = 0u; i < uint(ceil(length(diff) / stepsize)); ++i) {
         vec3 pos = from + float(i) * step;
         vec3 sample_pos = world_to_aabb(pos, aabb);
-        alpha += texture(u_texture, sample_pos).r * stepsize;
+        alpha += texture(u_texture, sample_pos).r * dt;
         if (alpha >= 1.0) break;
     }
 
