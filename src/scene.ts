@@ -85,9 +85,9 @@ export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Ve
     if (!isDragging && !isMoving) return;
     const current = new Vector2(e.clientX, e.clientY);
     if (isDragging) {
-      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(Math.PI, Math.PI)));
+      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.clientWidth, element.clientHeight)).multiply(new Vector2(Math.PI, Math.PI)));
     } else if (isMoving) {
-      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.clientWidth, element.clientHeight)));
     }
     lastPos = current;
   });
@@ -98,7 +98,7 @@ export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Ve
         return;
       }
       const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
-      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(Math.PI, Math.PI)));
+      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.clientWidth, element.clientHeight)).multiply(new Vector2(Math.PI, Math.PI)));
       lastPos = current;
     } else if (isZooming) {
       if (e.touches.length !== 2) {
@@ -114,7 +114,7 @@ export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Ve
         return;
       }
       const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
-      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.clientWidth, element.clientHeight)));
       lastPos = current;
     }
   })
