@@ -40,7 +40,7 @@ function createProgram(gl: WebGL2RenderingContext, vertex: WebGLShader, fragment
 }
 
 type InputState = {
-  cameraDistance: number;
+  debugHits: boolean;
 }
 
 class State {
@@ -51,9 +51,10 @@ class State {
   private textureLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
   private resLoc: WebGLUniformLocation;
+  private debugHitsLoc: WebGLUniformLocation;
 
   private input: InputState = {
-    cameraDistance: 5
+    debugHits: false
   }
 
   private camera: Camera;
@@ -109,9 +110,10 @@ class State {
     this.textureLoc = this.getUniformLocation("u_texture");
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
     this.resLoc = this.getUniformLocation("u_res");
+    this.debugHitsLoc = this.getUniformLocation("u_debugHits");
 
     // Setup camera
-    this.camera = new Camera(this.input.cameraDistance, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
+    this.camera = new Camera(5, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
     // Prepare automatic resizing of canvas
     const resizeObserver = new ResizeObserver((entries) => {
@@ -141,6 +143,11 @@ class State {
     }, (by) => {
       this.camera.translateOnPlane(by);
       this.render();
+    });
+    const debugHitsCheckbox = document.getElementById("debug_hit") as HTMLInputElement;
+    debugHitsCheckbox.addEventListener("change", () => {
+      this.input.debugHits = debugHitsCheckbox.checked;
+      this.render();
     })
   }
 
@@ -169,6 +176,7 @@ class State {
     this.gl.uniform1i(this.textureLoc, 0);
     this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array([-1, -1, -1, 1, 1, 1]));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
+    this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
   }
 
   private static INSTANCE: State | null = null;
