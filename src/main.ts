@@ -77,6 +77,18 @@ class Camera {
     this.pos = dir.multiplyByScalar(by).add(this.view);
   }
 
+  translateOnPlane(by: Vector2) {
+    const dir = this.pos.clone().subtract(this.view);
+    const right = dir.clone().cross(Camera.up).normalize();
+    const localUp = dir.clone().cross(right).normalize();
+    this.translate(right.clone().multiplyByScalar(by.x * 5).add(localUp.clone().multiplyByScalar(-by.y * 5)))
+  }
+
+  translate(by: Vector3) {
+    this.pos = this.pos.add(by);
+    this.view = this.view.add(by);
+  }
+
   bindAsUniforms(gl: WebGL2RenderingContext) {
     gl.uniform3f(this.posLoc, this.pos.x, this.pos.y, this.pos.z);
     const viewDir = this.view.clone().subtract(this.pos);
@@ -84,20 +96,26 @@ class Camera {
   }
 }
 
-function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) => void, onZoom: (by: number) => void) {
+function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) => void, onZoom: (by: number) => void, onMove: (by: Vector2) => void) {
   let isDragging = false;
   let isZooming = false;
+  let isMoving = false;
   let lastPos = Vector2.from([0, 0]);
   let lastTouchDistance = 0;
 
   element.addEventListener("mousedown", e => {
-    isDragging = true;
+    if (e.shiftKey) {
+      isMoving = true;
+    } else {
+      isDragging = true;
+    }
     lastPos = new Vector2(e.clientX, e.clientY);
   });
   element.addEventListener("touchstart", e => {
-    if (e.touches.length === 1) {
+    if (e.touches.length === 1 || e.touches.length === 3) {
       e.preventDefault();
-      isDragging = true;
+      isDragging = e.touches.length === 1;
+      isMoving = e.touches.length === 3;
       lastPos = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
     } else if (e.touches.length === 2) {
       e.preventDefault();
@@ -107,9 +125,13 @@ function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) 
   })
 
   element.addEventListener("mousemove", e => {
-    if (!isDragging) return;
+    if (!isDragging && !isMoving) return;
     const current = new Vector2(e.clientX, e.clientY);
-    onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(2 * Math.PI, Math.PI)));
+    if (isDragging) {
+      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)).multiply(new Vector2(2 * Math.PI, Math.PI)));
+    } else if (isMoving) {
+      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+    }
     lastPos = current;
   });
   element.addEventListener("touchmove", e => {
@@ -129,19 +151,27 @@ function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) 
       const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY).distance(new Vector2(e.touches[1].clientX, e.touches[1].clientY));;
       onZoom(lastTouchDistance / current);
       lastTouchDistance = current;
+    } else if (isMoving) {
+      if (e.touches.length !== 3) {
+        isMoving = false;
+        return;
+      }
+      const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
+      onMove(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+      lastPos = current;
     }
   })
 
-  element.addEventListener("mouseup", () => isDragging = false);
-  element.addEventListener("mouseleave", () => isDragging = false);
-  element.addEventListener("touchend", () => {
+  const stop = () => {
     isDragging = false;
     isZooming = false;
-  });
-  element.addEventListener("touchcancel", () => {
-    isDragging = false;
-    isDragging = false;
-  });
+    isMoving = false;
+  }
+
+  element.addEventListener("mouseup", stop);
+  element.addEventListener("mouseleave", stop);
+  element.addEventListener("touchend", stop);
+  element.addEventListener("touchcancel", stop);
 
   element.addEventListener("wheel", e => {
     let by = 1;
@@ -245,6 +275,9 @@ class State {
       this.render();
     }, (by) => {
       this.camera.zoom(by);
+      this.render();
+    }, (by) => {
+      this.camera.translateOnPlane(by);
       this.render();
     })
   }
