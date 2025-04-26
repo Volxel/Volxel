@@ -86,11 +86,24 @@ class Camera {
 
 function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) => void, onZoom: (by: number) => void) {
   let isDragging = false;
+  let isZooming = false;
   let lastPos = Vector2.from([0, 0]);
+  let lastTouchDistance = 0;
 
   element.addEventListener("mousedown", e => {
     isDragging = true;
     lastPos = new Vector2(e.clientX, e.clientY);
+  });
+  element.addEventListener("touchstart", e => {
+    if (e.touches.length === 1) {
+      e.preventDefault();
+      isDragging = true;
+      lastPos = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
+    } else if (e.touches.length === 2) {
+      e.preventDefault();
+      isZooming = true;
+      lastTouchDistance = new Vector2(e.touches[0].clientX, e.touches[0].clientY).distance(new Vector2(e.touches[1].clientX, e.touches[1].clientY));
+    }
   })
 
   element.addEventListener("mousemove", e => {
@@ -99,9 +112,36 @@ function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Vector2) 
     onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
     lastPos = current;
   });
+  element.addEventListener("touchmove", e => {
+    if (isDragging) {
+      if (e.touches.length !== 1) {
+        isDragging = false;
+        return;
+      }
+      const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
+      onPan(current.clone().subtract(lastPos).divide(new Vector2(element.width, element.height)));
+      lastPos = current;
+    } else if (isZooming) {
+      if (e.touches.length !== 2) {
+        isZooming = false;
+        return;
+      }
+      const current = new Vector2(e.touches[0].clientX, e.touches[0].clientY).distance(new Vector2(e.touches[1].clientX, e.touches[1].clientY));;
+      onZoom(lastTouchDistance / current);
+      lastTouchDistance = current;
+    }
+  })
 
   element.addEventListener("mouseup", () => isDragging = false);
   element.addEventListener("mouseleave", () => isDragging = false);
+  element.addEventListener("touchend", () => {
+    isDragging = false;
+    isZooming = false;
+  });
+  element.addEventListener("touchcancel", () => {
+    isDragging = false;
+    isDragging = false;
+  });
 
   element.addEventListener("wheel", e => {
     let by = 1;
