@@ -221,18 +221,19 @@ class State {
     // Setup camera
     this.camera = new Camera(this.input.cameraDistance, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
-    // Prepare automatic resizing of canvas (TODO: This could be better, including taking into account DPI etc.)
+    // Prepare automatic resizing of canvas
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) if (entry.target === this.canvas) {
         const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
+        const ratio = window.devicePixelRatio || 1;
         c.width = Math.max(
           1,
           entry.contentBoxSize[0].inlineSize
-        );
+        ) * ratio;
         c.height = Math.max(
           1,
           entry.contentBoxSize[0].blockSize
-        );
+        ) * ratio;
       }
       this.render();
     });
