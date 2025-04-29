@@ -2,8 +2,7 @@
 An open source volumetric renderer for the Browser. Also my bachelor's thesis.
 
 ## Status
-Currently, it shows an arbitrary AABB and a volumetric sphere inside it, although brokenly.
-
+Currently, it shows a volumetric sphere in white, in front of a blue background.
 ## Development
 
 1. Install the dependencies (Using https://pnpm.io)
