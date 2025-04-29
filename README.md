@@ -2,7 +2,7 @@
 An open source volumetric renderer for the Browser. Also my bachelor's thesis.
 
 ## Status
-Currently, it shows a volumetric sphere in white, in front of a blue background.
+Currently, it shows a volumetric sinusoid in white, in front of a blue background.
 ## Development
 
 1. Install the dependencies (Using https://pnpm.io)

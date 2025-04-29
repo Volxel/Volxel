@@ -91,11 +91,12 @@ class State {
     const texture = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0 + 0);
     gl.bindTexture(gl.TEXTURE_3D, texture);
-    const width = 32, height = 32, depth = 32;
+    const width = 128, height = 128, depth = 128;
     const data: [number, number, number, number][] = [];
     for (let z = 0; z < depth; z++) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const distance = 1 - (Math.pow(x - width / 2, 2) + Math.pow(y - height / 2, 2) + Math.pow(z - depth / 2, 2)) / Math.pow(Math.min(width, height, depth) / 2, 2);
-      data.push([distance, 0, 0, 1]);
+      let density = y - 20 - 10 * Math.sin(0.2 * x / (z * 0.05)) * Math.sin(0.1 * z);
+      //const density = 1 - (Math.pow(x - width / 2, 2) + Math.pow(y - height / 2, 2) + Math.pow(z - depth / 2, 2)) / Math.pow(Math.min(width, height, depth) / 2, 2);
+      data.push([1 - density, 0, 0, 1]);
     }
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA32F, width, height, depth, 0, gl.RGBA, gl.FLOAT, new Float32Array(data.flat()))
