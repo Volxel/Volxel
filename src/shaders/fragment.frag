@@ -104,10 +104,17 @@ bool raymarch(vec3 from, vec3 to, vec3 aabb[2], out vec4 color) {
     return true;
 }
 
+vec4 get_background_color(Ray ray) {
+    return vec4(ray.direction, 1.0);
+}
+
 void main() {
     vec3 hit_min;
     vec3 hit_max;
-    if (intersect_ray(setup_world_ray(tex), u_volume_aabb, hit_min, hit_max)) {
+    Ray ray = setup_world_ray(tex);
+    bool hit;
+    if (intersect_ray(ray, u_volume_aabb, hit_min, hit_max)) {
+        hit = true;
         if(u_debugHits) {
             outColor = vec4(world_to_aabb(hit_min, u_volume_aabb), 1);
             return;
@@ -118,8 +125,10 @@ void main() {
         }
     }
 
-    if (outColor.a < 1.0) {
-        vec4 bgColor = vec4(0.0, 0.0, 0.3, 1.0); //texture(u_texture, vec3(tex * 0.5 + 0.5, 0.5));
+    if (!hit) {
+        outColor = get_background_color(ray);
+    } else if (outColor.a < 1.0) {
+        vec4 bgColor = get_background_color(ray); //texture(u_texture, vec3(tex * 0.5 + 0.5, 0.5));
         outColor = outColor.a * outColor + (1.0 - outColor.a) * bgColor;
     }
 }
