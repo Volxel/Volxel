@@ -30,7 +30,7 @@ export class Camera {
 
   zoom(by: number) {
     const dir = this.pos.clone().subtract(this.view);
-    if (dir.len() * by <= 1 || dir.len() * by >= 10) return;
+    if (dir.len() * by <= 0.1 || dir.len() * by >= 10) return;
     this.pos = dir.multiplyByScalar(by).add(this.view);
   }
 
