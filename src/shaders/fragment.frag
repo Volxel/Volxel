@@ -138,7 +138,8 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
             float light_attenuation = 0.0; // tau in scratchapixel code
             // another raymarch to accumulate light attenuation
             for (uint j = 0u; j < numStepsInside; ++j) {
-                vec3 pos_inside = light_ray_entry + (float(j) + 0.5) * step_inside;
+                float jitter = sobol2(j, i + 1u);
+                vec3 pos_inside = light_ray_entry + (float(j) + jitter) * step_inside;
                 light_attenuation += eval_volume_world(pos_inside);
             }
             float light_ray_att = exp(-light_attenuation * stepsize * sigma_t);
