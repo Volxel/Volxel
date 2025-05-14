@@ -5,12 +5,21 @@ An open source volumetric renderer for the Browser. Also my bachelor's thesis.
 Currently, it shows a volumetric sinusoid in white, in front of a blue background.
 ## Development
 
-1. Install the dependencies (Using https://pnpm.io)
+1. Install PNPM (https://pnpm.io)
+2. Install `wasm-pack`, via
+   ```shell
+   pnpm i -g wasm-pack
+   ```
+3. Build the wasm binary
+   ```shell
+   pnpm build:wasm
+   ```
+4. Install the dependencies (Using https://pnpm.io)
     ```shell
     pnpm i
     ```
-2. Run the Vite development server
+5. Run the Vite development server
     ```shell
     pnpm dev
     ```
-3. Open [http://localhost:5173](http://localhost:5173) in a browser that supports WebGL 2.0
+6. Open [http://localhost:5173](http://localhost:5173) in a browser that supports WebGL 2.0

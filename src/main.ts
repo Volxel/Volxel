@@ -5,6 +5,7 @@ import fragmentShader from "./shaders/fragment.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
+import {generateData, sinusoidDensity, sphereDensity} from "./data.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -55,6 +56,8 @@ class State {
   private resLoc: WebGLUniformLocation;
   private debugHitsLoc: WebGLUniformLocation;
 
+  private texture: WebGLTexture;
+
   private input: InputState = {
     debugHits: false
   }
@@ -90,21 +93,9 @@ class State {
     gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
 
     // Prepare Texture for drawing
-    const texture = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0 + 0);
-    gl.bindTexture(gl.TEXTURE_3D, texture);
-    const width = 64, height = 64, depth = 64;
-    const data: [number, number, number, number][] = [];
-    for (let z = 0; z < depth; z++) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      let density = 0.5;
-      //density = Math.sin(x);
-      // density = y - 20 - 10 * Math.sin(0.2 * x / (z * 0.05)) * Math.sin(0.1 * z);
-       density = (Math.pow(x - width / 2, 2) + Math.pow(y - height / 2, 2) + Math.pow(z - depth / 2, 2)) / Math.pow(Math.max(width, height, depth) * 0.9 / 2, 2);
-      density = Math.pow(density, 10);
-      data.push([1 - density, 0, 0, 1]);
-    }
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA32F, width, height, depth, 0, gl.RGBA, gl.FLOAT, new Float32Array(data.flat()))
+    this.texture = gl.createTexture();
+    const width = 128, height = 128, depth = 128;
+    this.changeImageData(generateData(width, height, depth), width, height, depth);
     // set the filtering so we don't need mips
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -155,6 +146,19 @@ class State {
     debugHitsCheckbox.addEventListener("change", () => {
       this.input.debugHits = debugHitsCheckbox.checked;
       this.render();
+    });
+
+    const modelSelect = document.getElementById("density") as HTMLSelectElement;
+    modelSelect.value = "pillars";
+    modelSelect.addEventListener("change", () => {
+      let data: Float32Array;
+      switch (modelSelect.value) {
+        case "sphere": data = generateData(width, height, depth, sphereDensity); break;
+        case "sinusoid": data = generateData(width, height, depth, sinusoidDensity); break;
+        default: data = generateData(width, height, depth);
+      }
+      this.changeImageData(data, width, height, depth);
+      this.render();
     })
   }
 
@@ -162,6 +166,13 @@ class State {
     const loc = this.gl.getUniformLocation(this.program, name);
     if (!loc) throw new Error("Failed to get uniform location of '" + name + "'");
     return loc;
+  }
+
+  changeImageData(data: Float32Array, width: number, height: number, depth: number) {
+    this.gl.activeTexture(this.gl.TEXTURE0 + 0);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
+    this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RGBA32F, width, height, depth, 0, this.gl.RGBA, this.gl.FLOAT, data)
   }
 
   render() {
@@ -196,7 +207,6 @@ class State {
 
 function main() {
   wasm.init();
-  wasm.test_wasm();
   State.instance();
 }
 
