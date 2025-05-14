@@ -3,5 +3,5 @@ import glslIncludePlugin from "./vite-plugin-glsl-include";
 
 export default defineConfig({
     plugins: [glslIncludePlugin()],
-    base: "Volxel"
+    base: "/Volxel"
 })
