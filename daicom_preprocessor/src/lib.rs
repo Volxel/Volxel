@@ -10,6 +10,11 @@ extern "C" {
 }
 
 #[wasm_bindgen]
+pub fn init() {
+    utils::set_panic_hook();
+}
+
+#[wasm_bindgen]
 pub fn test_wasm() {
     alert(format!("Hello, daicom_preprocessor I am writing Rust! {}", size_of::<DefaultDicomObject>()).as_str());
 }

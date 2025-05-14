@@ -195,6 +195,7 @@ class State {
 }
 
 function main() {
+  wasm.init();
   wasm.test_wasm();
   State.instance();
 }
