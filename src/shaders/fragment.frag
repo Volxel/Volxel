@@ -24,6 +24,7 @@ const vec3 light_dir = normalize(vec3(-1.0, -1.0, -1.0));
 const vec3 light_col = vec3(20.0, 20.0, 20.0);
 
 #include "utils.glsl"
+#include "random.glsl"
 
 struct Ray {
     vec3 origin;
@@ -89,11 +90,10 @@ float phase(float g, float cos_theta) {
     return 1.0 / (4.0 * 3.141) * (1.0 - g * g) / (denom * sqrt(denom));
 }
 
+const uint ray_samples = 16u;
+
 vec3 raymarch(vec3 from, vec3 to, vec3 background) {
     vec3 diff = to - from;
-    uint numSteps = uint(ceil(length(diff) / stepsize));
-    float dt = stepsize / length(diff);
-    vec3 step = diff * dt;
 
     // https://www.scratchapixel.com/lessons/3d-basic-rendering/volume-rendering-for-developers/volume-rendering-3D-density-field.html
     float sigma_a = 0.5; // absorption coefficient;
@@ -105,11 +105,25 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
     float transmission = 1.0; // fully transmissive to start with
     vec3 result_col = vec3(0);
 
-    for (uint i = 0u; i < numSteps; ++i) {
-        vec3 pos = from + (float(i) + 0.5) * step;
+    vec4 samples[ray_samples];
+    uint counted_samples = 0u;
+    for (uint i = 0u; i < ray_samples; ++i) {
+        float t = halton(int(i), ray_samples);
+        vec3 pos = from + t * diff;
 
         float density = eval_volume_world(pos);
-        float sample_attenuation = exp(-stepsize * density * sigma_t);
+        if (density > 0.0) {
+            samples[counted_samples++] = vec4(pos, density);
+        }
+    }
+
+    float part = 1.0 / float(counted_samples);
+
+    for (uint i = 0u; i < counted_samples; ++i) {
+        vec3 pos = samples[i].xyz;
+
+        float density = samples[i].w;
+        float sample_attenuation = exp(-part * density * sigma_t);
         transmission *= sample_attenuation;
 
         // In Scattering
@@ -130,12 +144,12 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
             float light_ray_att = exp(-light_attenuation * stepsize * sigma_t);
 
             result_col += light_col *
-                light_ray_att *
-                phase(g, dot(normalize(diff), normalize(light_dir))) *
-                sigma_s *
-                transmission *
-                stepsize *
-                density;
+            light_ray_att *
+            phase(g, dot(normalize(diff), normalize(light_dir))) *
+            sigma_s *
+            transmission *
+            part *
+            density;
         }
 
         if (transmission <= 1e-3) {
@@ -147,7 +161,7 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
 }
 
 vec3 get_background_color(Ray ray) {
-    return vec3(0.1, 0.3, 0.1); //clamp(ray.direction, vec3(0.2), vec3(1.0));
+    return clamp(ray.direction, vec3(0.2), vec3(1.0));
 }
 
 void main() {

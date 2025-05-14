@@ -97,7 +97,7 @@ class State {
       let density = 0.5;
       //density = Math.sin(x);
       // density = y - 20 - 10 * Math.sin(0.2 * x / (z * 0.05)) * Math.sin(0.1 * z);
-      // density = (Math.pow(x - width / 2, 2) + Math.pow(y - height / 2, 2) + Math.pow(z - depth / 2, 2)) / Math.pow(Math.max(width, height, depth) * 0.9 / 2, 2);
+       density = (Math.pow(x - width / 2, 2) + Math.pow(y - height / 2, 2) + Math.pow(z - depth / 2, 2)) / Math.pow(Math.max(width, height, depth) * 0.9 / 2, 2);
       density = Math.pow(density, 10);
       data.push([1 - density, 0, 0, 1]);
     }
