@@ -43,10 +43,14 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: wasm32-unknown-unknown
+      - name: Setup WASM Pack
+        run: pnpm i -g wasm-pack
+      - name: Build WASM binary
+        run: wasm-pack build ./daicom_preprocessor
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
       - name: Build
-        run: pnpm run build
+        run: pnpm run build:web
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
