@@ -39,6 +39,10 @@ jobs:
         with:
           node-version: lts/*
           cache: 'pnpm'
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-unknown
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
       - name: Build

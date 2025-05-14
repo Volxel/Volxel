@@ -4,6 +4,8 @@ import vertexShader from "./shaders/vertex.vert"
 import fragmentShader from "./shaders/fragment.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
+import * as wasm from "daicom_preprocessor";
+
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
 function createShader(gl: WebGL2RenderingContext, type: GLenum, source: string): WebGLShader {
@@ -193,6 +195,7 @@ class State {
 }
 
 function main() {
+  wasm.test_wasm();
   State.instance();
 }
 
