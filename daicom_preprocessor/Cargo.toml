@@ -22,6 +22,7 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 # dicom
 dicom-object = "0.8.1"
 dicom-pixeldata = { version = "0.8.1", features = ["image", "jpeg", "jpegxl", "native"] }
+js-sys = "0.3.77"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.50"

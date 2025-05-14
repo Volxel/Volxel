@@ -82,7 +82,7 @@ const float stepsize = 0.01;
 
 float eval_volume_world(vec3 world_pos) {
     vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
-    return clamp(texture(u_texture, sample_pos).r, 0.0, 1.0);
+    return clamp(texture(u_texture, sample_pos).a, 0.0, 1.0);
 }
 
 float phase(float g, float cos_theta) {

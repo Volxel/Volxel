@@ -5,7 +5,7 @@ import fragmentShader from "./shaders/fragment.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
-import {generateData, sinusoidDensity, sphereDensity} from "./data.ts";
+import {generateData} from "./data.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -153,8 +153,8 @@ class State {
     modelSelect.addEventListener("change", () => {
       let data: Float32Array;
       switch (modelSelect.value) {
-        case "sphere": data = generateData(width, height, depth, sphereDensity); break;
-        case "sinusoid": data = generateData(width, height, depth, sinusoidDensity); break;
+        case "sphere": data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere); break;
+        case "sinusoid": data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid); break;
         default: data = generateData(width, height, depth);
       }
       this.changeImageData(data, width, height, depth);
