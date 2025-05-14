@@ -2,10 +2,9 @@ mod utils;
 
 use wasm_bindgen::prelude::*;
 
-use dicom_object::{open_file, DefaultDicomObject};
-use dicom_pixeldata::PixelDecoder;
-use js_sys::{Float32Array, Uint32Array};
+use dicom_object::DefaultDicomObject;
 use js_sys::Math::{max, pow, sin};
+use js_sys::Float32Array;
 
 #[wasm_bindgen]
 extern "C" {
