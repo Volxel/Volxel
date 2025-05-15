@@ -167,7 +167,7 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
 }
 
 vec3 get_background_color(Ray ray) {
-    return clamp(ray.direction, vec3(0.2), vec3(1.0));
+    return vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
 }
 
 void main() {
