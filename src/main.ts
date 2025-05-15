@@ -5,7 +5,7 @@ import fragmentShader from "./shaders/fragment.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
-import {generateData} from "./data.ts";
+import {generateData, loadDicomData} from "./data.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -208,6 +208,9 @@ class State {
 function main() {
   wasm.init();
   State.instance();
+  loadDicomData().then(result => {
+    console.log("read dicom", result);
+  });
 }
 
 main();

@@ -5,5 +5,6 @@ import topLevelAwait from "vite-plugin-top-level-await";
 
 export default defineConfig({
     plugins: [glslIncludePlugin(), wasm(), topLevelAwait()],
-    base: "/Volxel"
+    base: "/Volxel",
+    assetsInclude: ["**/*.dcm"]
 })

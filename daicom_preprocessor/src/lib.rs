@@ -3,8 +3,9 @@ mod utils;
 use wasm_bindgen::prelude::*;
 
 use dicom_object::DefaultDicomObject;
+use dicom_pixeldata::PixelDecoder;
 use js_sys::Math::{max, pow, sin};
-use js_sys::Float32Array;
+use js_sys::{Float32Array, Uint8Array};
 
 #[wasm_bindgen]
 extern "C" {
@@ -70,4 +71,54 @@ pub fn generate_data(width: u32, height: u32, depth: u32, how: GeneratedDataType
         }
     }
     Float32Array::from(data.as_slice())
+}
+
+#[wasm_bindgen]
+#[allow(dead_code)]
+pub struct DicomData {
+    data: Uint8Array,
+    pub width: u32,
+    pub height: u32,
+    pub depth: u32
+}
+
+pub fn read_dicom(bytes: Uint8Array) -> DicomData {
+    let result_obj = dicom_object::from_reader(bytes.to_vec().as_slice()).unwrap();
+    let pixel_data = result_obj.decode_pixel_data().unwrap();
+    let data = Uint8Array::from(pixel_data.data());
+    DicomData {
+        data,
+        width: pixel_data.columns(),
+        height: pixel_data.rows(),
+        depth: pixel_data.number_of_frames()
+    }
+}
+
+#[wasm_bindgen]
+pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
+    let mut data = Vec::<u8>::new();
+    let mut width: u32 = 0;
+    let mut height: u32 = 0;
+    let mut depth: u32 = 0;
+    for bytes in all_bytes {
+        let dicom = read_dicom(bytes);
+        if width == 0 { width = dicom.width; }
+        else if width != dicom.width { panic!("Different frames had different widths")}
+        if height == 0 { height = dicom.height; }
+        else if height != dicom.height { panic!("Different frames had different heights")}
+        depth += dicom.depth;
+        // TODO: Just appending the bytes probably isn't right
+        data.append(&mut dicom.data.to_vec())
+    }
+    DicomData {
+        data: Uint8Array::from(data.as_slice()),
+        width,
+        height,
+        depth
+    }
+}
+
+#[wasm_bindgen]
+pub fn read_dicom_bytes(dicom: DicomData) -> Uint8Array {
+    dicom.data
 }
