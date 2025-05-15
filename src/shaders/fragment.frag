@@ -80,9 +80,9 @@ vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
 // Simple raymarch that accumulates a float value, early break if it reaches 1
 const float stepsize = 0.01;
 
-float eval_volume_world(vec3 world_pos) {
+vec4 eval_volume_world(vec3 world_pos) {
     vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
-    return clamp(texture(u_texture, sample_pos).a, 0.0, 1.0);
+    return clamp(texture(u_texture, sample_pos), vec4(0), vec4(1));
 }
 
 float phase(float g, float cos_theta) {
@@ -105,24 +105,28 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
     float transmission = 1.0; // fully transmissive to start with
     vec3 result_col = vec3(0);
 
-    vec4 samples[ray_samples];
+    vec4 samples[ray_samples * 2u];
     uint counted_samples = 0u;
     for (uint i = 0u; i < ray_samples; ++i) {
         float t = halton(int(i), ray_samples);
         vec3 pos = from + t * diff;
 
-        float density = eval_volume_world(pos);
-        if (density > 0.0) {
-            samples[counted_samples++] = vec4(pos, density);
+        vec4 sampled = eval_volume_world(pos);
+        if (sampled.a > 0.0) {
+            samples[counted_samples * 2u] = sampled;
+            samples[counted_samples * 2u + 1u] = vec4(pos, 1);
+            counted_samples++;
         }
     }
 
     float part = 1.0 / float(counted_samples);
 
     for (uint i = 0u; i < counted_samples; ++i) {
-        vec3 pos = samples[i].xyz;
+        vec3 pos = samples[i * 2u + 1u].xyz;
 
-        float density = samples[i].w;
+        vec4 sampled = samples[i * 2u];
+
+        float density = sampled.w;
         float sample_attenuation = exp(-part * density * sigma_t);
         transmission *= sample_attenuation;
 
@@ -140,17 +144,18 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
             for (uint j = 0u; j < numStepsInside; ++j) {
                 float jitter = sobol2(j, i + 1u);
                 vec3 pos_inside = light_ray_entry + (float(j) + jitter) * step_inside;
-                light_attenuation += eval_volume_world(pos_inside);
+                // TODO: Light through colored volume
+                light_attenuation += eval_volume_world(pos_inside).a;
             }
             float light_ray_att = exp(-light_attenuation * stepsize * sigma_t);
 
-            result_col += light_col *
-            light_ray_att *
-            phase(g, dot(normalize(diff), normalize(light_dir))) *
-            sigma_s *
-            transmission *
-            part *
-            density;
+            result_col += sampled.rgb * light_col *
+                light_ray_att *
+                phase(g, dot(normalize(diff), normalize(light_dir))) *
+                sigma_s *
+                transmission *
+                part *
+                density;
         }
 
         if (transmission <= 1e-3) {

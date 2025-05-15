@@ -61,9 +61,9 @@ pub fn generate_data(width: u32, height: u32, depth: u32, how: GeneratedDataType
         for y in 0..height {
             for x in 0..width {
                 // useless data, for now only the alpha is used as density
-                data.push(0.0);
-                data.push(0.0);
-                data.push(0.0);
+                data.push(x as f32 / width as f32);
+                data.push(y as f32 / height as f32);
+                data.push(z as f32 / depth as f32);
                 // density
                 let density = generator([x as f64, y as f64, z as f64], dimensions);
                 data.push(density as f32);
