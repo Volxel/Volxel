@@ -2,29 +2,13 @@ mod utils;
 
 use wasm_bindgen::prelude::*;
 
-use dicom_object::DefaultDicomObject;
 use dicom_pixeldata::PixelDecoder;
 use js_sys::Math::{max, pow, sin};
-use js_sys::{Float32Array, Uint8Array};
-
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
+use js_sys::Uint8Array;
 
 #[wasm_bindgen]
 pub fn init() {
     utils::set_panic_hook();
-}
-
-#[wasm_bindgen]
-pub fn test_wasm() {
-    alert(format!("Hello, daicom_preprocessor I am writing Rust! {}", size_of::<DefaultDicomObject>()).as_str());
-}
-
-#[wasm_bindgen]
-pub fn greet() {
-    alert("test")
 }
 
 #[wasm_bindgen]
@@ -49,28 +33,24 @@ fn pillars([x, y, z]: [f64; 3], [width, height, depth]: [f64; 3]) -> f64 {
 }
 
 #[wasm_bindgen]
-pub fn generate_data(width: u32, height: u32, depth: u32, how: GeneratedDataType) -> Float32Array {
+pub fn generate_data(width: u32, height: u32, depth: u32, how: GeneratedDataType) -> Uint8Array {
     let generator = match how {
         GeneratedDataType::Sphere => sphere,
         GeneratedDataType::Sinusoid => sinusoid,
         GeneratedDataType::Pillars => pillars,
     };
     let dimensions = [width as f64, height as f64, depth as f64];
-    let mut data: Vec<f32> = Vec::with_capacity(width as usize * height as usize * depth as usize);
+    let mut data: Vec<u8> = Vec::with_capacity(width as usize * height as usize * depth as usize);
     for z in 0..depth {
         for y in 0..height {
             for x in 0..width {
-                // useless data, for now only the alpha is used as density
-                data.push(x as f32 / width as f32);
-                data.push(y as f32 / height as f32);
-                data.push(z as f32 / depth as f32);
                 // density
                 let density = generator([x as f64, y as f64, z as f64], dimensions);
-                data.push(density as f32);
+                data.push((density * u8::MAX as f64) as u8);
             }
         }
     }
-    Float32Array::from(data.as_slice())
+    Uint8Array::from(data.as_slice())
 }
 
 #[wasm_bindgen]

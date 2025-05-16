@@ -151,7 +151,7 @@ class State {
     const modelSelect = document.getElementById("density") as HTMLSelectElement;
     modelSelect.value = "pillars";
     modelSelect.addEventListener("change", () => {
-      let data: Float32Array;
+      let data: Uint8Array;
       switch (modelSelect.value) {
         case "sphere": data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere); break;
         case "sinusoid": data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid); break;
@@ -168,11 +168,11 @@ class State {
     return loc;
   }
 
-  changeImageData(data: Float32Array, width: number, height: number, depth: number) {
+  changeImageData(data: Uint8Array, width: number, height: number, depth: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RGBA32F, width, height, depth, 0, this.gl.RGBA, this.gl.FLOAT, data)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, width, height, depth, 0, this.gl.RED, this.gl.UNSIGNED_BYTE, data)
   }
 
   render() {
