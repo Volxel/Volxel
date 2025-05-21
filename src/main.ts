@@ -5,7 +5,7 @@ import fragmentShader from "./shaders/fragment.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
-import {generateData, loadDicomData} from "./data.ts";
+import {generateData, loadDicomData, prepareTransferFunction} from "./data.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -52,11 +52,13 @@ class State {
   private program: WebGLProgram;
 
   private textureLoc: WebGLUniformLocation;
+  private transferLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
   private resLoc: WebGLUniformLocation;
   private debugHitsLoc: WebGLUniformLocation;
 
   private texture: WebGLTexture;
+  private transfer: WebGLTexture;
 
   private input: InputState = {
     debugHits: false
@@ -104,8 +106,12 @@ class State {
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
 
+    // Setup transfer function
+    this.transfer = prepareTransferFunction(this.gl)
+
     // get uniform locations
     this.textureLoc = this.getUniformLocation("u_texture");
+    this.transferLoc = this.getUniformLocation("u_transfer");
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
     this.resLoc = this.getUniformLocation("u_res");
     this.debugHitsLoc = this.getUniformLocation("u_debugHits");
@@ -172,7 +178,6 @@ class State {
           break;
       }
       const longestLength = dimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-      console.log("longestLength", longestLength);
       const [nwidth, nheight, ndepth] = dimensions.map(side => (side / longestLength) / 2);
       this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
       this.changeImageData(data, ...dimensions);
@@ -209,7 +214,10 @@ class State {
   }
 
   bindUniforms() {
+    this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.uniform1i(this.textureLoc, 0);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+    this.gl.uniform1i(this.transferLoc, 1);
     this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
