@@ -161,12 +161,14 @@ class State {
       let data: Uint8Array;
       let dimensions: [number, number, number];
       switch (modelSelect.value) {
-        // @ts-ignore explicit fallthrough
         case "sphere":
           data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere);
-        // @ts-ignore explicit fallthrough
+          dimensions = [width, height, depth]
+          break;
         case "sinusoid":
           data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid);
+          dimensions = [width, height, depth]
+          break;
         default:
           data = generateData(width, height, depth);
           dimensions = [width, height, depth]
@@ -178,7 +180,7 @@ class State {
           break;
       }
       const longestLength = dimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-      const [nwidth, nheight, ndepth] = dimensions.map(side => (side / longestLength) / 2);
+      const [nwidth, nheight, ndepth] = dimensions.map(side => (side / longestLength));
       this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
       this.changeImageData(data, ...dimensions);
       this.render();
