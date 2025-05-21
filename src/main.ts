@@ -163,7 +163,7 @@ class State {
     });
 
     const transferSelect = document.getElementById("transfer") as HTMLSelectElement;
-    transferSelect.value = "spline";
+    transferSelect.value = "none";
     transferSelect.addEventListener("change", async () => {
       let transfer: TransferFunction = {
         spline: TransferFunction.SplineShaded,
@@ -255,7 +255,7 @@ class State {
 
 async function main() {
   wasm.init();
-  new State(await loadTransferFunction(TransferFunction.SplineShaded))
+  new State(await loadTransferFunction(TransferFunction.None))
 }
 
 main();
