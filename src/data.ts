@@ -11,9 +11,8 @@ export type DicomData = {
     data: Uint8Array;
     dimensions: [width: number, height: number, depth: number]
 }
-
 export async function loadDicomData(): Promise<DicomData> {
-    const urls = new Array(500).fill(0).map((_, i) => "/Volxel/Dicom/ROI000.dcm".replace("000", `${i}`.padStart(3, "0")))
+    const urls = new Array(348).fill(0).map((_, i) => "/Volxel/Dicom/Anatomie_24-16/axial/Lunge/Anatomie^2416^^^=^^^^=^^^^.CT.1.2.001.DCM".replace("001", `${i + 1}`.padStart(3, "0")))
     const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
     const dicomData = wasm.read_dicoms(allBytes);
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];

@@ -63,6 +63,7 @@ class State {
   }
 
   private camera: Camera;
+  private aabb: number[] = [-1, -1, -1, 1, 1, 1];
 
   constructor() {
     // Get canvas to render to
@@ -150,14 +151,31 @@ class State {
 
     const modelSelect = document.getElementById("density") as HTMLSelectElement;
     modelSelect.value = "pillars";
-    modelSelect.addEventListener("change", () => {
+    modelSelect.addEventListener("change", async () => {
       let data: Uint8Array;
+      let dimensions: [number, number, number];
       switch (modelSelect.value) {
-        case "sphere": data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere); break;
-        case "sinusoid": data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid); break;
-        default: data = generateData(width, height, depth);
+        // @ts-ignore explicit fallthrough
+        case "sphere":
+          data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere);
+        // @ts-ignore explicit fallthrough
+        case "sinusoid":
+          data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid);
+        default:
+          data = generateData(width, height, depth);
+          dimensions = [width, height, depth]
+          break;
+        case "dicom":
+          const dicom = await loadDicomData();
+          data = dicom.data;
+          dimensions = dicom.dimensions;
+          break;
       }
-      this.changeImageData(data, width, height, depth);
+      const longestLength = dimensions.reduce((max, cur) => cur > max ? cur : max, 0);
+      console.log("longestLength", longestLength);
+      const [nwidth, nheight, ndepth] = dimensions.map(side => (side / longestLength) / 2);
+      this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+      this.changeImageData(data, ...dimensions);
       this.render();
     })
   }
@@ -192,7 +210,7 @@ class State {
 
   bindUniforms() {
     this.gl.uniform1i(this.textureLoc, 0);
-    this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array([-1, -1, -1, 1, 1, 1]));
+    this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
   }
@@ -208,9 +226,6 @@ class State {
 function main() {
   wasm.init();
   State.instance();
-  loadDicomData().then(result => {
-    console.log("read dicom", result);
-  });
 }
 
 main();
