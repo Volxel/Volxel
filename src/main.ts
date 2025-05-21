@@ -165,12 +165,12 @@ class State {
     const transferSelect = document.getElementById("transfer") as HTMLSelectElement;
     transferSelect.value = "spline";
     transferSelect.addEventListener("change", async () => {
-      let transfer: TransferFunction = TransferFunction.None;
-      switch (transferSelect.value) {
-        case "spline":
-          transfer = TransferFunction.SplineShaded;
-          break;
-      }
+      let transfer: TransferFunction = {
+        spline: TransferFunction.SplineShaded,
+        a: TransferFunction.AbdA,
+        b: TransferFunction.AbdB,
+        c: TransferFunction.AbdC,
+      }[transferSelect.value] ?? TransferFunction.None
       const {data, length} = await loadTransferFunction(transfer);
       this.changeTransferFunc(data, length);
       this.render();

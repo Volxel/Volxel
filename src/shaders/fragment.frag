@@ -183,6 +183,7 @@ void main() {
     vec4 result;
     uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y));
     for (uint i = 0u; i < ray_count; ++i) {
+        seed += i;
         Ray ray = setup_world_ray(tex, int(i));
         if (intersect_ray(ray, u_volume_aabb, hit_min, hit_max)) {
             if(u_debugHits) {

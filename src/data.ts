@@ -8,8 +8,10 @@ export type DicomData = {
     data: Uint8Array;
     dimensions: [width: number, height: number, depth: number]
 }
+const dicomBasePath = "/Volxel/Dicom/Anatomie_24-16/axial/WT/Anatomie^2416^^^=^^^^=^^^^.CT.1.1.001.DCM"
+
 export async function loadDicomData(): Promise<DicomData> {
-    const urls = new Array(348).fill(0).map((_, i) => "/Volxel/Dicom/Anatomie_24-16/axial/Lunge/Anatomie^2416^^^=^^^^=^^^^.CT.1.2.001.DCM".replace("001", `${i + 1}`.padStart(3, "0")))
+    const urls = new Array(348).fill(0).map((_, i) => dicomBasePath.replace("001", `${i + 1}`.padStart(3, "0")))
     const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
     const dicomData = wasm.read_dicoms(allBytes);
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
@@ -23,14 +25,30 @@ export async function loadDicomData(): Promise<DicomData> {
 
 export enum TransferFunction {
     None,
-    SplineShaded
+    SplineShaded,
+    AbdA,
+    AbdB,
+    AbdC
+}
+
+async function loadTransferFromNetwork(path: string): Promise<number[][]> {
+    return (await (await fetch(path)).text()).split("\n").map(line => line.split(" ").map(num => Number.parseFloat(num))).filter(line => line.length === 4);
 }
 
 export async function loadTransferFunction(transfer: TransferFunction = TransferFunction.None): Promise<{data: Float32Array, length: number}> {
     let result: number[][]
     switch (transfer) {
         case TransferFunction.SplineShaded:
-            result = (await (await fetch("/Volxel/Dicom/SplineShaded.txt")).text()).split("\n").map(line => line.split(" ").map(num => Number.parseFloat(num))).filter(line => line.length === 4);
+            result = await loadTransferFromNetwork("/Volxel/Dicom/SplineShaded.txt")
+            break;
+        case TransferFunction.AbdA:
+            result = await loadTransferFromNetwork("/Volxel/Dicom/AbdShaded_a.txt")
+            break;
+        case TransferFunction.AbdB:
+            result = await loadTransferFromNetwork("/Volxel/Dicom/AbdShaded_b.txt")
+            break;
+        case TransferFunction.AbdC:
+            result = await loadTransferFromNetwork("/Volxel/Dicom/AbdShaded_c.txt")
             break;
         default:
             result = new Array(128).fill(0).map((_, i) => [1, 1, 1, i / 128]);
