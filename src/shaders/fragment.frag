@@ -32,8 +32,12 @@ struct Ray {
     vec3 direction;
 };
 
-Ray setup_world_ray(vec2 ss_position) {
+Ray setup_world_ray(vec2 ss_position, int i) {
     float aspect = float(u_res.x) / float(u_res.y);
+
+    float x_offset = (halton(i, 2u) * 2.0 - 1.0) * (1.0 / float(u_res.x));
+    float y_offset = (halton(i, 3u) * 2.0 - 1.0) * (1.0 / float(u_res.y));
+    ss_position += vec2(x_offset, y_offset);
 
     vec3 forward = normalize(camera_view);
     vec3 right = normalize(cross(forward, camera_up));
@@ -92,9 +96,9 @@ float phase(float g, float cos_theta) {
     return 1.0 / (4.0 * 3.141) * (1.0 - g * g) / (denom * sqrt(denom));
 }
 
-const uint ray_samples = 16u;
+const uint ray_samples = 8u;
 
-vec3 raymarch(vec3 from, vec3 to, vec3 background) {
+vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
     vec3 diff = to - from;
 
     // https://www.scratchapixel.com/lessons/3d-basic-rendering/volume-rendering-for-developers/volume-rendering-3D-density-field.html
@@ -110,7 +114,8 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
     vec4 samples[ray_samples * 2u];
     uint counted_samples = 0u;
     for (uint i = 0u; i < ray_samples; ++i) {
-        float t = halton(int(i), ray_samples);
+        // TODO: This should not be uniformly distributed
+        float t = rng(seed);
         vec3 pos = from + t * diff;
 
         vec4 sampled = eval_volume_world(pos);
@@ -143,8 +148,7 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background) {
             float light_attenuation = 0.0; // tau in scratchapixel code
             // another raymarch to accumulate light attenuation
             for (uint j = 0u; j < numStepsInside; ++j) {
-                float jitter = sobol2(j, i + 1u);
-                vec3 pos_inside = light_ray_entry + (float(j) + jitter) * step_inside;
+                vec3 pos_inside = light_ray_entry + float(j) * step_inside;
                 light_attenuation += eval_volume_world(pos_inside).a;
             }
             float light_ray_att = exp(-light_attenuation * stepsize * sigma_t);
@@ -170,19 +174,25 @@ vec3 get_background_color(Ray ray) {
     return vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.2, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
 }
 
+const uint ray_count = 4u;
+
 void main() {
     vec3 hit_min;
     vec3 hit_max;
-    Ray ray = setup_world_ray(tex);
-    bool hit;
-    if (intersect_ray(ray, u_volume_aabb, hit_min, hit_max)) {
-        hit = true;
-        if(u_debugHits) {
-            outColor = vec4(world_to_aabb(hit_min, u_volume_aabb), 1);
-            return;
+
+    vec4 result;
+    uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y));
+    for (uint i = 0u; i < ray_count; ++i) {
+        Ray ray = setup_world_ray(tex, int(i));
+        if (intersect_ray(ray, u_volume_aabb, hit_min, hit_max)) {
+            if(u_debugHits) {
+                result += vec4(world_to_aabb(hit_min, u_volume_aabb), 1);
+            } else {
+                result += vec4(raymarch(hit_min, hit_max, get_background_color(ray), seed), 1.0);
+            }
+        } else {
+            result += vec4(get_background_color(ray), 1.0);
         }
-        outColor = vec4(raymarch(hit_min, hit_max, get_background_color(ray)), 1.0);
-    } else {
-        outColor = vec4(get_background_color(ray), 1.0);
     }
+    outColor = result / float(ray_count);
 }

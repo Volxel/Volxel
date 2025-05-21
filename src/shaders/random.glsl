@@ -32,3 +32,9 @@ float sobol2(uint i, uint scramble) {
             scramble ^= v;
     return float((scramble >> 8u) & uint(0xffffff)) / float(1 << 24);
 }
+
+
+float rng(inout uint previous) { // return a random sample in the range [0, 1) with a simple linear congruential generator
+    previous = previous * 1664525u + 1013904223u;
+    return float(previous & 0x00FFFFFFu) / float(0x01000000u);
+}

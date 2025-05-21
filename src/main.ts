@@ -98,7 +98,7 @@ class State {
 
     // Prepare Texture for drawing
     this.texture = gl.createTexture();
-    const width = 96, height = 96, depth = 96;
+    const width = 256, height = 256, depth = 256;
     this.changeImageData(generateData(width, height, depth), width, height, depth);
     // set the filtering so we don't need mips
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -163,7 +163,7 @@ class State {
     });
 
     const transferSelect = document.getElementById("transfer") as HTMLSelectElement;
-    transferSelect.value = "none";
+    transferSelect.value = "spline";
     transferSelect.addEventListener("change", async () => {
       let transfer: TransferFunction = TransferFunction.None;
       switch (transferSelect.value) {
@@ -221,7 +221,6 @@ class State {
     this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, width, height, depth, 0, this.gl.RED, this.gl.UNSIGNED_BYTE, data)
   }
   changeTransferFunc(data: Float32Array, length: number) {
-    console.log(data);
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
