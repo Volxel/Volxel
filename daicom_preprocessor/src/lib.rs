@@ -26,10 +26,8 @@ fn sinusoid([x, y, z]: [f64; 3], [_, _, _]: [f64; 3]) -> f64 {
     1f64 - (y - 20.0 - 10.0 * sin(0.2 * x / (z * 0.05)) * sin(0.1 * z))
 }
 fn pillars([x, y, z]: [f64; 3], [width, height, depth]: [f64; 3]) -> f64 {
-    if y < (sin(x / width * 16.0) * 0.5 + 0.7) * (sin(z / depth * 16.0) * 0.5 + 0.7) * 0.5 * height {
-        return 1.0
-    }
-    0.0
+    let result = (((sin(x / width * 16.0) * 0.5 + 0.7) * (sin(z / depth * 16.0) * 0.5 + 0.7) * 0.5 * height) - y) / height;
+    result.clamp(0.0, 1.0)
 }
 
 #[wasm_bindgen]

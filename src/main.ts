@@ -5,7 +5,7 @@ import fragmentShader from "./shaders/fragment.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
-import {generateData, loadDicomData, prepareTransferFunction} from "./data.ts";
+import {generateData, loadDicomData, loadTransferFunction, TransferFunction} from "./data.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -58,6 +58,7 @@ class State {
   private debugHitsLoc: WebGLUniformLocation;
 
   private texture: WebGLTexture;
+  // @ts-ignore happens in util function
   private transfer: WebGLTexture;
 
   private input: InputState = {
@@ -67,7 +68,7 @@ class State {
   private camera: Camera;
   private aabb: number[] = [-1, -1, -1, 1, 1, 1];
 
-  constructor() {
+  constructor(defaultTransferFunction: { data: Float32Array, length: number }) {
     // Get canvas to render to
     this.canvas = document.getElementById("app") as HTMLCanvasElement;
 
@@ -97,7 +98,7 @@ class State {
 
     // Prepare Texture for drawing
     this.texture = gl.createTexture();
-    const width = 128, height = 128, depth = 128;
+    const width = 96, height = 96, depth = 96;
     this.changeImageData(generateData(width, height, depth), width, height, depth);
     // set the filtering so we don't need mips
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -107,7 +108,13 @@ class State {
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
 
     // Setup transfer function
-    this.transfer = prepareTransferFunction(this.gl)
+    this.transfer = this.gl.createTexture();
+    const { data, length } = defaultTransferFunction;
+    this.changeTransferFunc(data, length);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
     // get uniform locations
     this.textureLoc = this.getUniformLocation("u_texture");
@@ -125,12 +132,12 @@ class State {
         const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
         const ratio = window.devicePixelRatio || 1;
         c.width = Math.max(
-          1,
-          entry.contentBoxSize[0].inlineSize
+            1,
+            entry.contentBoxSize[0].inlineSize
         ) * ratio;
         c.height = Math.max(
-          1,
-          entry.contentBoxSize[0].blockSize
+            1,
+            entry.contentBoxSize[0].blockSize
         ) * ratio;
       }
       this.render();
@@ -154,6 +161,20 @@ class State {
       this.input.debugHits = debugHitsCheckbox.checked;
       this.render();
     });
+
+    const transferSelect = document.getElementById("transfer") as HTMLSelectElement;
+    transferSelect.value = "none";
+    transferSelect.addEventListener("change", async () => {
+      let transfer: TransferFunction = TransferFunction.None;
+      switch (transferSelect.value) {
+        case "spline":
+          transfer = TransferFunction.SplineShaded;
+          break;
+      }
+      const {data, length} = await loadTransferFunction(transfer);
+      this.changeTransferFunc(data, length);
+      this.render();
+    })
 
     const modelSelect = document.getElementById("density") as HTMLSelectElement;
     modelSelect.value = "pillars";
@@ -199,6 +220,13 @@ class State {
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
     this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, width, height, depth, 0, this.gl.RED, this.gl.UNSIGNED_BYTE, data)
   }
+  changeTransferFunc(data: Float32Array, length: number) {
+    console.log(data);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
+    this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
+  }
 
   render() {
     // Set up viewport size, since canvas size can change
@@ -224,18 +252,11 @@ class State {
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
   }
-
-  private static INSTANCE: State | null = null;
-
-  static instance(): State {
-    this.INSTANCE ??= new State();
-    return this.INSTANCE;
-  }
 }
 
-function main() {
+async function main() {
   wasm.init();
-  State.instance();
+  new State(await loadTransferFunction(TransferFunction.SplineShaded))
 }
 
 main();
