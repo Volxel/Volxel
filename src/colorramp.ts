@@ -52,7 +52,7 @@ export class ColorRampComponent extends HTMLElement {
             }
             
             button.stopControl {
-                left: calc(var(--offset) * 100%);
+                left: calc(var(--temp-offset, var(--offset)) * 100%);
                 top: -1px;
                 bottom: -1px;
                 position: absolute;
@@ -98,7 +98,40 @@ export class ColorRampComponent extends HTMLElement {
         const gradientSteps: string[] = [];
         for (const stop of this.colors) {
             const stopControl = document.createElement("button");
+            let dragging = false;
+            let startX = 0;
+
+            stopControl.addEventListener("mousedown", (e) => {
+                dragging = false;
+                startX = e.clientX;
+
+                const onMouseMove = (e: MouseEvent) => {
+                    if (Math.abs(e.clientX - startX) > 5) {
+                        dragging = true;
+                        const relativeOffset = (e.clientX - startX) / this.displayedColorDiv.clientWidth;
+                        stopControl.style.setProperty("--temp-offset", "" + Math.min(1.0, Math.max(0.0, stop.stop + relativeOffset)))
+                    }
+                }
+
+                const onMouseUp = (e: MouseEvent) => {
+                    document.removeEventListener("mousemove", onMouseMove);
+                    document.removeEventListener("mouseup", onMouseUp);
+
+                    if (dragging) {
+                        const relativeOffset = (e.clientX - startX) / this.displayedColorDiv.clientWidth;
+                        stop.stop = Math.min(1.0, Math.max(0.0, stop.stop + relativeOffset));
+                        this.rerenderColors();
+                        this.dispatchEvent(new CustomEvent("change", { detail: this.colors }))
+                    }
+                }
+
+                document.addEventListener("mousemove", onMouseMove);
+                document.addEventListener("mouseup", onMouseUp);
+            })
+
+            // Click listener to change
             stopControl.addEventListener("click", () => {
+                if (dragging) return;
                 const onInput = (_event: Event) => {
                     this.colorInput.style.setProperty("color", this.colorInput.value);
                     const computedColor = getComputedStyle(this.colorInput).color;
@@ -113,7 +146,7 @@ export class ColorRampComponent extends HTMLElement {
                 }
                 this.colorInput.addEventListener("input", onInput);
                 this.colorInput.click();
-            })
+            });
             stopControl.classList.toggle("stopControl", true);
 
             const color = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3] * 255)})`;
