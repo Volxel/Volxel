@@ -121,7 +121,7 @@ class State {
       gl.texImage2D(
           gl.TEXTURE_2D,
           0,
-          gl.RGBA8,
+          gl.RGBA,
           this.canvas.width,
           this.canvas.height,
           0,
@@ -213,7 +213,7 @@ class State {
           gl.texImage2D(
               gl.TEXTURE_2D,
               0,
-              gl.RGBA8,
+              gl.RGBA,
               width,
               height,
               0,
@@ -313,9 +313,9 @@ class State {
 
   render() {
     this.gl.disable(this.gl.DEPTH_TEST);
-    console.log(this.framebuffers);
     // -- Render into Framebuffer --
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[0].fbo);
+    this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
     // Set up viewport size, since canvas size can change
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
@@ -340,7 +340,7 @@ class State {
     this.gl.useProgram(this.blit);
     this.gl.activeTexture(this.gl.TEXTURE0 + 2 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[0].target);
-    this.gl.uniform1i(this.targetLocation, 0);
+    this.gl.uniform1i(this.targetLocation, 2);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
   }
 
