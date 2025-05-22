@@ -27,7 +27,7 @@ const float feedback = 0.9;
 
 // Light
 const vec3 light_dir = normalize(vec3(-1.0, -1.0, -1.0));
-const vec3 light_col = vec3(20.0, 20.0, 20.0);
+const vec3 light_col = vec3(50.0, 50.0, 50.0);
 
 #include "utils.glsl"
 #include "random.glsl"
