@@ -114,7 +114,7 @@ class State {
     this.blit = createProgram(gl, vertex, blit);
 
     // Prepare framebuffers for ping pong rendering
-    for (let i = 0; i < 1; i++) {
+    for (let i = 0; i < 2; i++) {
       const renderTargetTexture = gl.createTexture();
       gl.activeTexture(gl.TEXTURE0 + 2 + i);
       gl.bindTexture(gl.TEXTURE_2D, renderTargetTexture);
@@ -314,7 +314,7 @@ class State {
   render() {
     this.gl.disable(this.gl.DEPTH_TEST);
     // -- Render into Framebuffer --
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[0].fbo);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
     this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
     // Set up viewport size, since canvas size can change
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
@@ -338,10 +338,13 @@ class State {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
     this.gl.useProgram(this.blit);
-    this.gl.activeTexture(this.gl.TEXTURE0 + 2 + 0);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[0].target);
-    this.gl.uniform1i(this.targetLocation, 2);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 2 + this.framebufferPingPong);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[this.framebufferPingPong].target);
+    this.gl.uniform1i(this.targetLocation, 2 + this.framebufferPingPong);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+
+    // ping pong
+    this.framebufferPingPong = (this.framebufferPingPong + 1) % 2;
   }
 
   bindUniforms() {
