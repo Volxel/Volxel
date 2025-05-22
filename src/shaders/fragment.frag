@@ -9,6 +9,7 @@ in vec2 tex;
 
 uniform sampler3D u_texture;
 uniform sampler2D u_transfer;
+uniform sampler2D u_previous_frame;
 uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
 
@@ -19,6 +20,8 @@ const vec3 camera_up = vec3(0, 1, 0);
 
 // Shows ray intersection with AABB instead of volume
 uniform bool u_debugHits;
+
+const float feedback = 0.9;
 
 // Light
 const vec3 light_dir = normalize(vec3(-1.0, -1.0, -1.0));
@@ -180,6 +183,7 @@ void main() {
     vec3 hit_min;
     vec3 hit_max;
 
+    vec4 previous_frame = texture(u_previous_frame, tex * 0.5 + 0.5);
     vec4 result;
     uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y));
     for (uint i = 0u; i < ray_count; ++i) {
@@ -195,5 +199,7 @@ void main() {
             result += vec4(get_background_color(ray), 1.0);
         }
     }
-    outColor = result / float(ray_count);
+    result = result / float(ray_count);
+
+    outColor = (1.0 - feedback) * result + feedback * previous_frame;
 }

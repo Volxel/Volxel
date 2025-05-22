@@ -74,6 +74,7 @@ class State {
 
   private textureLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
+  private previousFrameLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
   private resLoc: WebGLUniformLocation;
   private debugHitsLoc: WebGLUniformLocation;
@@ -181,6 +182,7 @@ class State {
     // get uniform locations
     this.textureLoc = this.getUniformLocation("u_texture");
     this.transferLoc = this.getUniformLocation("u_transfer");
+    this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
     this.resLoc = this.getUniformLocation("u_res");
     this.debugHitsLoc = this.getUniformLocation("u_debugHits");
@@ -313,6 +315,7 @@ class State {
 
   render() {
     this.gl.disable(this.gl.DEPTH_TEST);
+    const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
     // -- Render into Framebuffer --
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
     this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
@@ -325,7 +328,7 @@ class State {
 
     // Execute this.program
     this.gl.useProgram(this.program);
-    this.bindUniforms();
+    this.bindUniforms(previous_pong);
     this.camera.bindAsUniforms(this.gl);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
@@ -344,16 +347,21 @@ class State {
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
     // ping pong
-    this.framebufferPingPong = (this.framebufferPingPong + 1) % 2;
+    this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
   }
 
-  bindUniforms() {
+  bindUniforms(framebuffer: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
     this.gl.uniform1i(this.textureLoc, 0);
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.transferLoc, 1);
+    // bind previous frame
+    this.gl.activeTexture(this.gl.TEXTURE0 + 2 + framebuffer);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
+    this.gl.uniform1i(this.previousFrameLoc, 2 + framebuffer);
+
     this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
