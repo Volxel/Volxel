@@ -23,20 +23,22 @@
           <select name="density" id="density">
             <option value="sphere">Sphere</option>
             <option value="sinusoid">Sinusoid</option>
+            <option value="pillars">Pillars</option>
             <option value="dicom">DICOM</option>
-            <option value="pillars" selected>Pillars</option>
           </select>
         </label>
         <label>
           Transfer Function
           <select name="transfer" id="transfer">
             <option value="none">None</option>
+            <option value="generated">Generated</option>
             <option value="spline">SplinShader.txt</option>
             <option value="a">AdbShaded_a.txt</option>
             <option value="b">AdbShaded_b.txt</option>
             <option value="c">AdbShaded_c.txt</option>
           </select>
         </label>
+        <color-ramp-component id="color-ramp"></color-ramp-component>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

@@ -58,3 +58,46 @@ export async function loadTransferFunction(transfer: TransferFunction = Transfer
     const data = new Float32Array(result.flat());
     return {data, length}
 }
+
+export type ColorStop = {
+    color: [r: number, g: number, b: number, density: number],
+    stop: number
+}
+
+export function generateTransferFunction(colors: ColorStop[], generatedSteps: number = 128): {data: Float32Array, length: number} {
+    if (colors.length < 1) throw new Error("At least one color stop required");
+    const sortedColors = [...colors];
+    sortedColors.sort((a, b) => a.stop - b.stop);
+    if (sortedColors.some(stop => stop.stop < 0.0 || stop.stop > 1.0)) throw new Error("ColorStop outside stop range")
+
+    let currentStop: number = -1;
+    const generatedColors: [number, number, number, number][] = [];
+    for (let i = 0; i < generatedSteps; ++i) {
+        const currentPosition = (i / generatedSteps);
+        if (currentStop < 0) {
+            if (sortedColors[0].stop >= currentPosition) {
+                currentStop = 0;
+                generatedColors.push(sortedColors[currentStop].color);
+            } else {
+                generatedColors.push([0, 0, 0, 0]);
+            }
+        } else {
+            const next = sortedColors[currentStop + 1];
+            if (!next) generatedColors.push(sortedColors[currentStop].color);
+            else {
+                const progressToNext = (currentPosition - sortedColors[currentStop].stop)/(next.stop - sortedColors[currentStop].stop);
+                if (progressToNext >= 1.0) {
+                    generatedColors.push(next.color);
+                    currentStop++;
+                    continue;
+                }
+                const color = sortedColors[currentStop].color.map((v, i) => (1 - progressToNext) * v + progressToNext * next.color[i]) as [number, number, number, number];
+                generatedColors.push(color);
+            }
+        }
+    }
+    return {
+        data: new Float32Array(generatedColors.flat()),
+        length: generatedSteps
+    }
+}
