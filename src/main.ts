@@ -59,6 +59,7 @@ function checkFbo(gl: WebGL2RenderingContext) {
 
 type InputState = {
   debugHits: boolean;
+  accumulation: boolean;
 }
 
 type Framebuffer = {
@@ -75,6 +76,8 @@ class State {
   private textureLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
   private previousFrameLoc: WebGLUniformLocation;
+  private restartLoc: WebGLUniformLocation;
+  private frameIndexLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
   private resLoc: WebGLUniformLocation;
   private debugHitsLoc: WebGLUniformLocation;
@@ -84,13 +87,17 @@ class State {
   private framebuffers: Framebuffer[] = [];
   private framebufferPingPong: number = 0;
   private restart: boolean = true;
+  private frameIndex: number = 0;
+
+  private suspend: boolean = true;
 
   private texture: WebGLTexture;
   // @ts-ignore happens in util function
   private transfer: WebGLTexture;
 
   private input: InputState = {
-    debugHits: false
+    debugHits: false,
+    accumulation: true,
   }
 
   private camera: Camera;
@@ -183,6 +190,8 @@ class State {
     this.textureLoc = this.getUniformLocation("u_texture");
     this.transferLoc = this.getUniformLocation("u_transfer");
     this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
+    this.restartLoc = this.getUniformLocation("u_restart");
+    this.frameIndexLoc = this.getUniformLocation("u_frame_index");
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
     this.resLoc = this.getUniformLocation("u_res");
     this.debugHitsLoc = this.getUniformLocation("u_debugHits");
@@ -194,103 +203,117 @@ class State {
 
     // Prepare automatic resizing of canvas
     const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) if (entry.target === this.canvas) {
-        const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
-        const ratio = window.devicePixelRatio || 1;
-        const width = Math.max(
-            1,
-            entry.contentBoxSize[0].inlineSize
-        ) * ratio;
-        const height = Math.max(
-            1,
-            entry.contentBoxSize[0].blockSize
-        ) * ratio;
+      this.restartRendering(() => {
+        for (const entry of entries) if (entry.target === this.canvas) {
+          const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
+          const ratio = window.devicePixelRatio || 1;
+          const width = Math.max(
+              1,
+              entry.contentBoxSize[0].inlineSize
+          ) * ratio;
+          const height = Math.max(
+              1,
+              entry.contentBoxSize[0].blockSize
+          ) * ratio;
 
-        c.width = width;
-        c.height = height;
+          c.width = width;
+          c.height = height;
 
-        // resize framebuffer textures
-        for (const { target } of this.framebuffers) {
-          gl.bindTexture(gl.TEXTURE_2D, target);
-          gl.texImage2D(
-              gl.TEXTURE_2D,
-              0,
-              gl.RGBA,
-              width,
-              height,
-              0,
-              gl.RGBA,
-              gl.UNSIGNED_BYTE,
-              null
-          )
-          gl.bindTexture(gl.TEXTURE_2D, null);
+          // resize framebuffer textures
+          for (const { target } of this.framebuffers) {
+            gl.bindTexture(gl.TEXTURE_2D, target);
+            gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                gl.RGBA,
+                width,
+                height,
+                0,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                null
+            )
+            gl.bindTexture(gl.TEXTURE_2D, null);
+          }
         }
-      }
-      this.render();
+      })
     });
     resizeObserver.observe(this.canvas);
 
     // Prepare inputs
     setupPanningListeners(this.canvas, (by) => {
-      this.camera.rotateAroundView(by);
-      this.render();
+      this.restartRendering(() => {
+        this.camera.rotateAroundView(by);
+      })
     }, (by) => {
-      this.camera.zoom(by);
-      this.render();
+      this.restartRendering(() => {
+        this.camera.zoom(by);
+      })
     }, (by) => {
-      this.camera.translateOnPlane(by);
-      this.render();
+      this.restartRendering(() => {
+        this.camera.translateOnPlane(by);
+      })
     });
     const debugHitsCheckbox = document.getElementById("debug_hit") as HTMLInputElement;
     debugHitsCheckbox.checked = this.input.debugHits;
     debugHitsCheckbox.addEventListener("change", () => {
-      this.input.debugHits = debugHitsCheckbox.checked;
-      this.render();
+      this.restartRendering(() => {
+        this.input.debugHits = debugHitsCheckbox.checked;
+      })
+    });
+    const accumulationCheckbox = document.getElementById("accumulation") as HTMLInputElement;
+    accumulationCheckbox.checked = this.input.accumulation;
+    accumulationCheckbox.addEventListener("change", () => {
+      this.restartRendering(() => {
+        this.input.accumulation = accumulationCheckbox.checked;
+      })
     });
 
     const transferSelect = document.getElementById("transfer") as HTMLSelectElement;
     transferSelect.value = "none";
     transferSelect.addEventListener("change", async () => {
-      let transfer: TransferFunction = {
-        spline: TransferFunction.SplineShaded,
-        a: TransferFunction.AbdA,
-        b: TransferFunction.AbdB,
-        c: TransferFunction.AbdC,
-      }[transferSelect.value] ?? TransferFunction.None
-      const {data, length} = await loadTransferFunction(transfer);
-      this.changeTransferFunc(data, length);
-      this.render();
+      await this.restartRendering(async () => {
+        let transfer: TransferFunction = {
+          spline: TransferFunction.SplineShaded,
+          a: TransferFunction.AbdA,
+          b: TransferFunction.AbdB,
+          c: TransferFunction.AbdC,
+        }[transferSelect.value] ?? TransferFunction.None
+        const {data, length} = await loadTransferFunction(transfer);
+        this.changeTransferFunc(data, length);
+      })
     })
 
     const modelSelect = document.getElementById("density") as HTMLSelectElement;
     modelSelect.value = "pillars";
     modelSelect.addEventListener("change", async () => {
-      let data: Uint8Array;
-      let dimensions: [number, number, number];
-      switch (modelSelect.value) {
-        case "sphere":
-          data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere);
-          dimensions = [width, height, depth]
-          break;
-        case "sinusoid":
-          data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid);
-          dimensions = [width, height, depth]
-          break;
-        default:
-          data = generateData(width, height, depth);
-          dimensions = [width, height, depth]
-          break;
-        case "dicom":
-          const dicom = await loadDicomData();
-          data = dicom.data;
-          dimensions = dicom.dimensions;
-          break;
-      }
-      const longestLength = dimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-      const [nwidth, nheight, ndepth] = dimensions.map(side => (side / longestLength));
-      this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
-      this.changeImageData(data, ...dimensions);
-      this.render();
+      await this.restartRendering(async () => {
+        let data: Uint8Array;
+        let dimensions: [number, number, number];
+        switch (modelSelect.value) {
+          case "sphere":
+            data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere);
+            dimensions = [width, height, depth]
+            break;
+          case "sinusoid":
+            data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid);
+            dimensions = [width, height, depth]
+            break;
+          default:
+            data = generateData(width, height, depth);
+            dimensions = [width, height, depth]
+            break;
+          case "dicom":
+            const dicom = await loadDicomData();
+            data = dicom.data;
+            dimensions = dicom.dimensions;
+            break;
+        }
+        const longestLength = dimensions.reduce((max, cur) => cur > max ? cur : max, 0);
+        const [nwidth, nheight, ndepth] = dimensions.map(side => (side / longestLength));
+        this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+        this.changeImageData(data, ...dimensions);
+      })
     })
   }
 
@@ -313,41 +336,60 @@ class State {
     this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
   }
 
+  async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
+    this.restart = true;
+    this.suspend = true;
+    const result = await action();
+    this.suspend = false;
+    return result;
+  }
+
   render() {
-    this.gl.disable(this.gl.DEPTH_TEST);
-    const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
-    // -- Render into Framebuffer --
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
-    this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
-    // Set up viewport size, since canvas size can change
-    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+    if (!this.suspend) {
+      this.gl.disable(this.gl.DEPTH_TEST);
+      const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
+      // -- Render into Framebuffer --
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
+      this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
+      // Set up viewport size, since canvas size can change
+      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
-    // Clear stuff
-    this.gl.clearColor(1, 0, 0, 1);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+      // Clear stuff
+      this.gl.clearColor(1, 0, 0, 1);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
-    // Execute this.program
-    this.gl.useProgram(this.program);
-    this.bindUniforms(previous_pong);
-    this.camera.bindAsUniforms(this.gl);
-    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+      // Execute this.program
+      this.gl.useProgram(this.program);
+      this.bindUniforms(previous_pong);
+      this.camera.bindAsUniforms(this.gl);
+      this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
-    // -- Render to canvas --
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+      // -- Render to canvas --
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
-    // Clear stuff
-    this.gl.clearColor(0, 0, 0, 0);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+      // Clear stuff
+      this.gl.clearColor(0, 0, 0, 0);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
-    this.gl.useProgram(this.blit);
-    this.gl.activeTexture(this.gl.TEXTURE0 + 2 + this.framebufferPingPong);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[this.framebufferPingPong].target);
-    this.gl.uniform1i(this.targetLocation, 2 + this.framebufferPingPong);
-    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+      this.gl.useProgram(this.blit);
+      this.gl.activeTexture(this.gl.TEXTURE0 + 2 + this.framebufferPingPong);
+      this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[this.framebufferPingPong].target);
+      this.gl.uniform1i(this.targetLocation, 2 + this.framebufferPingPong);
+      this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
-    // ping pong
-    this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
+      // ping pong
+      this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
+      if (this.restart) {
+        this.restart = false;
+        this.frameIndex = 0;
+      } else {
+        this.frameIndex++;
+      }
+      if (!this.input.accumulation) this.suspend = true;
+    }
+
+    requestAnimationFrame(() => this.render());
   }
 
   bindUniforms(framebuffer: number) {
@@ -362,6 +404,9 @@ class State {
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
     this.gl.uniform1i(this.previousFrameLoc, 2 + framebuffer);
 
+    this.gl.uniform1i(this.restartLoc, this.restart ? 1 : 0);
+    this.gl.uniform1ui(this.frameIndexLoc, this.frameIndex);
+
     this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
@@ -370,7 +415,8 @@ class State {
 
 async function main() {
   wasm.init();
-  new State(await loadTransferFunction(TransferFunction.None))
+  const state = new State(await loadTransferFunction(TransferFunction.None))
+  state.render();
 }
 
 main();

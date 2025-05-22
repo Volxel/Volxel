@@ -10,6 +10,8 @@ in vec2 tex;
 uniform sampler3D u_texture;
 uniform sampler2D u_transfer;
 uniform sampler2D u_previous_frame;
+uniform bool u_restart;
+uniform uint u_frame_index;
 uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
 
@@ -86,7 +88,7 @@ vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
 }
 
 // Simple raymarch that accumulates a float value, early break if it reaches 1
-const float stepsize = 0.01;
+const float stepsize = 0.025;
 
 vec4 eval_volume_world(vec3 world_pos) {
     vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
@@ -99,10 +101,11 @@ float phase(float g, float cos_theta) {
     return 1.0 / (4.0 * 3.141) * (1.0 - g * g) / (denom * sqrt(denom));
 }
 
-const uint ray_samples = 8u;
-
 vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
     vec3 diff = to - from;
+    uint numSteps = uint(ceil(length(diff) / stepsize));
+    float dt = stepsize / length(diff);
+    vec3 step = diff * dt;
 
     // https://www.scratchapixel.com/lessons/3d-basic-rendering/volume-rendering-for-developers/volume-rendering-3D-density-field.html
     float sigma_a = 0.5; // absorption coefficient;
@@ -114,29 +117,12 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
     float transmission = 1.0; // fully transmissive to start with
     vec3 result_col = vec3(0);
 
-    vec4 samples[ray_samples * 2u];
-    uint counted_samples = 0u;
-    for (uint i = 0u; i < ray_samples; ++i) {
-        // TODO: This should not be uniformly distributed
-        float t = rng(seed);
-        vec3 pos = from + t * diff;
+    for (uint i = 0u; i < numSteps; ++i) {
+        vec3 pos = from + (float(i) + rng(seed)) * step;
 
         vec4 sampled = eval_volume_world(pos);
-        if (sampled.a > 0.0) {
-            samples[counted_samples * 2u] = vec4(pos, 1.0);
-            samples[counted_samples * 2u + 1u] = sampled;
-            counted_samples++;
-        }
-    }
-
-    float part = 1.0 / float(counted_samples);
-
-    for (uint i = 0u; i < counted_samples; ++i) {
-        vec3 pos = samples[i * 2u].xyz;
-        vec4 sampled = samples[i * 2u + 1u];
-
         float density = sampled.a;
-        float sample_attenuation = exp(-part * density * sigma_t);
+        float sample_attenuation = exp(-stepsize * density * sigma_t);
         transmission *= sample_attenuation;
 
         // In Scattering
@@ -151,7 +137,7 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
             float light_attenuation = 0.0; // tau in scratchapixel code
             // another raymarch to accumulate light attenuation
             for (uint j = 0u; j < numStepsInside; ++j) {
-                vec3 pos_inside = light_ray_entry + float(j) * step_inside;
+                vec3 pos_inside = light_ray_entry + (float(j) + rng(seed)) * step_inside;
                 light_attenuation += eval_volume_world(pos_inside).a;
             }
             float light_ray_att = exp(-light_attenuation * stepsize * sigma_t);
@@ -161,12 +147,13 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
                 phase(g, dot(normalize(diff), normalize(light_dir))) *
                 sigma_s *
                 transmission *
-                part *
+                stepsize *
                 density;
         }
 
         if (transmission <= 1e-3) {
-            // TODO: Random generator
+            if (rng(seed) > 1.0 / float(d)) break;
+            else transmission *= float(d);
         }
     }
 
@@ -174,10 +161,10 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
 }
 
 vec3 get_background_color(Ray ray) {
-    return vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.2, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
+    return vec3(0); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
 }
 
-const uint ray_count = 4u;
+const uint ray_count = 1u;
 
 void main() {
     vec3 hit_min;
@@ -185,10 +172,10 @@ void main() {
 
     vec4 previous_frame = texture(u_previous_frame, tex * 0.5 + 0.5);
     vec4 result;
-    uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y));
+    uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y)) + u_frame_index * 12356789u;
     for (uint i = 0u; i < ray_count; ++i) {
         seed += i;
-        Ray ray = setup_world_ray(tex, int(i));
+        Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i));
         if (intersect_ray(ray, u_volume_aabb, hit_min, hit_max)) {
             if(u_debugHits) {
                 result += vec4(world_to_aabb(hit_min, u_volume_aabb), 1);
@@ -201,5 +188,6 @@ void main() {
     }
     result = result / float(ray_count);
 
-    outColor = (1.0 - feedback) * result + feedback * previous_frame;
+    if (u_restart) outColor = result;
+    else outColor += (1.0 - feedback) * result + feedback * previous_frame;
 }
