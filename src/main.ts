@@ -2,6 +2,7 @@ import './style.css'
 
 import vertexShader from "./shaders/vertex.vert"
 import fragmentShader from "./shaders/fragment.frag"
+import blitShader from "./shaders/blit.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
@@ -42,20 +43,46 @@ function createProgram(gl: WebGL2RenderingContext, vertex: WebGLShader, fragment
   }
 }
 
+function checkFbo(gl: WebGL2RenderingContext) {
+  const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+  if (!fb) throw new Error("No framebuffer bound");
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  switch (status) {
+    case gl.FRAMEBUFFER_COMPLETE: break;
+    case gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT: throw new Error("Incomplete attachment");
+    case gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: throw new Error("Missing attachment");
+    case gl.FRAMEBUFFER_UNSUPPORTED: throw new Error("Unsupported combination of formats");
+    case gl.FRAMEBUFFER_INCOMPLETE_DIMENSIONS: throw new Error("Incomplete Dimensions");
+    default: throw new Error("Unknown FBO error: 0x" + status.toString(16))
+  }
+}
+
 type InputState = {
   debugHits: boolean;
+}
+
+type Framebuffer = {
+  fbo: WebGLFramebuffer,
+  target: WebGLTexture,
 }
 
 class State {
   private canvas: HTMLCanvasElement;
   private gl: WebGL2RenderingContext;
   private program: WebGLProgram;
+  private blit: WebGLProgram;
 
   private textureLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
   private resLoc: WebGLUniformLocation;
   private debugHitsLoc: WebGLUniformLocation;
+
+  private targetLocation: WebGLUniformLocation;
+
+  private framebuffers: Framebuffer[] = [];
+  private framebufferPingPong: number = 0;
+  private restart: boolean = true;
 
   private texture: WebGLTexture;
   // @ts-ignore happens in util function
@@ -77,10 +104,45 @@ class State {
     if (!gl) throw new Error("WebGL 2 not supported on this Browser");
     this.gl = gl;
 
-    // Set up shaders
+    // Set up main shaders
     const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
     const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
     this.program = createProgram(gl, vertex, fragment);
+
+    // Set up blit shaders
+    const blit = createShader(gl, gl.FRAGMENT_SHADER, blitShader);
+    this.blit = createProgram(gl, vertex, blit);
+
+    // Prepare framebuffers for ping pong rendering
+    for (let i = 0; i < 1; i++) {
+      const renderTargetTexture = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0 + 2 + i);
+      gl.bindTexture(gl.TEXTURE_2D, renderTargetTexture);
+      gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA8,
+          this.canvas.width,
+          this.canvas.height,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          null
+      );
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      const fbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderTargetTexture, 0);
+
+      checkFbo(gl);
+
+      this.framebuffers.push({fbo, target: renderTargetTexture});
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
 
     // Prepare data for drawing
     // -- Fetch Attribute location from Program
@@ -123,6 +185,8 @@ class State {
     this.resLoc = this.getUniformLocation("u_res");
     this.debugHitsLoc = this.getUniformLocation("u_debugHits");
 
+    this.targetLocation = this.getUniformLocation("u_result", this.blit);
+
     // Setup camera
     this.camera = new Camera(5, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
@@ -131,14 +195,34 @@ class State {
       for (const entry of entries) if (entry.target === this.canvas) {
         const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
         const ratio = window.devicePixelRatio || 1;
-        c.width = Math.max(
+        const width = Math.max(
             1,
             entry.contentBoxSize[0].inlineSize
         ) * ratio;
-        c.height = Math.max(
+        const height = Math.max(
             1,
             entry.contentBoxSize[0].blockSize
         ) * ratio;
+
+        c.width = width;
+        c.height = height;
+
+        // resize framebuffer textures
+        for (const { target } of this.framebuffers) {
+          gl.bindTexture(gl.TEXTURE_2D, target);
+          gl.texImage2D(
+              gl.TEXTURE_2D,
+              0,
+              gl.RGBA8,
+              width,
+              height,
+              0,
+              gl.RGBA,
+              gl.UNSIGNED_BYTE,
+              null
+          )
+          gl.bindTexture(gl.TEXTURE_2D, null);
+        }
       }
       this.render();
     });
@@ -208,8 +292,8 @@ class State {
     })
   }
 
-  private getUniformLocation(name: string): WebGLUniformLocation {
-    const loc = this.gl.getUniformLocation(this.program, name);
+  private getUniformLocation(name: string, program: WebGLProgram = this.program): WebGLUniformLocation {
+    const loc = this.gl.getUniformLocation(program, name);
     if (!loc) throw new Error("Failed to get uniform location of '" + name + "'");
     return loc;
   }
@@ -228,24 +312,44 @@ class State {
   }
 
   render() {
+    this.gl.disable(this.gl.DEPTH_TEST);
+    console.log(this.framebuffers);
+    // -- Render into Framebuffer --
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[0].fbo);
     // Set up viewport size, since canvas size can change
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
     // Clear stuff
-    this.gl.clearColor(0, 0, 0, 0);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+    this.gl.clearColor(1, 0, 0, 1);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
     // Execute this.program
     this.gl.useProgram(this.program);
     this.bindUniforms();
     this.camera.bindAsUniforms(this.gl);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+
+    // -- Render to canvas --
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+
+    // Clear stuff
+    this.gl.clearColor(0, 0, 0, 0);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+    this.gl.useProgram(this.blit);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 2 + 0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[0].target);
+    this.gl.uniform1i(this.targetLocation, 0);
+    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
   }
 
   bindUniforms() {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
     this.gl.uniform1i(this.textureLoc, 0);
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.transferLoc, 1);
     this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
