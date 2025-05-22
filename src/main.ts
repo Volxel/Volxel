@@ -6,7 +6,14 @@ import blitShader from "./shaders/blit.frag"
 import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
-import {generateData, generateTransferFunction, loadDicomData, loadTransferFunction, TransferFunction} from "./data.ts";
+import {
+  ColorStop,
+  generateData,
+  generateTransferFunction,
+  loadDicomData,
+  loadTransferFunction,
+  TransferFunction
+} from "./data.ts";
 import {ColorRampComponent} from "./colorramp.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
@@ -271,6 +278,13 @@ class State {
     });
 
     const colorRamp = document.getElementById("color-ramp") as ColorRampComponent;
+    colorRamp.addEventListener("change", async (event: Event) => {
+      await this.restartRendering(() => {
+        if (transferSelect.value !== "generated") return;
+        const {data, length} = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
+        this.changeTransferFunc(data, length)
+      });
+    })
 
     const transferSelect = document.getElementById("transfer") as HTMLSelectElement;
     transferSelect.value = "none";
