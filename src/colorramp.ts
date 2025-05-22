@@ -16,8 +16,17 @@ export class ColorRampComponent extends HTMLElement {
         color: [1, 0, 0, 0],
         stop: 0
     }, {
-        color: [0, 0, 1, 1],
-        stop: 1
+        color: [1, 0, 0, 0],
+        stop: 0.65
+    }, {
+        color: [0, 1, 1, 0],
+        stop: 0.65
+    }, {
+        color: [0, 1, 1, 0.9],
+        stop: 0.7
+    }, {
+        color: [1, 1, 1, 1],
+        stop: 0.75
     }]
 
     private displayedColorDiv: HTMLDivElement;
@@ -35,7 +44,7 @@ export class ColorRampComponent extends HTMLElement {
             .displayedColor {
                 height: 20px;
                 flex: 1;
-                background: red;
+                background: var(--gradient);
             }
         `)
 
@@ -59,13 +68,17 @@ export class ColorRampComponent extends HTMLElement {
 
     private rerenderColors() {
         this.controlsDiv.innerHTML = "";
+        const gradientSteps: string[] = [];
         for (const stop of this.colors) {
             const stopControl = document.createElement("button");
             stopControl.classList.toggle("stopControl", true);
 
-            stopControl.style.setProperty("--color", `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3] * 255)})`);
+            const color = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3] * 255)})`;
+            stopControl.style.setProperty("--color", color);
+            gradientSteps.push(`${color} ${Math.round(stop.stop * 100)}%`)
 
             this.controlsDiv.appendChild(stopControl);
         }
+        this.displayedColorDiv.style.setProperty("--gradient", `linear-gradient(to right, ${gradientSteps.join(", ")})`);
     }
 }
