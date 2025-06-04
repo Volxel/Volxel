@@ -9,6 +9,7 @@ in vec2 tex;
 
 uniform sampler3D u_texture;
 uniform sampler2D u_transfer;
+uniform vec2 u_transfer_range;
 uniform sampler2D u_previous_frame;
 uniform bool u_restart;
 uniform uint u_frame_index;
@@ -90,9 +91,17 @@ vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
 // Simple raymarch that accumulates a float value, early break if it reaches 1
 const float stepsize = 0.025;
 
+float map_to_range(float x, vec2 range) {
+    if (x < range.x || x > range.y) return -1.0;
+    return mix(range.x, range.y, x);
+}
+
 vec4 eval_volume_world(vec3 world_pos) {
     vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
-    float density = clamp(texture(u_texture, sample_pos).r, 0.0, 1.0);
+    float data_density = clamp(texture(u_texture, sample_pos).r, 0.0, 1.0);
+    float remapped_density = map_to_range(data_density, u_transfer_range);
+    if (remapped_density < 0.0) return vec4(0);
+    float density = clamp(remapped_density, 0.0, 1.0);
     return texture(u_transfer, vec2(density, 0.0));
 }
 
@@ -122,13 +131,16 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
 
         vec4 sampled = eval_volume_world(pos);
         float density = sampled.a;
+
+        if (density <= 0.0) continue;
+
         float sample_attenuation = exp(-stepsize * density * sigma_t);
         transmission *= sample_attenuation;
 
         // In Scattering
         vec3 light_ray_exit;
         vec3 light_ray_entry;
-        if (density > 0.0 && intersect_ray(Ray(pos, normalize(-light_dir)), u_volume_aabb, light_ray_entry, light_ray_exit)) {
+        if (intersect_ray(Ray(pos, normalize(-light_dir)), u_volume_aabb, light_ray_entry, light_ray_exit)) {
             vec3 diff_inside = light_ray_exit - light_ray_entry;
             float dt_inside = stepsize / length(diff_inside);
             vec3 step_inside = diff_inside * dt_inside;

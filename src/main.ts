@@ -65,11 +65,6 @@ function checkFbo(gl: WebGL2RenderingContext) {
   }
 }
 
-type InputState = {
-  debugHits: boolean;
-  accumulation: boolean;
-}
-
 type Framebuffer = {
   fbo: WebGLFramebuffer,
   target: WebGLTexture,
@@ -83,6 +78,7 @@ class State {
 
   private textureLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
+  private transferRangeLoc: WebGLUniformLocation;
   private previousFrameLoc: WebGLUniformLocation;
   private restartLoc: WebGLUniformLocation;
   private frameIndexLoc: WebGLUniformLocation;
@@ -103,9 +99,11 @@ class State {
   // @ts-ignore happens in util function
   private transfer: WebGLTexture;
 
-  private input: InputState = {
+  private input = {
     debugHits: false,
     accumulation: true,
+    range_min: 0,
+    range_max: 1
   }
 
   private camera: Camera;
@@ -197,6 +195,7 @@ class State {
     // get uniform locations
     this.textureLoc = this.getUniformLocation("u_texture");
     this.transferLoc = this.getUniformLocation("u_transfer");
+    this.transferRangeLoc = this.getUniformLocation("u_transfer_range");
     this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
     this.restartLoc = this.getUniformLocation("u_restart");
     this.frameIndexLoc = this.getUniformLocation("u_frame_index");
@@ -331,7 +330,24 @@ class State {
         this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
         this.changeImageData(data, ...dimensions);
       })
+    });
+
+    const rangeMin = document.getElementById("range_start") as HTMLInputElement;
+    const rangeMax = document.getElementById("range_end") as HTMLInputElement;
+    rangeMin.addEventListener("change", () => {
+      rangeMax.min = rangeMin.value;
+      if (rangeMax.valueAsNumber < rangeMin.valueAsNumber) rangeMax.value = rangeMin.value;
+      this.restartRendering(() => {
+        this.input.range_min = rangeMin.valueAsNumber;
+      })
     })
+    rangeMax.addEventListener("change", () => {
+      this.restartRendering(() => {
+        this.input.range_max = rangeMax.valueAsNumber;
+      })
+    })
+    rangeMin.valueAsNumber = this.input.range_min;
+    rangeMax.valueAsNumber = this.input.range_max;
   }
 
   private getUniformLocation(name: string, program: WebGLProgram = this.program): WebGLUniformLocation {
@@ -420,6 +436,8 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 2 + framebuffer);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
     this.gl.uniform1i(this.previousFrameLoc, 2 + framebuffer);
+
+    this.gl.uniform2f(this.transferRangeLoc, this.input.range_min, this.input.range_max);
 
     this.gl.uniform1i(this.restartLoc, this.restart ? 1 : 0);
     this.gl.uniform1ui(this.frameIndexLoc, this.frameIndex);
