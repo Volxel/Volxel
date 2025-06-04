@@ -22,4 +22,4 @@ Currently, it shows a volumetric sinusoid in white, in front of a blue backgroun
     ```shell
     pnpm dev
     ```
-6. Open [http://localhost:5173](http://localhost:5173) in a browser that supports WebGL 2.0
+6. Open [http://localhost:5173/Volxel](http://localhost:5173/Volxel) in a browser that supports WebGL 2.0

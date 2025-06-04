@@ -1,10 +1,18 @@
 mod utils;
 
+use std::fmt::{format, Display};
+use dicom_core::Tag;
+use dicom_core::value::DicomValueType;
+use dicom_object::{DicomObject, InMemDicomObject};
+use dicom_object::mem::InMemElement;
 use wasm_bindgen::prelude::*;
 
+use crate::utils::log_to_console;
 use dicom_pixeldata::PixelDecoder;
-use js_sys::Math::{max, pow, sin};
-use js_sys::Uint8Array;
+use js_sys::Math::{log, max, pow, sin};
+use js_sys::{ArrayBuffer, Uint8Array};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{window, Response, Window};
 
 #[wasm_bindgen]
 pub fn init() {
@@ -60,8 +68,74 @@ pub struct DicomData {
     pub depth: u32
 }
 
+// relevant tags
+// -- from official registry https://dicom.nema.org/medical/Dicom/2017e/output/chtml/part06/chapter_6.html
+const REFERENCED_IMAGE_SEQUENCE: Tag = Tag(0x0008, 0x1140);
+
+// -- seemingly custom?
+const DICOMDIR_IMAGE_SEQUENCE: Tag = Tag(0x0004, 0x1220);
+const DICOMDIR_IMAGE_REFERENCE: Tag = Tag(0x0004, 0x1500);
+
+fn debug_print_tags(obj: &InMemDicomObject, inset: usize) -> String {
+    let mut result: String = "".to_string();
+    for tag in obj.tags() {
+        let data = obj.get(tag).unwrap();
+        let data_type = data.value().value_type();
+        result += &format!("{:inset$}- {}: {} ({:?})\n", "", tag, data.vr(), data_type, inset=inset);
+
+        use dicom_core::value::ValueType::*;
+
+        match data_type {
+            Strs => {
+                let strings = data.strings().expect("data_type and data mismatched");
+                for string in strings {
+                    result += &format!("{:inset$} | {}\n", "", string);
+                }
+            }
+            Str => {
+                let string = data.string().expect("data_type and data mismatched");
+                result += &format!("{:inset$} | {}\n", "", string);
+            }
+            DataSetSequence => {
+                let items = data.items().expect("data_type and data mismatched");
+                for item in items {
+                    result += &format!("{:inset$} item\n", "");
+                    result += debug_print_tags(item, inset + 2).as_str();
+                }
+            }
+            _ => {
+                result += &format!("{:inset$} Unrepresented data type\n", "")
+            }
+        }
+    }
+    result
+}
+
 pub fn read_dicom(bytes: Uint8Array) -> DicomData {
     let result_obj = dicom_object::from_reader(bytes.to_vec().as_slice()).unwrap();
+    let sequence = result_obj.get(DICOMDIR_IMAGE_SEQUENCE);
+
+    if let Some(Some(sequence)) = sequence.map(|seq| seq.items()) {
+        for item in sequence {
+            let image_reference = item.get(DICOMDIR_IMAGE_REFERENCE);
+            if let Some(image_reference) = image_reference {
+                let reference = image_reference.strings().expect("Image Reference should be Strs");
+                log_to_console(&format!("Reference: {}", reference.join("/")));
+            } else {
+                log_to_console("No Image Reference, printing debug");
+                log_to_console(debug_print_tags(item, 0).as_str());
+            }
+        }
+        
+        return DicomData {
+            data: Uint8Array::from(&[] as &[u8]),
+            width: 0,
+            height: 0,
+            depth: 0
+        }
+    }
+
+    // the result object does not contain an image sequence, so we assume it is an image
     let pixel_data = result_obj.decode_pixel_data().unwrap();
     let data = Uint8Array::from(pixel_data.data());
     DicomData {
@@ -70,6 +144,27 @@ pub fn read_dicom(bytes: Uint8Array) -> DicomData {
         height: pixel_data.rows(),
         depth: pixel_data.number_of_frames()
     }
+}
+
+async fn fetch_to_bytes(url: String) -> Uint8Array {
+    let res = window().expect("no window present").fetch_with_str(url.as_str());
+    let fut = JsFuture::from(res).await.expect("fetch failed");
+    let resp: Response = fut.dyn_into().expect("fetch didn't return response");
+    let array_buffer: ArrayBuffer = JsFuture::from(resp.array_buffer().expect("couldn't get array buffer from response")).await.expect("couldn't await array buffer").dyn_into().expect("wasn't array buffer");
+    Uint8Array::new(&array_buffer)
+}
+
+#[wasm_bindgen]
+pub async fn read_dicoms_from_url(url: &str, from: u32, to: u32, replace: &str, replace_length: usize) -> DicomData {
+    let mut data= Vec::new();
+    for i in from..to {
+        data.push(fetch_to_bytes(url.replace(replace, format!("{:0>width$}", i, width=replace_length).as_str())))
+    }
+    let mut awaited = Vec::with_capacity(data.len());
+    for resp in data {
+        awaited.push(resp.await);
+    }
+    read_dicoms(awaited)
 }
 
 #[wasm_bindgen]
