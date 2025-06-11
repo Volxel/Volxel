@@ -10,7 +10,7 @@ import {
   ColorStop, dicomBasePaths,
   generateData,
   generateTransferFunction,
-  loadDicomData,
+  loadDicomData, loadDicomDataFromFiles,
   loadTransferFunction,
   TransferFunction
 } from "./data.ts";
@@ -346,17 +346,38 @@ class State {
       })
     });
 
+    const dicomFileSelect = document.getElementById("dicom") as HTMLInputElement;
+    dicomFileSelect.addEventListener("change", async () => {
+      await this.restartRendering(async () => {
+        const files = dicomFileSelect.files;
+        if (!files) {
+          alert("no files selected");
+          return;
+        }
+
+        const dicom = await loadDicomDataFromFiles(files);
+        const data = dicom.data;
+        const dimensions = dicom.dimensions;
+        const scaling = dicom.scaling;
+        const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
+        const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
+        const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
+        this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+        this.changeImageData(data, ...dimensions);
+      })
+    })
+
     const rangeMin = document.getElementById("range_start") as HTMLInputElement;
     const rangeMax = document.getElementById("range_end") as HTMLInputElement;
-    rangeMin.addEventListener("change", () => {
+    rangeMin.addEventListener("change", async () => {
       rangeMax.min = rangeMin.value;
       if (rangeMax.valueAsNumber < rangeMin.valueAsNumber) rangeMax.value = rangeMin.value;
-      this.restartRendering(() => {
+      await this.restartRendering(() => {
         this.input.range_min = rangeMin.valueAsNumber;
       })
     })
-    rangeMax.addEventListener("change", () => {
-      this.restartRendering(() => {
+    rangeMax.addEventListener("change", async () => {
+      await this.restartRendering(() => {
         this.input.range_max = rangeMax.valueAsNumber;
       })
     })

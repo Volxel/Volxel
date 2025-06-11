@@ -52,6 +52,21 @@ export async function loadDicomData(index: number = 0): Promise<DicomData> {
     }
 }
 
+export async function loadDicomDataFromFiles(files: FileList | File[]): Promise<DicomData> {
+    const data = await Promise.all([...files].map(file => file.bytes()));
+    const dicomData = wasm.read_dicoms(data);
+
+    const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
+    const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
+    const readBytes = wasm.read_dicom_bytes(dicomData);
+
+    return {
+        data: readBytes,
+        dimensions: dimensions,
+        scaling: scaling
+    }
+}
+
 export enum TransferFunction {
     None,
     SplineShaded,
