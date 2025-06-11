@@ -89,7 +89,7 @@ vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
 }
 
 // Simple raymarch that accumulates a float value, early break if it reaches 1
-const float stepsize = 0.025;
+const float stepsize = 0.05;
 
 float map_to_range(float x, vec2 range) {
     if (x < range.x || x > range.y) return -1.0;
@@ -180,7 +180,7 @@ vec3 get_background_color(Ray ray) {
     return vec3(abs(angleHorizontal - angleVertical) * 0.05); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
 }
 
-const uint ray_count = 1u;
+const uint ray_count = 2u;
 
 void main() {
     vec3 hit_min;
