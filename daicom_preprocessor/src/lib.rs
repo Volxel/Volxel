@@ -1,18 +1,16 @@
 mod utils;
 
-use std::fmt::{format, Display};
 use dicom_core::Tag;
 use dicom_core::value::DicomValueType;
-use dicom_object::{DicomObject, InMemDicomObject};
-use dicom_object::mem::InMemElement;
+use dicom_object::InMemDicomObject;
 use wasm_bindgen::prelude::*;
 
 use crate::utils::log_to_console;
 use dicom_pixeldata::PixelDecoder;
-use js_sys::Math::{log, max, pow, sin};
+use js_sys::Math::{max, pow, sin};
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{window, Response, Window};
+use web_sys::{window, Response};
 
 #[wasm_bindgen]
 pub fn init() {
@@ -89,7 +87,7 @@ impl Into<DicomData> for DicomDataInternal {
 
 // relevant tags
 // -- from official registry https://dicom.nema.org/medical/Dicom/2017e/output/chtml/part06/chapter_6.html
-const REFERENCED_IMAGE_SEQUENCE: Tag = Tag(0x0008, 0x1140);
+// const REFERENCED_IMAGE_SEQUENCE: Tag = Tag(0x0008, 0x1140);
 const PIXEL_SPACING: Tag = Tag(0x0028, 0x0030);
 const SLICE_THICKNESS: Tag = Tag(0x0018, 0x0050);
 
@@ -132,7 +130,7 @@ fn debug_print_tags(obj: &InMemDicomObject, inset: usize) -> String {
     result
 }
 
-pub fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
+fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
     let result_obj = dicom_object::from_reader(bytes.to_vec().as_slice()).unwrap();
     let sequence = result_obj.get(DICOMDIR_IMAGE_SEQUENCE);
 
