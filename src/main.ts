@@ -367,6 +367,20 @@ class State {
       })
     })
 
+    const transferFileSelect = document.getElementById("transfer_file") as HTMLInputElement;
+    transferFileSelect.addEventListener("change", async () => {
+      await this.restartRendering(async () => {
+        const file = transferFileSelect.files;
+        if (!file) {
+          alert("no files selected");
+          return;
+        }
+        if (file.length != 1) throw new Error("Multiple files selected");
+        const {data, length} = await loadTransferFunction(file.item(0)!);
+        this.changeTransferFunc(data, length);
+      })
+    })
+
     const rangeMin = document.getElementById("range_start") as HTMLInputElement;
     const rangeMax = document.getElementById("range_end") as HTMLInputElement;
     rangeMin.addEventListener("change", async () => {
