@@ -93,7 +93,7 @@ const float stepsize = 0.025;
 
 float map_to_range(float x, vec2 range) {
     if (x < range.x || x > range.y) return -1.0;
-    return mix(range.x, range.y, x);
+    return (x - range.x) / (range.y - range.x);
 }
 
 vec4 eval_volume_world(vec3 world_pos) {

@@ -15,14 +15,11 @@ const colorRegexp = /[0-9]*[,)]/g;
 
 export class ColorRampComponent extends HTMLElement {
     private _colors: ColorStop[] = [{
-        color: [0, 0, 0, 0],
-        stop: 0.4
-    }, {
-        color: [1, 1, 1, 1],
-        stop: 0.5
-    }, {
-        color: [0, 0, 0, 0],
-        stop: 0.6
+        color: [1, 0, 0, 0],
+        stop: 0,
+    },{
+        color: [0, 1, 1, 1],
+        stop: 1
     }]
 
     private displayedColorDiv: HTMLDivElement;

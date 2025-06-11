@@ -9,13 +9,35 @@ export type DicomData = {
     dimensions: [width: number, height: number, depth: number]
 }
 
-const dicomBasePath = "/Volxel/Dicom/Anatomie_24-16/axial/WT/Anatomie^2416^^^=^^^^=^^^^.CT.1.1.001.DCM"
+export const dicomBasePaths: {
+    url: `${string}#${string}`,
+    from: number,
+    to: number,
+    replaceLength: number
+}[] = [
+    {url: "/Volxel/Dicom/Anatomie_24-16/axial/WT/Anatomie^2416^^^=^^^^=^^^^.CT.1.1.#.DCM", from: 1, to: 349, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/2/02690#", from: 2, to: 429, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/3/02700#", from: 2, to: 510, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/4/02710#", from: 2, to: 456, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/5/02720#", from: 1, to: 884, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/6/0273#", from: 1, to: 1178, replaceLength: 4},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/7/02740#", from: 1, to: 148, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/8/027500#", from: 1, to: 24, replaceLength: 2},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/9/02760#", from: 1, to: 148, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/10/02770#", from: 1, to: 152, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/11/02780#", from: 1, to: 415, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/12/02790#", from: 1, to: 284, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/13/02800#", from: 1, to: 415, replaceLength: 3},
+    {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/501/0282000#", from: 1, to: 2, replaceLength: 1},
+]
 
-export async function loadDicomData(): Promise<DicomData> {
-    await wasm.read_dicoms_from_url("/Volxel/Dicom/53_ER_ANA_AS20180009/DICOMDIR", 0, 1, "xxx", 1);
+export async function loadDicomData(index: number = 0): Promise<DicomData> {
+    const debug = await wasm.read_dicoms_from_url("/Volxel/Dicom/53_ER_ANA_AS20180009/DICOMDIR", 0, 1, "xxx", 1);
+    console.log(debug.width, debug.height, debug.depth);
     // const urls = [dicomBasePath] //new Array(1).fill(0).map((_, i) => dicomBasePath.replace("001", `${i + 1}`.padStart(3, "0")))
     // const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
-    const dicomData = await wasm.read_dicoms_from_url(dicomBasePath, 1, 345, "001", 3)//wasm.read_dicoms(allBytes);
+    const { url, from, to, replaceLength } = dicomBasePaths[index];
+    const dicomData = await wasm.read_dicoms_from_url(url, from, to, "#", replaceLength)//wasm.read_dicoms(allBytes);
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
     const readBytes = wasm.read_dicom_bytes(dicomData);
 

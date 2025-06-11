@@ -7,7 +7,7 @@ import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
 import {
-  ColorStop,
+  ColorStop, dicomBasePaths,
   generateData,
   generateTransferFunction,
   loadDicomData,
@@ -118,6 +118,10 @@ class State {
     if (!gl) throw new Error("WebGL 2 not supported on this Browser");
     this.gl = gl;
 
+    // check for float render target extension
+    const floatExtension = gl.getExtension("EXT_color_buffer_float");
+    if (!floatExtension) throw new Error("EXT_color_buffer_float extension not available, can't render to float target");
+
     // Set up main shaders
     const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
     const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
@@ -135,16 +139,16 @@ class State {
       gl.texImage2D(
           gl.TEXTURE_2D,
           0,
-          gl.RGBA,
+          gl.RGBA32F,
           this.canvas.width,
           this.canvas.height,
           0,
           gl.RGBA,
-          gl.UNSIGNED_BYTE,
+          gl.FLOAT,
           null
       );
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
@@ -232,12 +236,12 @@ class State {
             gl.texImage2D(
                 gl.TEXTURE_2D,
                 0,
-                gl.RGBA,
+                gl.RGBA32F,
                 width,
                 height,
                 0,
                 gl.RGBA,
-                gl.UNSIGNED_BYTE,
+                gl.FLOAT,
                 null
             )
             gl.bindTexture(gl.TEXTURE_2D, null);
@@ -301,6 +305,13 @@ class State {
     })
 
     const modelSelect = document.getElementById("density") as HTMLSelectElement;
+    for (let i = 0; i < dicomBasePaths.length; i++) {
+      const basePath = dicomBasePaths[i];
+      const option = document.createElement("option");
+      option.value = `dicom_${i}`;
+      option.innerHTML = basePath.url;
+      modelSelect.appendChild(option);
+    }
     modelSelect.value = "pillars";
     modelSelect.addEventListener("change", async () => {
       await this.restartRendering(async () => {
@@ -315,12 +326,12 @@ class State {
             data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid);
             dimensions = [width, height, depth]
             break;
-          default:
+          case "pillars":
             data = generateData(width, height, depth);
             dimensions = [width, height, depth]
             break;
-          case "dicom":
-            const dicom = await loadDicomData();
+          default:
+            const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
             data = dicom.data;
             dimensions = dicom.dimensions;
             break;

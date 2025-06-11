@@ -49,4 +49,8 @@ div.controls {
   display: flex;
   flex-direction: column;
   gap: 10px;
+
+  select {
+    max-width: 200px;
+  }
 }

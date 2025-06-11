@@ -104,7 +104,7 @@ fn debug_print_tags(obj: &InMemDicomObject, inset: usize) -> String {
                 }
             }
             _ => {
-                result += &format!("{:inset$} Unrepresented data type\n", "")
+                result += &format!("{:inset$} Debug: {:?}\n", "", data.value())
             }
         }
     }
@@ -126,7 +126,7 @@ pub fn read_dicom(bytes: Uint8Array) -> DicomData {
                 log_to_console(debug_print_tags(item, 0).as_str());
             }
         }
-        
+
         return DicomData {
             data: Uint8Array::from(&[] as &[u8]),
             width: 0,
