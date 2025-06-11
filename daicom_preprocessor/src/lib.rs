@@ -59,18 +59,39 @@ pub fn generate_data(width: u32, height: u32, depth: u32, how: GeneratedDataType
     Uint8Array::from(data.as_slice())
 }
 
+struct DicomDataInternal {
+    data: Uint8Array,
+    dimensions: [u32; 3],
+    scaling: [f32; 3]
+}
+
 #[wasm_bindgen]
 #[allow(dead_code)]
 pub struct DicomData {
     data: Uint8Array,
-    pub width: u32,
-    pub height: u32,
-    pub depth: u32
+    pub width: u32, pub height: u32, pub depth: u32,
+    pub x: f32, pub y: f32, pub z: f32
+}
+
+impl Into<DicomData> for DicomDataInternal {
+    fn into(self) -> DicomData {
+        DicomData {
+            data: self.data,
+            width: self.dimensions[0],
+            height: self.dimensions[1],
+            depth: self.dimensions[2],
+            x: self.scaling[0],
+            y: self.scaling[1],
+            z: self.scaling[2]
+        }
+    }
 }
 
 // relevant tags
 // -- from official registry https://dicom.nema.org/medical/Dicom/2017e/output/chtml/part06/chapter_6.html
 const REFERENCED_IMAGE_SEQUENCE: Tag = Tag(0x0008, 0x1140);
+const PIXEL_SPACING: Tag = Tag(0x0028, 0x0030);
+const SLICE_THICKNESS: Tag = Tag(0x0018, 0x0050);
 
 // -- seemingly custom?
 const DICOMDIR_IMAGE_SEQUENCE: Tag = Tag(0x0004, 0x1220);
@@ -111,7 +132,7 @@ fn debug_print_tags(obj: &InMemDicomObject, inset: usize) -> String {
     result
 }
 
-pub fn read_dicom(bytes: Uint8Array) -> DicomData {
+pub fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
     let result_obj = dicom_object::from_reader(bytes.to_vec().as_slice()).unwrap();
     let sequence = result_obj.get(DICOMDIR_IMAGE_SEQUENCE);
 
@@ -127,22 +148,36 @@ pub fn read_dicom(bytes: Uint8Array) -> DicomData {
             }
         }
 
-        return DicomData {
+        return DicomDataInternal {
             data: Uint8Array::from(&[] as &[u8]),
-            width: 0,
-            height: 0,
-            depth: 0
+            dimensions: [0, 0, 0],
+            scaling: [1.0, 1.0, 1.0]
         }
     }
 
     // the result object does not contain an image sequence, so we assume it is an image
     let pixel_data = result_obj.decode_pixel_data().unwrap();
     let data = Uint8Array::from(pixel_data.data());
-    DicomData {
+
+    let pixel_spacing = result_obj.get(PIXEL_SPACING).expect("Image did not contain pixel spacing information");
+    let [x, y] = pixel_spacing.strings().expect("Pixel Spacing was not a String sequence") else {
+        panic!("Pixel spacing did not contain two values x and y")
+    };
+    let slice_thickness = result_obj.get(SLICE_THICKNESS).expect("Image did not contain slice thickness information");
+    let [z] = slice_thickness.strings().expect("Slice thickness was not a String sequence") else {
+        panic!("Slice thickness did not contain one value z")
+    };
+
+    if debug_print { log_to_console(&format!("Pixel Spacing: x={}, y={}, z={}", x, y, z)); }
+
+    DicomDataInternal {
         data,
-        width: pixel_data.columns(),
-        height: pixel_data.rows(),
-        depth: pixel_data.number_of_frames()
+        dimensions: [pixel_data.columns(), pixel_data.rows(), pixel_data.number_of_frames()],
+        scaling: [
+            x.trim().parse().expect("Couldn't parse x spacing to float"),
+            y.trim().parse().expect("Couldn't parse y spacing to float"),
+            z.trim().parse().expect("Couldn't parse z spacing to float"),
+        ]
     }
 }
 
@@ -170,25 +205,27 @@ pub async fn read_dicoms_from_url(url: &str, from: u32, to: u32, replace: &str, 
 #[wasm_bindgen]
 pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
     let mut data = Vec::<u8>::new();
-    let mut width: u32 = 0;
-    let mut height: u32 = 0;
-    let mut depth: u32 = 0;
+    let mut dimensions: [u32; 3] = [0, 0, 0];
+    let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
     for bytes in all_bytes {
-        let dicom = read_dicom(bytes);
-        if width == 0 { width = dicom.width; }
-        else if width != dicom.width { panic!("Different frames had different widths")}
-        if height == 0 { height = dicom.height; }
-        else if height != dicom.height { panic!("Different frames had different heights")}
-        depth += dicom.depth;
+        let dicom = read_dicom(bytes, true);
+        if dimensions[0] == 0 { dimensions[0] = dicom.dimensions[0]; }
+        else if dimensions[0] != dicom.dimensions[0] { panic!("Different frames had different widths")}
+        if dimensions[1] == 0 { dimensions[1] = dicom.dimensions[1]; }
+        else if dimensions[1] != dicom.dimensions[1] { panic!("Different frames had different heights")}
+        for i in 0..3 {
+            if scaling[i] == 1.0 { scaling[i] = dicom.scaling[i] }
+            else if scaling[i] != dicom.scaling[i] { panic!("Different frames had different scaling") }
+        }
+        dimensions[2] += dicom.dimensions[2];
         // TODO: Just appending the bytes probably isn't right
         data.append(&mut dicom.data.to_vec())
     }
-    DicomData {
+    DicomDataInternal {
         data: Uint8Array::from(data.as_slice()),
-        width,
-        height,
-        depth
-    }
+        dimensions,
+        scaling
+    }.into()
 }
 
 #[wasm_bindgen]

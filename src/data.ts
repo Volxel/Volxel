@@ -6,7 +6,8 @@ export function generateData(width: number, height: number, depth: number, densi
 
 export type DicomData = {
     data: Uint8Array;
-    dimensions: [width: number, height: number, depth: number]
+    dimensions: [width: number, height: number, depth: number],
+    scaling: [x: number, y: number, z: number]
 }
 
 export const dicomBasePaths: {
@@ -32,18 +33,20 @@ export const dicomBasePaths: {
 ]
 
 export async function loadDicomData(index: number = 0): Promise<DicomData> {
-    const debug = await wasm.read_dicoms_from_url("/Volxel/Dicom/53_ER_ANA_AS20180009/DICOMDIR", 0, 1, "xxx", 1);
-    console.log(debug.width, debug.height, debug.depth);
+    // const debug = await wasm.read_dicoms_from_url("/Volxel/Dicom/53_ER_ANA_AS20180009/DICOMDIR", 0, 1, "xxx", 1);
+    // console.log(debug.width, debug.height, debug.depth);
     // const urls = [dicomBasePath] //new Array(1).fill(0).map((_, i) => dicomBasePath.replace("001", `${i + 1}`.padStart(3, "0")))
     // const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
     const { url, from, to, replaceLength } = dicomBasePaths[index];
     const dicomData = await wasm.read_dicoms_from_url(url, from, to, "#", replaceLength)//wasm.read_dicoms(allBytes);
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
+    const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
     const readBytes = wasm.read_dicom_bytes(dicomData);
 
     return {
         data: readBytes,
-        dimensions: dimensions
+        dimensions: dimensions,
+        scaling: scaling
     }
 }
 

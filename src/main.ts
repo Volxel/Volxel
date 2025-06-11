@@ -317,6 +317,7 @@ class State {
       await this.restartRendering(async () => {
         let data: Uint8Array;
         let dimensions: [number, number, number];
+        let scaling: [number, number, number] = [1, 1, 1];
         switch (modelSelect.value) {
           case "sphere":
             data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere);
@@ -334,10 +335,12 @@ class State {
             const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
             data = dicom.data;
             dimensions = dicom.dimensions;
+            scaling = dicom.scaling;
             break;
         }
-        const longestLength = dimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-        const [nwidth, nheight, ndepth] = dimensions.map(side => (side / longestLength));
+        const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
+        const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
+        const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
         this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
         this.changeImageData(data, ...dimensions);
       })
