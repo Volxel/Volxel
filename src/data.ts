@@ -30,6 +30,8 @@ export const dicomBasePaths: {
     {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/12/02790#", from: 1, to: 284, replaceLength: 3},
     {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/13/02800#", from: 1, to: 415, replaceLength: 3},
     {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/501/0282000#", from: 1, to: 2, replaceLength: 1},
+    {url: "/Volxel/Dicom/DeutschesMuseum/board/ROI#.dcm", from: 0, to: 523, replaceLength: 3},
+    {url: "/Volxel/Dicom/DeutschesMuseum/chiffredevice/2017-402#.dcm", from: 0, to: 783, replaceLength: 3}
 ]
 
 export async function loadDicomData(index: number = 0): Promise<DicomData> {
