@@ -85,6 +85,7 @@ class State {
   private volumeAABBLoc: WebGLUniformLocation;
   private resLoc: WebGLUniformLocation;
   private debugHitsLoc: WebGLUniformLocation;
+  private maxSamplesLoc: WebGLUniformLocation;
 
   private targetLocation: WebGLUniformLocation;
 
@@ -103,7 +104,8 @@ class State {
     debugHits: false,
     accumulation: true,
     range_min: 0,
-    range_max: 1
+    range_max: 1,
+    max_samples: 100
   }
 
   private camera: Camera;
@@ -206,6 +208,7 @@ class State {
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
     this.resLoc = this.getUniformLocation("u_res");
     this.debugHitsLoc = this.getUniformLocation("u_debugHits");
+    this.maxSamplesLoc = this.getUniformLocation("u_max_samples")
 
     this.targetLocation = this.getUniformLocation("u_result", this.blit);
 
@@ -279,6 +282,14 @@ class State {
         this.input.accumulation = accumulationCheckbox.checked;
       })
     });
+
+    const samplesRangeInput = document.getElementById("samples") as HTMLInputElement;
+    samplesRangeInput.valueAsNumber = this.input.max_samples;
+    samplesRangeInput.addEventListener("change", async () => {
+      await this.restartRendering(async () => {
+        this.input.max_samples = samplesRangeInput.valueAsNumber;
+      })
+    })
 
     const colorRamp = document.getElementById("color-ramp") as ColorRampComponent;
     colorRamp.addEventListener("change", async (event: Event) => {
@@ -494,6 +505,8 @@ class State {
     this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
+
+    this.gl.uniform1f(this.maxSamplesLoc, this.input.max_samples);
   }
 }
 

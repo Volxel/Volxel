@@ -10,5 +10,6 @@ out vec4 out_color;
 
 void main() {
     vec2 uv = tex * 0.5 + 0.5;
-    out_color = texture(u_result, uv);
+    vec4 accumulated = texture(u_result, uv);
+    out_color = accumulated / accumulated.a;
 }

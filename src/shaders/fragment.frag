@@ -23,8 +23,7 @@ const vec3 camera_up = vec3(0, 1, 0);
 
 // Shows ray intersection with AABB instead of volume
 uniform bool u_debugHits;
-
-const float feedback = 0.9;
+uniform float u_max_samples;
 
 // Light
 const vec3 light_dir = normalize(vec3(-1.0, -1.0, -1.0));
@@ -89,7 +88,7 @@ vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
 }
 
 // Simple raymarch that accumulates a float value, early break if it reaches 1
-const float stepsize = 0.05;
+const float stepsize = 0.025;
 
 float map_to_range(float x, vec2 range) {
     if (x < range.x || x > range.y) return -1.0;
@@ -180,13 +179,19 @@ vec3 get_background_color(Ray ray) {
     return vec3(abs(angleHorizontal - angleVertical) * 0.05); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
 }
 
-const uint ray_count = 2u;
+const uint ray_count = 1u;
 
 void main() {
     vec3 hit_min;
     vec3 hit_max;
 
     vec4 previous_frame = texture(u_previous_frame, tex * 0.5 + 0.5);
+
+    if (!u_restart && previous_frame.a > u_max_samples) {
+        outColor = previous_frame;
+        return;
+    }
+
     vec4 result;
     uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y)) + u_frame_index * 12356789u;
     for (uint i = 0u; i < ray_count; ++i) {
@@ -205,5 +210,5 @@ void main() {
     result = result / float(ray_count);
 
     if (u_restart) outColor = result;
-    else outColor += (1.0 - feedback) * result + feedback * previous_frame;
+    else outColor = previous_frame + result;
 }
