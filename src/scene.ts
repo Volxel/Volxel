@@ -3,6 +3,8 @@ import {Quaternion, Vector2, Vector3} from "math.gl";
 export class Camera {
   pos: Vector3;
   view: Vector3;
+  yaw: number = 0;
+  pitch: number = 0;
   static up: Vector3 = new Vector3(0, 1, 0);
 
   constructor(distance: number,
@@ -13,17 +15,20 @@ export class Camera {
   }
 
   rotateAroundView(by: Vector2) {
-    const dir = this.pos.clone().subtract(this.view);
+    this.yaw += -by.x;
+    this.pitch += by.y;
 
-    const yaw = new Quaternion().fromAxisRotation(Camera.up, -by.x);
+    const maxPitch = Math.PI / 2 - 0.01;
+    if (this.pitch > maxPitch) this.pitch = maxPitch;
+    if (this.pitch < -maxPitch) this.pitch = -maxPitch;
 
-    const dirYawed = dir.clone().transformByQuaternion(yaw);
-    const right = dirYawed.clone().cross(Camera.up).normalize();
+    const qYaw = new Quaternion().fromAxisRotation(Camera.up, this.yaw);
+    const right = new Vector3(1, 0, 0).transformByQuaternion(qYaw).normalize();
+    const qPitch = new Quaternion().fromAxisRotation(right, this.pitch);
 
-    const pitch = new Quaternion().fromAxisRotation(right, by.y);
-    const combined_rot = pitch.multiplyLeft(yaw);
+    const orientation = qPitch.multiply(qYaw);
 
-    const finalDir = dir.clone().transformByQuaternion(combined_rot);
+    const finalDir = new Vector3(0, 0, -1).transformByQuaternion(orientation).multiplyByScalar(this.pos.clone().subtract(this.view).len());
 
     this.pos = finalDir.clone().add(this.view);
   }
