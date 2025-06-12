@@ -53,4 +53,8 @@ div.controls {
   select {
     max-width: 200px;
   }
+
+  &:has(input[name=hide]:checked) > *:not(:has(input[name=hide])) {
+    display: none;
+  }
 }
