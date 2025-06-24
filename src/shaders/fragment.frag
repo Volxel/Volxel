@@ -11,7 +11,6 @@ uniform sampler3D u_texture;
 uniform sampler2D u_transfer;
 uniform vec2 u_transfer_range;
 uniform sampler2D u_previous_frame;
-uniform bool u_restart;
 uniform uint u_frame_index;
 uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
@@ -23,7 +22,7 @@ const vec3 camera_up = vec3(0, 1, 0);
 
 // Shows ray intersection with AABB instead of volume
 uniform bool u_debugHits;
-uniform float u_max_samples;
+uniform float u_sample_weight;
 
 // Light
 const vec3 light_dir = normalize(vec3(-1.0, -1.0, -1.0));
@@ -187,11 +186,6 @@ void main() {
 
     vec4 previous_frame = texture(u_previous_frame, tex * 0.5 + 0.5);
 
-    if (!u_restart && previous_frame.a > u_max_samples) {
-        outColor = previous_frame;
-        return;
-    }
-
     vec4 result;
     uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y)) + u_frame_index * 12356789u;
     for (uint i = 0u; i < ray_count; ++i) {
@@ -209,6 +203,5 @@ void main() {
     }
     result = result / float(ray_count);
 
-    if (u_restart) outColor = result;
-    else outColor = previous_frame + result;
+    outColor = u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result;
 }

@@ -80,18 +80,16 @@ class State {
   private transferLoc: WebGLUniformLocation;
   private transferRangeLoc: WebGLUniformLocation;
   private previousFrameLoc: WebGLUniformLocation;
-  private restartLoc: WebGLUniformLocation;
   private frameIndexLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
   private resLoc: WebGLUniformLocation;
   private debugHitsLoc: WebGLUniformLocation;
-  private maxSamplesLoc: WebGLUniformLocation;
+  private sampleWeightLoc: WebGLUniformLocation;
 
   private targetLocation: WebGLUniformLocation;
 
   private framebuffers: Framebuffer[] = [];
   private framebufferPingPong: number = 0;
-  private restart: boolean = true;
   private frameIndex: number = 0;
 
   private suspend: boolean = true;
@@ -203,12 +201,11 @@ class State {
     this.transferLoc = this.getUniformLocation("u_transfer");
     this.transferRangeLoc = this.getUniformLocation("u_transfer_range");
     this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
-    this.restartLoc = this.getUniformLocation("u_restart");
     this.frameIndexLoc = this.getUniformLocation("u_frame_index");
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
     this.resLoc = this.getUniformLocation("u_res");
     this.debugHitsLoc = this.getUniformLocation("u_debugHits");
-    this.maxSamplesLoc = this.getUniformLocation("u_max_samples")
+    this.sampleWeightLoc = this.getUniformLocation("u_sample_weight")
 
     this.targetLocation = this.getUniformLocation("u_result", this.blit);
 
@@ -430,15 +427,15 @@ class State {
   }
 
   async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
-    this.restart = true;
     this.suspend = true;
+    this.frameIndex = 0;
     const result = await action();
     this.suspend = false;
     return result;
   }
 
   render() {
-    if (!this.suspend) {
+    if (!this.suspend && this.frameIndex < this.input.max_samples) {
       this.gl.disable(this.gl.DEPTH_TEST);
       const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
       // -- Render into Framebuffer --
@@ -473,12 +470,7 @@ class State {
 
       // ping pong
       this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
-      if (this.restart) {
-        this.restart = false;
-        this.frameIndex = 0;
-      } else {
-        this.frameIndex++;
-      }
+      this.frameIndex++;
       if (!this.input.accumulation) this.suspend = true;
     }
 
@@ -499,14 +491,13 @@ class State {
 
     this.gl.uniform2f(this.transferRangeLoc, this.input.range_min, this.input.range_max);
 
-    this.gl.uniform1i(this.restartLoc, this.restart ? 1 : 0);
     this.gl.uniform1ui(this.frameIndexLoc, this.frameIndex);
 
     this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
 
-    this.gl.uniform1f(this.maxSamplesLoc, this.input.max_samples);
+    this.gl.uniform1f(this.sampleWeightLoc, this.frameIndex / (this.frameIndex + 1));
   }
 }
 
