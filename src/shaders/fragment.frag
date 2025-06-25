@@ -2,12 +2,14 @@
 
 precision highp float;
 precision mediump sampler3D;
+precision mediump usampler3D;
 
 out vec4 outColor;
 
 in vec2 tex;
 
-uniform sampler3D u_texture;
+uniform usampler3D u_texture;
+#define UINT_16_MAX 65535
 uniform sampler2D u_transfer;
 uniform vec2 u_transfer_range;
 uniform sampler2D u_previous_frame;
@@ -96,7 +98,7 @@ float map_to_range(float x, vec2 range) {
 
 vec4 eval_volume_world(vec3 world_pos) {
     vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
-    float data_density = clamp(texture(u_texture, sample_pos).r, 0.0, 1.0);
+    float data_density = clamp(float(texture(u_texture, sample_pos).r) / float(UINT_16_MAX), 0.0, 1.0);
     float remapped_density = map_to_range(data_density, u_transfer_range);
     if (remapped_density < 0.0) return vec4(0);
     float density = clamp(remapped_density, 0.0, 1.0);

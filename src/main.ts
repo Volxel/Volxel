@@ -323,7 +323,7 @@ class State {
     modelSelect.value = "pillars";
     modelSelect.addEventListener("change", async () => {
       await this.restartRendering(async () => {
-        let data: Uint8Array;
+        let data: Uint16Array;
         let dimensions: [number, number, number];
         let scaling: [number, number, number] = [1, 1, 1];
         switch (modelSelect.value) {
@@ -413,11 +413,11 @@ class State {
     return loc;
   }
 
-  changeImageData(data: Uint8Array, width: number, height: number, depth: number) {
+  changeImageData(data: Uint16Array, width: number, height: number, depth: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, width, height, depth, 0, this.gl.RED, this.gl.UNSIGNED_BYTE, data)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R16UI, width, height, depth, 0, this.gl.RED_INTEGER, this.gl.UNSIGNED_SHORT, data)
   }
   changeTransferFunc(data: Float32Array, length: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);

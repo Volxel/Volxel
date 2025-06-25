@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 use crate::utils::log_to_console;
 use dicom_pixeldata::PixelDecoder;
 use js_sys::Math::{max, pow, sin};
-use js_sys::{ArrayBuffer, Uint8Array};
+use js_sys::{ArrayBuffer, Uint16Array, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Response, window};
 
@@ -44,28 +44,28 @@ fn pillars([x, y, z]: [f64; 3], [width, height, depth]: [f64; 3]) -> f64 {
 }
 
 #[wasm_bindgen]
-pub fn generate_data(width: u32, height: u32, depth: u32, how: GeneratedDataType) -> Uint8Array {
+pub fn generate_data(width: u32, height: u32, depth: u32, how: GeneratedDataType) -> Uint16Array {
     let generator = match how {
         GeneratedDataType::Sphere => sphere,
         GeneratedDataType::Sinusoid => sinusoid,
         GeneratedDataType::Pillars => pillars,
     };
     let dimensions = [width as f64, height as f64, depth as f64];
-    let mut data: Vec<u8> = Vec::with_capacity(width as usize * height as usize * depth as usize);
+    let mut data: Vec<u16> = Vec::with_capacity(width as usize * height as usize * depth as usize);
     for z in 0..depth {
         for y in 0..height {
             for x in 0..width {
                 // density
                 let density = generator([x as f64, y as f64, z as f64], dimensions);
-                data.push((density * u8::MAX as f64) as u8);
+                data.push((density * u16::MAX as f64) as u16);
             }
         }
     }
-    Uint8Array::from(data.as_slice())
+    Uint16Array::from(data.as_slice())
 }
 
 struct DicomDataInternal {
-    data: Uint8Array,
+    data: Uint16Array,
     dimensions: [u32; 3],
     scaling: [f32; 3],
 }
@@ -73,7 +73,7 @@ struct DicomDataInternal {
 #[wasm_bindgen]
 #[allow(dead_code)]
 pub struct DicomData {
-    data: Uint8Array,
+    data: Uint16Array,
     pub width: u32,
     pub height: u32,
     pub depth: u32,
@@ -173,7 +173,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
         }
 
         return DicomDataInternal {
-            data: Uint8Array::from(&[] as &[u8]),
+            data: Uint16Array::from(&[] as &[u16]),
             dimensions: [0, 0, 0],
             scaling: [1.0, 1.0, 1.0],
         };
@@ -181,7 +181,14 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
 
     // the result object does not contain an image sequence, so we assume it is an image
     let pixel_data = result_obj.decode_pixel_data().unwrap();
-    let data = Uint8Array::from(pixel_data.data());
+
+    if pixel_data.samples_per_pixel() != 1 {
+        panic!("More than one sample per pixel not currently supported")
+    }
+
+    log_to_console(&format!("Pixel Data: {}, {}, {:?}, {}", pixel_data.bits_allocated(), pixel_data.bits_stored(), pixel_data.pixel_representation(), pixel_data.samples_per_pixel()));
+
+    let data = Uint16Array::from(bytemuck::cast_slice::<u8, u16>(pixel_data.data()));
 
     let pixel_spacing = result_obj
         .get(PIXEL_SPACING)
@@ -246,13 +253,11 @@ pub async fn read_dicoms_from_url(
     replace: &str,
     replace_length: usize,
 ) -> DicomData {
-    let mut data = Vec::new();
-    for i in from..to {
-        data.push(fetch_to_bytes(url.replace(
-            replace,
-            format!("{:0>width$}", i, width = replace_length).as_str(),
-        )))
-    }
+    let data = (from..to).map(|i| fetch_to_bytes(url.replace(
+        replace,
+        format!("{:0>width$}", i, width = replace_length).as_str(),
+    ))).collect::<Vec<_>>();
+    
     let mut awaited = Vec::with_capacity(data.len());
     for resp in data {
         awaited.push(resp.await);
@@ -262,7 +267,7 @@ pub async fn read_dicoms_from_url(
 
 #[wasm_bindgen]
 pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
-    let mut data = Vec::<u8>::new();
+    let mut data = Vec::<u16>::new();
     let mut dimensions: [u32; 3] = [0, 0, 0];
     let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
     for bytes in all_bytes {
@@ -289,7 +294,7 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
         data.append(&mut dicom.data.to_vec())
     }
     DicomDataInternal {
-        data: Uint8Array::from(data.as_slice()),
+        data: Uint16Array::from(data.as_slice()),
         dimensions,
         scaling,
     }
@@ -297,6 +302,6 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
 }
 
 #[wasm_bindgen]
-pub fn read_dicom_bytes(dicom: DicomData) -> Uint8Array {
+pub fn read_dicom_bytes(dicom: DicomData) -> Uint16Array {
     dicom.data
 }

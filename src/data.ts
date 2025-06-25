@@ -1,11 +1,11 @@
 import * as wasm from "daicom_preprocessor"
 
-export function generateData(width: number, height: number, depth: number, densityFunction: wasm.GeneratedDataType = wasm.GeneratedDataType.Pillars): Uint8Array {
+export function generateData(width: number, height: number, depth: number, densityFunction: wasm.GeneratedDataType = wasm.GeneratedDataType.Pillars): Uint16Array {
     return wasm.generate_data(width, height, depth, densityFunction);
 }
 
 export type DicomData = {
-    data: Uint8Array;
+    data: Uint16Array;
     dimensions: [width: number, height: number, depth: number],
     scaling: [x: number, y: number, z: number]
 }
