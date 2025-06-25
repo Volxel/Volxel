@@ -409,8 +409,8 @@ class State {
 
   async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
     this.suspend = true;
-    this.frameIndex = 0;
     const result = await action();
+    this.frameIndex = 0;
     this.suspend = false;
     return result;
   }
