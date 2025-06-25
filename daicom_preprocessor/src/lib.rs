@@ -68,6 +68,8 @@ struct DicomDataInternal {
     data: Uint16Array,
     dimensions: [u32; 3],
     scaling: [f32; 3],
+    min_sample: u16,
+    max_sample: u16,
 }
 
 #[wasm_bindgen]
@@ -80,6 +82,8 @@ pub struct DicomData {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+    pub min_sample: u16,
+    pub max_sample: u16,
 }
 
 impl Into<DicomData> for DicomDataInternal {
@@ -92,6 +96,8 @@ impl Into<DicomData> for DicomDataInternal {
             x: self.scaling[0],
             y: self.scaling[1],
             z: self.scaling[2],
+            max_sample: self.max_sample,
+            min_sample: self.min_sample,
         }
     }
 }
@@ -176,6 +182,8 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             data: Uint16Array::from(&[] as &[u16]),
             dimensions: [0, 0, 0],
             scaling: [1.0, 1.0, 1.0],
+            max_sample: u16::MAX,
+            min_sample: 0
         };
     }
 
@@ -188,7 +196,18 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
 
     // log_to_console(&format!("Pixel Data: {}, {}, {:?}, {}\n {:?}", pixel_data.bits_allocated(), pixel_data.bits_stored(), pixel_data.pixel_representation(), pixel_data.samples_per_pixel(), pixel_data.data().get(256..512).unwrap()));
 
-    let data = Uint16Array::from(bytemuck::cast_slice::<u8, u16>(pixel_data.data()));
+    let shorts = bytemuck::cast_slice::<u8, u16>(pixel_data.data());
+    let mut min_sample = u16::MAX;
+    let mut max_sample = u16::MIN;
+    for short in shorts {
+        if *short < min_sample {
+            min_sample = *short;
+        }
+        if *short > max_sample {
+            max_sample = *short;
+        }
+    }
+    let data = Uint16Array::from(shorts);
 
     let pixel_spacing = result_obj
         .get(PIXEL_SPACING)
@@ -224,6 +243,8 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             y.trim().parse().expect("Couldn't parse y spacing to float"),
             slice_thickness
         ],
+        max_sample,
+        min_sample
     }
 }
 
@@ -269,6 +290,8 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
     let mut data = Vec::<u16>::new();
     let mut dimensions: [u32; 3] = [0, 0, 0];
     let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
+    let mut min_sample = u16::MAX;
+    let mut max_sample = u16::MIN;
     for bytes in all_bytes {
         let dicom = read_dicom(bytes, dimensions[0] == 0);
         if dimensions[0] == 0 {
@@ -290,12 +313,21 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
         }
         dimensions[2] += dicom.dimensions[2];
         // We can just append here, as the data is in exactly the order GL expects it to be in
-        data.append(&mut dicom.data.to_vec())
+        data.append(&mut dicom.data.to_vec());
+
+        if dicom.min_sample < min_sample {
+            min_sample = dicom.min_sample;
+        }
+        if dicom.max_sample > max_sample {
+            max_sample = dicom.max_sample;
+        }
     }
     DicomDataInternal {
         data: Uint16Array::from(data.as_slice()),
         dimensions,
         scaling,
+        max_sample,
+        min_sample
     }
     .into()
 }

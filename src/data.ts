@@ -7,7 +7,9 @@ export function generateData(width: number, height: number, depth: number, densi
 export type DicomData = {
     data: Uint16Array;
     dimensions: [width: number, height: number, depth: number],
-    scaling: [x: number, y: number, z: number]
+    scaling: [x: number, y: number, z: number],
+    min_sample: number,
+    max_sample: number
 }
 
 export const dicomBasePaths: {
@@ -43,12 +45,15 @@ export async function loadDicomData(index: number = 0): Promise<DicomData> {
     const dicomData = await wasm.read_dicoms_from_url(url, from, to, "#", replaceLength)//wasm.read_dicoms(allBytes);
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
     const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
+    const min_sample = dicomData.min_sample;
+    const max_sample = dicomData.max_sample;
     const readBytes = wasm.read_dicom_bytes(dicomData);
 
     return {
         data: readBytes,
         dimensions: dimensions,
-        scaling: scaling
+        scaling: scaling,
+        min_sample, max_sample
     }
 }
 
@@ -58,12 +63,15 @@ export async function loadDicomDataFromFiles(files: FileList | File[]): Promise<
 
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
     const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
+    const min_sample = dicomData.min_sample;
+    const max_sample = dicomData.max_sample;
     const readBytes = wasm.read_dicom_bytes(dicomData);
 
     return {
         data: readBytes,
         dimensions: dimensions,
-        scaling: scaling
+        scaling: scaling,
+        min_sample, max_sample
     }
 }
 

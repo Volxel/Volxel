@@ -77,6 +77,7 @@ class State {
   private blit: WebGLProgram;
 
   private textureLoc: WebGLUniformLocation;
+  private sampleRangeLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
   private transferRangeLoc: WebGLUniformLocation;
   private previousFrameLoc: WebGLUniformLocation;
@@ -108,6 +109,7 @@ class State {
 
   private camera: Camera;
   private aabb: number[] = [-1, -1, -1, 1, 1, 1];
+  private sampleRange: [number, number] = [0, 2 ** 16 - 1];
 
   constructor(defaultTransferFunction: { data: Float32Array, length: number }) {
     // Get canvas to render to
@@ -198,6 +200,7 @@ class State {
 
     // get uniform locations
     this.textureLoc = this.getUniformLocation("u_texture");
+    this.sampleRangeLoc = this.getUniformLocation("u_sample_range");
     this.transferLoc = this.getUniformLocation("u_transfer");
     this.transferRangeLoc = this.getUniformLocation("u_transfer_range");
     this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
@@ -326,21 +329,26 @@ class State {
         let data: Uint16Array;
         let dimensions: [number, number, number];
         let scaling: [number, number, number] = [1, 1, 1];
+        let sampleRange: typeof this.sampleRange = this.sampleRange;
         switch (modelSelect.value) {
           case "sphere":
             data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere);
-            dimensions = [width, height, depth]
+            dimensions = [width, height, depth];
+            sampleRange = [0, 2 ** 16 - 1]
             break;
           case "sinusoid":
             data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid);
             dimensions = [width, height, depth]
+            sampleRange = [0, 2 ** 16 - 1]
             break;
           case "pillars":
             data = generateData(width, height, depth);
             dimensions = [width, height, depth]
+            sampleRange = [0, 2 ** 16 - 1]
             break;
           default:
             const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
+            sampleRange = [dicom.min_sample, dicom.max_sample];
             data = dicom.data;
             dimensions = dicom.dimensions;
             scaling = dicom.scaling;
@@ -350,6 +358,7 @@ class State {
         const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
         const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
         this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+        this.sampleRange = sampleRange;
         this.changeImageData(data, ...dimensions);
       })
     });
@@ -371,6 +380,7 @@ class State {
         const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
         const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
         this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+        this.sampleRange = [dicom.min_sample, dicom.max_sample];
         this.changeImageData(data, ...dimensions);
       })
     })
@@ -484,6 +494,10 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.transferLoc, 1);
+
+    // bind sample range
+    this.gl.uniform2ui(this.sampleRangeLoc, ...this.sampleRange);
+
     // bind previous frame
     this.gl.activeTexture(this.gl.TEXTURE0 + 2 + framebuffer);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
