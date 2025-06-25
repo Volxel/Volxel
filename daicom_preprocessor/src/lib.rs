@@ -6,7 +6,7 @@ use dicom_object::InMemDicomObject;
 use wasm_bindgen::prelude::*;
 
 use crate::utils::log_to_console;
-use dicom_pixeldata::PixelDecoder;
+use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
 use js_sys::Math::{max, pow, sin};
 use js_sys::{ArrayBuffer, Uint16Array, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
@@ -193,8 +193,12 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
     if pixel_data.samples_per_pixel() != 1 {
         panic!("More than one sample per pixel not currently supported")
     }
-
-    // log_to_console(&format!("Pixel Data: {}, {}, {:?}, {}\n {:?}", pixel_data.bits_allocated(), pixel_data.bits_stored(), pixel_data.pixel_representation(), pixel_data.samples_per_pixel(), pixel_data.data().get(256..512).unwrap()));
+    if pixel_data.bits_allocated() != 16 {
+        panic!("Currently only 16bit samples are supported")
+    }
+    if pixel_data.pixel_representation() != PixelRepresentation::Unsigned {
+        panic!("Currently only unsigned samples are supported")
+    }
 
     let shorts = bytemuck::cast_slice::<u8, u16>(pixel_data.data());
     let mut min_sample = u16::MAX;
