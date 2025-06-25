@@ -186,7 +186,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
         panic!("More than one sample per pixel not currently supported")
     }
 
-    log_to_console(&format!("Pixel Data: {}, {}, {:?}, {}", pixel_data.bits_allocated(), pixel_data.bits_stored(), pixel_data.pixel_representation(), pixel_data.samples_per_pixel()));
+    // log_to_console(&format!("Pixel Data: {}, {}, {:?}, {}\n {:?}", pixel_data.bits_allocated(), pixel_data.bits_stored(), pixel_data.pixel_representation(), pixel_data.samples_per_pixel(), pixel_data.data().get(256..512).unwrap()));
 
     let data = Uint16Array::from(bytemuck::cast_slice::<u8, u16>(pixel_data.data()));
 
@@ -210,7 +210,6 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
 
     if debug_print {
         log_to_console(&format!("Pixel Spacing: x={}, y={}, z={}", x, y, slice_thickness));
-        log_to_console(debug_print_tags(&result_obj, 0).as_str());
     }
 
     DicomDataInternal {
@@ -290,7 +289,7 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
             }
         }
         dimensions[2] += dicom.dimensions[2];
-        // TODO: Just appending the bytes probably isn't right
+        // We can just append here, as the data is in exactly the order GL expects it to be in
         data.append(&mut dicom.data.to_vec())
     }
     DicomDataInternal {
