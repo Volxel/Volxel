@@ -1,8 +1,7 @@
+use crate::{DOUBLE_FLOAT_PIXEL_DATA, FLOAT_PIXEL_DATA, PIXEL_DATA};
 use dicom_core::value::DicomValueType;
-use dicom_core::value::ValueType::{DataSetSequence, Str, Strs};
 use dicom_object::InMemDicomObject;
 use wasm_bindgen::prelude::*;
-use crate::{DOUBLE_FLOAT_PIXEL_DATA, FLOAT_PIXEL_DATA, PIXEL_DATA};
 
 pub fn set_panic_hook() {
     // When the `console_error_panic_hook` feature is enabled, we can call the

@@ -1,6 +1,5 @@
 mod utils;
 
-use dicom_core::value::DicomValueType;
 use dicom_core::Tag;
 use wasm_bindgen::prelude::*;
 
