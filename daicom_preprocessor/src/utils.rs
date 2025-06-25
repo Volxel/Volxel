@@ -1,3 +1,4 @@
+use dicom_core::value::DicomValueType;
 use dicom_core::value::ValueType::{DataSetSequence, Str, Strs};
 use dicom_object::InMemDicomObject;
 use wasm_bindgen::prelude::*;
