@@ -1,9 +1,5 @@
 import * as wasm from "daicom_preprocessor"
 
-export function generateData(width: number, height: number, depth: number, densityFunction: wasm.GeneratedDataType = wasm.GeneratedDataType.Pillars): Uint16Array {
-    return wasm.generate_data(width, height, depth, densityFunction);
-}
-
 export type DicomData = {
     data: Uint16Array;
     dimensions: [width: number, height: number, depth: number],
@@ -36,29 +32,7 @@ export const dicomBasePaths: {
     {url: "/Volxel/Dicom/DeutschesMuseum/chiffredevice/2017-402#.dcm", from: 0, to: 783, replaceLength: 3}
 ]
 
-export async function loadDicomData(index: number = 0): Promise<DicomData> {
-    // const debug = await wasm.read_dicoms_from_url("/Volxel/Dicom/53_ER_ANA_AS20180009/DICOMDIR", 0, 1, "xxx", 1);
-    // console.log(debug.width, debug.height, debug.depth);
-    // const urls = [dicomBasePath] //new Array(1).fill(0).map((_, i) => dicomBasePath.replace("001", `${i + 1}`.padStart(3, "0")))
-    // const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
-    const { url, from, to, replaceLength } = dicomBasePaths[index];
-    const dicomData = await wasm.read_dicoms_from_url(url, from, to, "#", replaceLength)//wasm.read_dicoms(allBytes);
-    const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
-    const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
-    const min_sample = dicomData.min_sample;
-    const max_sample = dicomData.max_sample;
-    const readBytes = wasm.read_dicom_bytes(dicomData);
-
-    return {
-        data: readBytes,
-        dimensions: dimensions,
-        scaling: scaling,
-        min_sample, max_sample
-    }
-}
-
-export async function loadDicomDataFromFiles(files: FileList | File[]): Promise<DicomData> {
-    const data = await Promise.all([...files].map(file => file.bytes()));
+export function readDicomData(data: Uint8Array[]) {
     const dicomData = wasm.read_dicoms(data);
 
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
@@ -73,6 +47,20 @@ export async function loadDicomDataFromFiles(files: FileList | File[]): Promise<
         scaling: scaling,
         min_sample, max_sample
     }
+}
+
+export async function loadDicomData(index: number = 0): Promise<DicomData> {
+    const { url, from, to, replaceLength } = dicomBasePaths[index];
+    const urls = new Array(to - from).fill(0).map((_, i) => {
+        return url.replace("#", `${from + i}`.padStart(replaceLength, "0"))
+    })
+    const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
+    return readDicomData(allBytes);
+}
+
+export async function loadDicomDataFromFiles(files: FileList | File[]): Promise<DicomData> {
+    const data = await Promise.all([...files].map(file => file.bytes()));
+    return readDicomData(data);
 }
 
 export enum TransferFunction {

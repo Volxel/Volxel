@@ -7,8 +7,7 @@ import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
 import {
-  ColorStop, dicomBasePaths,
-  generateData,
+  ColorStop, dicomBasePaths, DicomData,
   generateTransferFunction,
   loadDicomData, loadDicomDataFromFiles,
   loadTransferFunction,
@@ -181,7 +180,7 @@ class State {
     // Prepare Texture for drawing
     this.texture = gl.createTexture();
     const width = 256, height = 256, depth = 256;
-    this.changeImageData(generateData(width, height, depth), width, height, depth);
+    this.changeImageData(null, width, height, depth);
     // set the filtering so we don't need mips
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -323,43 +322,11 @@ class State {
       option.innerHTML = basePath.url;
       modelSelect.appendChild(option);
     }
-    modelSelect.value = "pillars";
+    modelSelect.value = "";
     modelSelect.addEventListener("change", async () => {
       await this.restartRendering(async () => {
-        let data: Uint16Array;
-        let dimensions: [number, number, number];
-        let scaling: [number, number, number] = [1, 1, 1];
-        let sampleRange: typeof this.sampleRange = this.sampleRange;
-        switch (modelSelect.value) {
-          case "sphere":
-            data = generateData(width, height, depth, wasm.GeneratedDataType.Sphere);
-            dimensions = [width, height, depth];
-            sampleRange = [0, 2 ** 16 - 1]
-            break;
-          case "sinusoid":
-            data = generateData(width, height, depth, wasm.GeneratedDataType.Sinusoid);
-            dimensions = [width, height, depth]
-            sampleRange = [0, 2 ** 16 - 1]
-            break;
-          case "pillars":
-            data = generateData(width, height, depth);
-            dimensions = [width, height, depth]
-            sampleRange = [0, 2 ** 16 - 1]
-            break;
-          default:
-            const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
-            sampleRange = [dicom.min_sample, dicom.max_sample];
-            data = dicom.data;
-            dimensions = dicom.dimensions;
-            scaling = dicom.scaling;
-            break;
-        }
-        const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
-        const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-        const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
-        this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
-        this.sampleRange = sampleRange;
-        this.changeImageData(data, ...dimensions);
+        const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
+        this.setupFromDicom(dicom);
       })
     });
 
@@ -373,15 +340,7 @@ class State {
         }
 
         const dicom = await loadDicomDataFromFiles(files);
-        const data = dicom.data;
-        const dimensions = dicom.dimensions;
-        const scaling = dicom.scaling;
-        const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
-        const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-        const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
-        this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
-        this.sampleRange = [dicom.min_sample, dicom.max_sample];
-        this.changeImageData(data, ...dimensions);
+        this.setupFromDicom(dicom);
       })
     })
 
@@ -417,13 +376,25 @@ class State {
     rangeMax.valueAsNumber = this.input.range_max;
   }
 
+  private setupFromDicom(dicom: DicomData) {
+    const data = dicom.data;
+    const dimensions = dicom.dimensions;
+    const scaling = dicom.scaling;
+    const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
+    const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
+    const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
+    this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+    this.sampleRange = [dicom.min_sample, dicom.max_sample];
+    this.changeImageData(data, ...dimensions);
+  }
+
   private getUniformLocation(name: string, program: WebGLProgram = this.program): WebGLUniformLocation {
     const loc = this.gl.getUniformLocation(program, name);
     if (!loc) throw new Error("Failed to get uniform location of '" + name + "'");
     return loc;
   }
 
-  changeImageData(data: Uint16Array, width: number, height: number, depth: number) {
+  changeImageData(data: Uint16Array | null, width: number, height: number, depth: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
