@@ -368,6 +368,7 @@ class State {
     });
 
     const densityMultiplierInput = document.getElementById("density_multiplier") as HTMLInputElement;
+    densityMultiplierInput.valueAsNumber = this.input.density_multiplier;
     densityMultiplierInput.addEventListener("change", async () => {
       await this.restartRendering(async () => {
         this.input.density_multiplier = densityMultiplierInput.valueAsNumber;
