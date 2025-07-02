@@ -14,6 +14,7 @@ import {
   TransferFunction
 } from "./data.ts";
 import {ColorRampComponent} from "./colorramp.ts";
+import {HistogramViewer} from "./histogramViewer.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -314,6 +315,8 @@ class State {
       })
     })
 
+    const histogramViewer = document.getElementById("histogram") as HistogramViewer;
+
     const modelSelect = document.getElementById("density") as HTMLSelectElement;
     for (let i = 0; i < dicomBasePaths.length; i++) {
       const basePath = dicomBasePaths[i];
@@ -327,6 +330,7 @@ class State {
       await this.restartRendering(async () => {
         const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
         this.setupFromDicom(dicom);
+        histogramViewer.renderHistogram(dicom.histogram);
       })
     });
 
@@ -341,6 +345,7 @@ class State {
 
         const dicom = await loadDicomDataFromFiles(files);
         this.setupFromDicom(dicom);
+        histogramViewer.renderHistogram(dicom.histogram);
       })
     })
 
@@ -487,6 +492,7 @@ class State {
 }
 
 customElements.define("color-ramp-component", ColorRampComponent);
+customElements.define("volxel-histogram-viewer", HistogramViewer);
 
 async function main() {
   wasm.init();

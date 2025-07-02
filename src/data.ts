@@ -5,7 +5,8 @@ export type DicomData = {
     dimensions: [width: number, height: number, depth: number],
     scaling: [x: number, y: number, z: number],
     min_sample: number,
-    max_sample: number
+    max_sample: number,
+    histogram: Uint32Array
 }
 
 export const dicomBasePaths: {
@@ -45,7 +46,8 @@ export function readDicomData(data: Uint8Array[]) {
         dimensions: dimensions,
         scaling: scaling,
         min_sample: 0,
-        max_sample: histogram.length
+        max_sample: histogram.length,
+        histogram
     }
 }
 
