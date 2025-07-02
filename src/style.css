@@ -57,4 +57,11 @@ div.controls {
   &:has(input[name=hide]:checked) > *:not(:has(input[name=hide])) {
     display: none;
   }
+
+  label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+  }
 }

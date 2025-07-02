@@ -79,6 +79,7 @@ class State {
   private textureLoc: WebGLUniformLocation;
   private sampleRangeLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
+  private densityMultiplierLoc: WebGLUniformLocation;
   private previousFrameLoc: WebGLUniformLocation;
   private frameIndexLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
@@ -101,7 +102,8 @@ class State {
   private input = {
     debugHits: false,
     accumulation: true,
-    max_samples: 100
+    max_samples: 100,
+    density_multiplier: 1
   }
 
   private camera: Camera;
@@ -199,6 +201,7 @@ class State {
     this.textureLoc = this.getUniformLocation("u_texture");
     this.sampleRangeLoc = this.getUniformLocation("u_sample_range");
     this.transferLoc = this.getUniformLocation("u_transfer");
+    this.densityMultiplierLoc = this.getUniformLocation("u_density_multiplier");
     this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
     this.frameIndexLoc = this.getUniformLocation("u_frame_index");
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
@@ -362,6 +365,13 @@ class State {
         const {data, length} = await loadTransferFunction(file.item(0)!);
         this.changeTransferFunc(data, length);
       })
+    });
+
+    const densityMultiplierInput = document.getElementById("density_multiplier") as HTMLInputElement;
+    densityMultiplierInput.addEventListener("change", async () => {
+      await this.restartRendering(async () => {
+        this.input.density_multiplier = densityMultiplierInput.valueAsNumber;
+      })
     })
   }
 
@@ -454,6 +464,9 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.transferLoc, 1);
+
+    // bind density multiplyer
+    this.gl.uniform1f(this.densityMultiplierLoc, this.input.density_multiplier);
 
     // bind sample range
     this.gl.uniform2ui(this.sampleRangeLoc, ...this.sampleRange);

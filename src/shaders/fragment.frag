@@ -11,6 +11,7 @@ in vec2 tex;
 uniform usampler3D u_texture;
 uniform uvec2 u_sample_range;
 uniform sampler2D u_transfer;
+uniform float u_density_multiplier;
 uniform sampler2D u_previous_frame;
 uniform uint u_frame_index;
 uniform vec3 u_volume_aabb[2];
@@ -102,7 +103,8 @@ vec4 eval_volume_world(vec3 world_pos) {
     if (raw_sample < u_sample_range.x || raw_sample > u_sample_range.y) return vec4(0);
 
     float data_density = clamp(float(raw_sample - u_sample_range.x) / float(u_sample_range.y - u_sample_range.x), 0.0, 1.0);
-    return texture(u_transfer, vec2(data_density, 0.0));
+    vec4 transfer_result = texture(u_transfer, vec2(data_density, 0.0));
+    return vec4(transfer_result.xzy, transfer_result.w * u_density_multiplier);
 }
 
 float phase(float g, float cos_theta) {

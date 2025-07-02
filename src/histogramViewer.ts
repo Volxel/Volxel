@@ -124,7 +124,6 @@ export class HistogramViewer extends HTMLElement {
         // TODO: This setup was chosen fairly arbitrarily, maybe there are better ones
         const median = histogram.toSorted((a, b) => a - b)[Math.floor(histogram.length / 2)];
         const lastIndexWithData = histogram.findLastIndex((count) => count > median);
-        console.log(lastIndexWithData);
 
         this.canvas.height = this.canvas.getBoundingClientRect().height * 10;
         this.canvas.width = lastIndexWithData;
