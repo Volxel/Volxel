@@ -79,7 +79,6 @@ class State {
   private textureLoc: WebGLUniformLocation;
   private sampleRangeLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
-  private transferRangeLoc: WebGLUniformLocation;
   private previousFrameLoc: WebGLUniformLocation;
   private frameIndexLoc: WebGLUniformLocation;
   private volumeAABBLoc: WebGLUniformLocation;
@@ -102,8 +101,6 @@ class State {
   private input = {
     debugHits: false,
     accumulation: true,
-    range_min: 0,
-    range_max: 1,
     max_samples: 100
   }
 
@@ -202,7 +199,6 @@ class State {
     this.textureLoc = this.getUniformLocation("u_texture");
     this.sampleRangeLoc = this.getUniformLocation("u_sample_range");
     this.transferLoc = this.getUniformLocation("u_transfer");
-    this.transferRangeLoc = this.getUniformLocation("u_transfer_range");
     this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
     this.frameIndexLoc = this.getUniformLocation("u_frame_index");
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
@@ -316,6 +312,11 @@ class State {
     })
 
     const histogramViewer = document.getElementById("histogram") as HistogramViewer;
+    histogramViewer.addEventListener("change", async (event: Event) => {
+      await this.restartRendering(async () => {
+        this.sampleRange = (event as CustomEvent<[min: number, max: number]>).detail;
+      })
+    })
 
     const modelSelect = document.getElementById("density") as HTMLSelectElement;
     for (let i = 0; i < dicomBasePaths.length; i++) {
@@ -362,23 +363,6 @@ class State {
         this.changeTransferFunc(data, length);
       })
     })
-
-    const rangeMin = document.getElementById("range_start") as HTMLInputElement;
-    const rangeMax = document.getElementById("range_end") as HTMLInputElement;
-    rangeMin.addEventListener("change", async () => {
-      rangeMax.min = rangeMin.value;
-      if (rangeMax.valueAsNumber < rangeMin.valueAsNumber) rangeMax.value = rangeMin.value;
-      await this.restartRendering(() => {
-        this.input.range_min = rangeMin.valueAsNumber;
-      })
-    })
-    rangeMax.addEventListener("change", async () => {
-      await this.restartRendering(() => {
-        this.input.range_max = rangeMax.valueAsNumber;
-      })
-    })
-    rangeMin.valueAsNumber = this.input.range_min;
-    rangeMax.valueAsNumber = this.input.range_max;
   }
 
   private setupFromDicom(dicom: DicomData) {
@@ -478,8 +462,6 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 2 + framebuffer);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
     this.gl.uniform1i(this.previousFrameLoc, 2 + framebuffer);
-
-    this.gl.uniform2f(this.transferRangeLoc, this.input.range_min, this.input.range_max);
 
     this.gl.uniform1ui(this.frameIndexLoc, this.frameIndex);
 
