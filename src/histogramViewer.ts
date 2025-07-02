@@ -78,7 +78,7 @@ export class HistogramViewer extends HTMLElement {
                 return Math.min(Math.max((x - bounding.left) / bounding.width, 0), 1);
             }
             const moveListener = (event: MouseEvent) => {
-                if (Math.abs(event.clientX - dragStart) > 10) {
+                if (dragging || Math.abs(event.clientX - dragStart) > 10) {
                     dragging = true
 
                     button.style.setProperty("--temp-offset", `${calculatePositionInButton(event.clientX)}`)
@@ -126,7 +126,7 @@ export class HistogramViewer extends HTMLElement {
         const lastIndexWithData = histogram.findLastIndex((count) => count > median);
 
         this.canvas.height = this.canvas.getBoundingClientRect().height * 10;
-        this.canvas.width = lastIndexWithData;
+        this.canvas.width = Math.min(lastIndexWithData, 4096);
         this.max = lastIndexWithData;
 
         this.selectedRange = [0, 1];
@@ -141,7 +141,7 @@ export class HistogramViewer extends HTMLElement {
         context.fillStyle = "#FFFFFF";
         // TODO this could probably be optimized
         for (let i = 1; i < lastIndexWithData; i++) {
-            context.fillRect(i, 0, 1, histogram[i] / max * this.canvas.height);
+            context.fillRect(Math.floor(i / lastIndexWithData * this.canvas.width), 0, 1, histogram[i] / max * this.canvas.height);
         }
     }
 
