@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
-use js_sys::{Uint16Array, Uint8Array};
+use js_sys::{Uint16Array, Uint32Array, Uint8Array};
 
 #[wasm_bindgen]
 pub fn init() {
@@ -16,22 +16,20 @@ struct DicomDataInternal {
     data: Uint16Array,
     dimensions: [u32; 3],
     scaling: [f32; 3],
-    min_sample: u16,
-    max_sample: u16,
+    histogram: Vec<u32>
 }
 
 #[wasm_bindgen]
 #[allow(dead_code)]
 pub struct DicomData {
     data: Uint16Array,
+    histogram: Uint32Array,
     pub width: u32,
     pub height: u32,
     pub depth: u32,
     pub x: f32,
     pub y: f32,
     pub z: f32,
-    pub min_sample: u16,
-    pub max_sample: u16,
 }
 
 impl Into<DicomData> for DicomDataInternal {
@@ -44,8 +42,7 @@ impl Into<DicomData> for DicomDataInternal {
             x: self.scaling[0],
             y: self.scaling[1],
             z: self.scaling[2],
-            max_sample: self.max_sample,
-            min_sample: self.min_sample,
+            histogram: Uint32Array::from(self.histogram.as_slice()),
         }
     }
 }
@@ -86,8 +83,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             data: Uint16Array::from(&[] as &[u16]),
             dimensions: [0, 0, 0],
             scaling: [1.0, 1.0, 1.0],
-            max_sample: u16::MAX,
-            min_sample: 0
+            histogram: vec![]
         };
     }
 
@@ -104,10 +100,15 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
         panic!("Currently only unsigned samples are supported")
     }
 
+    let max_density = 2usize.pow(pixel_data.bits_stored() as u32);
+
+    let mut histogram: Vec<u32> = vec![0; max_density];
+
     let shorts = bytemuck::cast_slice::<u8, u16>(pixel_data.data());
     let mut min_sample = u16::MAX;
     let mut max_sample = u16::MIN;
     for short in shorts {
+        histogram[*short as usize] += 1;
         if *short < min_sample {
             min_sample = *short;
         }
@@ -133,7 +134,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             .expect("Slice thickness didn't contain anything")
             .trim()
             .parse::<f32>().expect("Couldn't parse slice thickness to float")
-    }).unwrap_or(1.0);
+    }).unwrap_or(0.1);
 
     if debug_print {
         log_to_console(&format!("Pixel Spacing: x={}, y={}, z={}", x, y, slice_thickness));
@@ -151,8 +152,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             y.trim().parse().expect("Couldn't parse y spacing to float"),
             slice_thickness
         ],
-        max_sample,
-        min_sample
+        histogram
     }
 }
 
@@ -161,10 +161,9 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
     let mut data = Vec::<u16>::new();
     let mut dimensions: [u32; 3] = [0, 0, 0];
     let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
-    let mut min_sample = u16::MAX;
-    let mut max_sample = u16::MIN;
+    let mut histogram: Vec<u32> = Vec::new();
     for bytes in all_bytes {
-        let dicom = read_dicom(bytes, dimensions[0] == 0);
+        let mut dicom = read_dicom(bytes, dimensions[0] == 0);
         if dimensions[0] == 0 {
             dimensions[0] = dicom.dimensions[0];
         } else if dimensions[0] != dicom.dimensions[0] {
@@ -186,24 +185,29 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
         // We can just append here, as the data is in exactly the order GL expects it to be in
         data.append(&mut dicom.data.to_vec());
 
-        if dicom.min_sample < min_sample {
-            min_sample = dicom.min_sample;
-        }
-        if dicom.max_sample > max_sample {
-            max_sample = dicom.max_sample;
+        if histogram.is_empty() {
+            histogram.append(&mut dicom.histogram)
+        } else {
+            for i in 0..histogram.len() {
+                histogram[i] = histogram[i] + dicom.histogram[i];
+            }
         }
     }
     DicomDataInternal {
         data: Uint16Array::from(data.as_slice()),
         dimensions,
         scaling,
-        max_sample,
-        min_sample
+        histogram
     }
     .into()
 }
 
 #[wasm_bindgen]
-pub fn read_dicom_bytes(dicom: DicomData) -> Uint16Array {
+pub fn extract_dicom_histogram(dicom: &DicomData) -> Uint32Array {
+    dicom.histogram.clone()
+}
+
+#[wasm_bindgen]
+pub fn consume_dicom_to_data(dicom: DicomData) -> Uint16Array {
     dicom.data
 }

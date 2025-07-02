@@ -37,15 +37,15 @@ export function readDicomData(data: Uint8Array[]) {
 
     const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
     const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
-    const min_sample = dicomData.min_sample;
-    const max_sample = dicomData.max_sample;
-    const readBytes = wasm.read_dicom_bytes(dicomData);
+    const histogram = wasm.extract_dicom_histogram(dicomData);
+    const readBytes = wasm.consume_dicom_to_data(dicomData);
 
     return {
         data: readBytes,
         dimensions: dimensions,
         scaling: scaling,
-        min_sample, max_sample
+        min_sample: 0,
+        max_sample: histogram.length
     }
 }
 
