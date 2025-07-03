@@ -17,6 +17,8 @@ uniform uint u_frame_index;
 uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
 
+uniform float u_stepsize;
+
 // Camera Info
 uniform vec3 camera_pos;
 uniform vec3 camera_view;
@@ -88,9 +90,6 @@ vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
     return (world - aabb[0]) / (aabb[1] - aabb[0]);
 }
 
-// Simple raymarch that accumulates a float value, early break if it reaches 1
-const float stepsize = 0.025;
-
 float map_to_range(float x, vec2 range) {
     if (x < range.x || x > range.y) return -1.0;
     return (x - range.x) / (range.y - range.x);
@@ -113,6 +112,7 @@ float phase(float g, float cos_theta) {
 }
 
 vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
+    float stepsize = u_stepsize;
     vec3 diff = to - from;
     uint numSteps = uint(ceil(length(diff) / stepsize));
     float dt = stepsize / length(diff);

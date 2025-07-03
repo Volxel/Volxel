@@ -87,6 +87,8 @@ class State {
   private debugHitsLoc: WebGLUniformLocation;
   private sampleWeightLoc: WebGLUniformLocation;
 
+  private stepsizeLoc: WebGLUniformLocation;
+
   private targetLocation: WebGLUniformLocation;
 
   private framebuffers: Framebuffer[] = [];
@@ -207,7 +209,9 @@ class State {
     this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
     this.resLoc = this.getUniformLocation("u_res");
     this.debugHitsLoc = this.getUniformLocation("u_debugHits");
-    this.sampleWeightLoc = this.getUniformLocation("u_sample_weight")
+    this.sampleWeightLoc = this.getUniformLocation("u_sample_weight");
+
+    this.stepsizeLoc = this.getUniformLocation("u_stepsize");
 
     this.targetLocation = this.getUniformLocation("u_result", this.blit);
 
@@ -472,6 +476,9 @@ class State {
     // bind sample range
     this.gl.uniform2ui(this.sampleRangeLoc, ...this.sampleRange);
 
+    // reduce stepsize for first few samples to improve performance when looking around
+    this.gl.uniform1f(this.stepsizeLoc, this.frameIndex < 2 ? 0.1 : 0.025);
+
     // bind previous frame
     this.gl.activeTexture(this.gl.TEXTURE0 + 2 + framebuffer);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
@@ -483,7 +490,7 @@ class State {
     this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
 
-    this.gl.uniform1f(this.sampleWeightLoc, this.frameIndex / (this.frameIndex + 1));
+    this.gl.uniform1f(this.sampleWeightLoc, this.frameIndex < 2 ? 0 : (this.frameIndex - 2) / (this.frameIndex - 1));
   }
 }
 
