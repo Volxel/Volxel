@@ -1,4 +1,5 @@
 import {css} from "./util.ts";
+import {DicomData} from "./data.ts";
 
 export class HistogramViewer extends HTMLElement {
     private canvas: HTMLCanvasElement;
@@ -118,16 +119,14 @@ export class HistogramViewer extends HTMLElement {
         if (!context) throw new Error("Failed to get 2d context for histogram viewer canvas");
     }
 
-    public renderHistogram(histogram: Uint32Array) {
+    public renderHistogram(dicom: DicomData) {
+        const histogram = dicom.histogram;
         const max = histogram.reduce((acc, cur, i) => i > 0 ? (cur > acc ? cur : acc) : acc, 0);
-
-        // TODO: This setup was chosen fairly arbitrarily, maybe there are better ones
-        const median = histogram.toSorted((a, b) => a - b)[Math.floor(histogram.length / 2)];
-        const lastIndexWithData = histogram.findLastIndex((count) => count > median);
+        const logMax = Math.log10(max);
 
         this.canvas.height = this.canvas.getBoundingClientRect().height * 10;
-        this.canvas.width = Math.min(lastIndexWithData, 4096);
-        this.max = lastIndexWithData;
+        this.canvas.width = Math.min(histogram.length, 4096);
+        this.max = histogram.length;
 
         this.selectedRange = [0, 1];
         this.buttons[0].style.setProperty("--relative-position", `${0}`)
@@ -140,8 +139,8 @@ export class HistogramViewer extends HTMLElement {
         context.fillRect(0, 0, this.canvas.width, this.canvas.height);
         context.fillStyle = "#FFFFFF";
         // TODO this could probably be optimized
-        for (let i = 1; i < lastIndexWithData; i++) {
-            context.fillRect(Math.floor(i / lastIndexWithData * this.canvas.width), 0, 1, histogram[i] / max * this.canvas.height);
+        for (let i = 1; i < histogram.length; i++) {
+            context.fillRect(Math.floor(i / histogram.length * this.canvas.width), 0, 1, Math.log10(histogram[i]) / logMax * this.canvas.height);
         }
     }
 

@@ -338,7 +338,7 @@ class State {
       await this.restartRendering(async () => {
         const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
         this.setupFromDicom(dicom);
-        histogramViewer.renderHistogram(dicom.histogram);
+        histogramViewer.renderHistogram(dicom);
       })
     });
 
@@ -353,7 +353,7 @@ class State {
 
         const dicom = await loadDicomDataFromFiles(files);
         this.setupFromDicom(dicom);
-        histogramViewer.renderHistogram(dicom.histogram);
+        histogramViewer.renderHistogram(dicom);
       })
     })
 

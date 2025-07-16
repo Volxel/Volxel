@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
-use js_sys::{Uint16Array, Uint32Array, Uint8Array};
+use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
 
 #[wasm_bindgen]
 pub fn init() {
@@ -16,7 +16,9 @@ struct DicomDataInternal {
     data: Uint16Array,
     dimensions: [u32; 3],
     scaling: [f32; 3],
-    histogram: Vec<u32>
+    histogram: Vec<u32>,
+    min: u16,
+    max: u16
 }
 
 #[wasm_bindgen]
@@ -24,6 +26,9 @@ struct DicomDataInternal {
 pub struct DicomData {
     data: Uint16Array,
     histogram: Uint32Array,
+    gradient: Int32Array,
+    pub min: u16,
+    pub max: u16,
     pub width: u32,
     pub height: u32,
     pub depth: u32,
@@ -34,6 +39,12 @@ pub struct DicomData {
 
 impl Into<DicomData> for DicomDataInternal {
     fn into(self) -> DicomData {
+        let mut gradient: Vec<i32> = Vec::with_capacity(self.histogram.len());
+        let mut last: u32 = 0;
+        for histogram_step in &self.histogram {
+            gradient.push(histogram_step.clone() as i32 - last as i32);
+            last = histogram_step.clone();
+        }
         DicomData {
             data: self.data,
             width: self.dimensions[0],
@@ -42,7 +53,10 @@ impl Into<DicomData> for DicomDataInternal {
             x: self.scaling[0],
             y: self.scaling[1],
             z: self.scaling[2],
+            min: self.min,
+            max: self.max,
             histogram: Uint32Array::from(self.histogram.as_slice()),
+            gradient: Int32Array::from(gradient.as_slice())
         }
     }
 }
@@ -83,7 +97,9 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             data: Uint16Array::from(&[] as &[u16]),
             dimensions: [0, 0, 0],
             scaling: [1.0, 1.0, 1.0],
-            histogram: vec![]
+            histogram: vec![],
+            min: 0,
+            max: u16::MAX,
         };
     }
 
@@ -152,7 +168,9 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             y.trim().parse().expect("Couldn't parse y spacing to float"),
             slice_thickness
         ],
-        histogram
+        histogram,
+        min: min_sample,
+        max: max_sample
     }
 }
 
@@ -162,6 +180,8 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
     let mut dimensions: [u32; 3] = [0, 0, 0];
     let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
     let mut histogram: Vec<u32> = Vec::new();
+    let mut min: u16 = u16::MAX;
+    let mut max: u16 = 0;
     for bytes in all_bytes {
         let mut dicom = read_dicom(bytes, dimensions[0] == 0);
         if dimensions[0] == 0 {
@@ -192,12 +212,21 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
                 histogram[i] = histogram[i] + dicom.histogram[i];
             }
         }
+
+        if dicom.min < min {
+            min = dicom.min
+        }
+        if dicom.max > max {
+            max = dicom.max
+        }
     }
     DicomDataInternal {
         data: Uint16Array::from(data.as_slice()),
         dimensions,
         scaling,
-        histogram
+        histogram,
+        min,
+        max
     }
     .into()
 }
@@ -205,6 +234,10 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
 #[wasm_bindgen]
 pub fn extract_dicom_histogram(dicom: &DicomData) -> Uint32Array {
     dicom.histogram.clone()
+}
+#[wasm_bindgen]
+pub fn extract_dicom_gradient(dicom: &DicomData) -> Int32Array {
+    dicom.gradient.clone()
 }
 
 #[wasm_bindgen]
