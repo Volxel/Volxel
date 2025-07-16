@@ -57,6 +57,16 @@ impl Into<DicomData> for DicomDataInternal {
             gradient.push(gradient_step);
             last = histogram_step.clone();
         }
+
+        // smoothes the gradient a bit for nicer display
+        let mut smoothed: Vec<i32> = Vec::with_capacity(gradient.len());
+        smoothed.push(gradient[0]);
+        for i in 1..(gradient.len() - 1) {
+            let avg = gradient[i - 1] + gradient[i] + gradient[i + 1];
+            smoothed.push(avg / 3);
+        }
+        smoothed.push(gradient[gradient.len() - 1]);
+
         DicomData {
             data: self.data,
             width: self.dimensions[0],
@@ -70,7 +80,7 @@ impl Into<DicomData> for DicomDataInternal {
             gradmax,
             gradmin,
             histogram: Uint32Array::from(self.histogram.as_slice()),
-            gradient: Int32Array::from(gradient.as_slice())
+            gradient: Int32Array::from(smoothed.as_slice())
         }
     }
 }
