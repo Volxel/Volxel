@@ -112,6 +112,9 @@ class State {
   private aabb: number[] = [-1, -1, -1, 1, 1, 1];
   private sampleRange: [number, number] = [0, 2 ** 16 - 1];
 
+  // Container that is displaying the data, this will be a web component in the future
+  private container: HTMLElement = document.body;
+
   constructor(defaultTransferFunction: { data: Float32Array, length: number }) {
     // Get canvas to render to
     this.canvas = document.getElementById("app") as HTMLCanvasElement;
@@ -412,6 +415,7 @@ class State {
   }
 
   async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
+    this.container.classList.add("restarting");
     this.suspend = true;
     const result = await action();
     this.frameIndex = 0;
@@ -457,6 +461,7 @@ class State {
       this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
       this.frameIndex++;
       if (!this.input.accumulation) this.suspend = true;
+      this.container.classList.remove("restarting");
     }
 
     requestAnimationFrame(() => this.render());
