@@ -135,10 +135,20 @@ export class HistogramViewer extends HTMLElement {
         const context = this.canvas.getContext("2d");
         if (!context) throw new Error("Failed to get 2d context for histogram viewer canvas");
 
+        const gradient_max_log = Math.log10(dicom.max_gradient);
+
         context.fillStyle = "#000000"
         context.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        context.fillStyle = "#FFFFFF";
         // TODO this could probably be optimized
+        context.fillStyle = `#00ff00`;
+        for (let i = 1; i < histogram.length; i++) {
+            // the gradient, alpha of the color displays intensity of gradient
+            context.globalAlpha = Math.max(Math.log10(Math.abs(dicom.gradient[i])) / gradient_max_log, 0);
+            context.fillRect(Math.floor(i / histogram.length * this.canvas.width), 0, 1, this.canvas.height);
+        }
+        // the actual sample count, logarithmically scaled
+        context.globalAlpha = 1;
+        context.fillStyle = "#FFFFFF";
         for (let i = 1; i < histogram.length; i++) {
             context.fillRect(Math.floor(i / histogram.length * this.canvas.width), 0, 1, Math.log10(histogram[i]) / logMax * this.canvas.height);
         }

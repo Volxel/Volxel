@@ -6,6 +6,8 @@ export type DicomData = {
     scaling: [x: number, y: number, z: number],
     min_sample: number,
     max_sample: number,
+    min_gradient: number,
+    max_gradient: number,
     histogram: Uint32Array,
     gradient: Int32Array
 }
@@ -41,6 +43,8 @@ export function readDicomData(data: Uint8Array[]) {
     const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
     const min = dicomData.min;
     const max = dicomData.max;
+    const min_gradient = dicomData.gradmin;
+    const max_gradient = dicomData.gradmax;
     const histogram = wasm.extract_dicom_histogram(dicomData);
     const gradient = wasm.extract_dicom_gradient(dicomData);
     const readBytes = wasm.consume_dicom_to_data(dicomData);
@@ -51,6 +55,8 @@ export function readDicomData(data: Uint8Array[]) {
         scaling: scaling,
         min_sample: min,
         max_sample: max,
+        min_gradient,
+        max_gradient,
         histogram,
         gradient
     }

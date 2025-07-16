@@ -29,6 +29,8 @@ pub struct DicomData {
     gradient: Int32Array,
     pub min: u16,
     pub max: u16,
+    pub gradmin: u32,
+    pub gradmax: u32,
     pub width: u32,
     pub height: u32,
     pub depth: u32,
@@ -41,8 +43,18 @@ impl Into<DicomData> for DicomDataInternal {
     fn into(self) -> DicomData {
         let mut gradient: Vec<i32> = Vec::with_capacity(self.histogram.len());
         let mut last: u32 = 0;
+        let mut gradmin: u32 = u32::MAX;
+        let mut gradmax: u32 = u32::MIN;
         for histogram_step in &self.histogram {
-            gradient.push(histogram_step.clone() as i32 - last as i32);
+            let gradient_step: i32 = histogram_step.clone() as i32 - last as i32;
+            let abs_step = gradient_step.abs_diff(0);
+            if abs_step > gradmax {
+                gradmax = abs_step;
+            }
+            if abs_step < gradmin {
+                gradmin = abs_step;
+            }
+            gradient.push(gradient_step);
             last = histogram_step.clone();
         }
         DicomData {
@@ -55,6 +67,8 @@ impl Into<DicomData> for DicomDataInternal {
             z: self.scaling[2],
             min: self.min,
             max: self.max,
+            gradmax,
+            gradmin,
             histogram: Uint32Array::from(self.histogram.as_slice()),
             gradient: Int32Array::from(gradient.as_slice())
         }
