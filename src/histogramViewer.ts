@@ -79,7 +79,7 @@ export class HistogramViewer extends HTMLElement {
                 return Math.min(Math.max((x - bounding.left) / bounding.width, 0), 1);
             }
             const moveListener = (event: MouseEvent) => {
-                if (dragging || Math.abs(event.clientX - dragStart) > 10) {
+                if (dragging || Math.abs(event.clientX - dragStart) > 1) {
                     dragging = true
 
                     button.style.setProperty("--temp-offset", `${calculatePositionInButton(event.clientX)}`)
