@@ -453,7 +453,7 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 3)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.compressedExt.COMPRESSED_RED_RGTC1_EXT, grid.ind_x(), grid.ind_y(), grid.ind_z(), 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, grid.ind_x(), grid.ind_y(), grid.ind_z(), 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
   }
 
   changeTransferFunc(data: Float32Array, length: number) {
