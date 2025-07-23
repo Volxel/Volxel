@@ -9,7 +9,7 @@ import * as wasm from "daicom_preprocessor";
 import {
   ColorStop, dicomBasePaths, DicomData,
   generateTransferFunction,
-  loadDicomData, loadDicomDataFromFiles,
+  loadDicomData, loadDicomDataFromFiles, loadGrid, loadGridFromFiles,
   loadTransferFunction,
   TransferFunction
 } from "./data.ts";
@@ -340,6 +340,8 @@ class State {
     modelSelect.addEventListener("change", async () => {
       await this.restartRendering(async () => {
         const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
+        const grid = await loadGrid(Number.parseInt(modelSelect.value.replace("dicom_", "")))
+        grid.free();
         this.setupFromDicom(dicom);
         histogramViewer.renderHistogram(dicom);
       })
@@ -355,6 +357,8 @@ class State {
         }
 
         const dicom = await loadDicomDataFromFiles(files);
+        const grid = await loadGridFromFiles(files);
+        grid.free();
         this.setupFromDicom(dicom);
         histogramViewer.renderHistogram(dicom);
       })

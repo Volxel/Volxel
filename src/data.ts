@@ -76,6 +76,21 @@ export async function loadDicomDataFromFiles(files: FileList | File[]): Promise<
     return readDicomData(data);
 }
 
+export async function loadGrid(index: number = 0): Promise<wasm.BrickGrid> {
+    const { url, from, to, replaceLength } = dicomBasePaths[index];
+    const urls = new Array(to - from).fill(0).map((_, i) => {
+        return url.replace("#", `${from + i}`.padStart(replaceLength, "0"))
+    })
+    const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
+    return wasm.read_dicoms_to_grid(allBytes);
+}
+
+export async function loadGridFromFiles(files: FileList | File[]): Promise<wasm.BrickGrid> {
+    const data = await Promise.all([...files].map(file => file.bytes()));
+    return wasm.read_dicoms_to_grid(data);
+}
+
+
 export enum TransferFunction {
     None,
     SplineShaded,
