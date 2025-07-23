@@ -1,20 +1,25 @@
 mod utils;
+mod brick;
+mod buf3d;
+mod dicom;
+mod grid;
 
 use dicom_core::Tag;
 use wasm_bindgen::prelude::*;
 
 use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
+use glam::UVec3;
 use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
+use crate::buf3d::Buf3D;
 
 #[wasm_bindgen]
 pub fn init() {
     utils::set_panic_hook();
 }
 
-struct DicomDataInternal {
-    data: Uint16Array,
-    dimensions: [u32; 3],
+pub struct DicomDataInternal {
+    data: Buf3D<u16>,
     scaling: [f32; 3],
     histogram: Vec<u32>,
     min: u16,
@@ -68,10 +73,10 @@ impl Into<DicomData> for DicomDataInternal {
         smoothed.push(gradient[gradient.len() - 1]);
 
         DicomData {
-            data: self.data,
-            width: self.dimensions[0],
-            height: self.dimensions[1],
-            depth: self.dimensions[2],
+            data: Uint16Array::from(self.data.data.as_slice()),
+            width: self.data.stride.x,
+            height: self.data.stride.y,
+            depth: self.data.stride.z,
             x: self.scaling[0],
             y: self.scaling[1],
             z: self.scaling[2],
@@ -118,8 +123,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
         }
 
         return DicomDataInternal {
-            data: Uint16Array::from(&[] as &[u16]),
-            dimensions: [0, 0, 0],
+            data: Buf3D::empty(),
             scaling: [1.0, 1.0, 1.0],
             histogram: vec![],
             min: 0,
@@ -156,7 +160,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             max_sample = *short;
         }
     }
-    let data = Uint16Array::from(shorts);
+    let mut collected_data = Vec::from(shorts);
 
     let pixel_spacing = result_obj
         .get(PIXEL_SPACING)
@@ -180,13 +184,11 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
         log_to_console(&format!("Pixel Spacing: x={}, y={}, z={}", x, y, slice_thickness));
     }
 
+    let mut data = Buf3D::new(UVec3::new(pixel_data.columns(), pixel_data.rows(), pixel_data.number_of_frames()));
+    data.data.append(&mut collected_data);
+
     DicomDataInternal {
         data,
-        dimensions: [
-            pixel_data.columns(),
-            pixel_data.rows(),
-            pixel_data.number_of_frames(),
-        ],
         scaling: [
             x.trim().parse().expect("Couldn't parse x spacing to float"),
             y.trim().parse().expect("Couldn't parse y spacing to float"),
@@ -200,24 +202,14 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
 
 #[wasm_bindgen]
 pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
-    let mut data = Vec::<u16>::new();
-    let mut dimensions: [u32; 3] = [0, 0, 0];
+    let mut result: Option<Buf3D<u16>> = None;
     let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
     let mut histogram: Vec<u32> = Vec::new();
     let mut min: u16 = u16::MAX;
     let mut max: u16 = 0;
     for bytes in all_bytes {
-        let mut dicom = read_dicom(bytes, dimensions[0] == 0);
-        if dimensions[0] == 0 {
-            dimensions[0] = dicom.dimensions[0];
-        } else if dimensions[0] != dicom.dimensions[0] {
-            panic!("Different frames had different widths")
-        }
-        if dimensions[1] == 0 {
-            dimensions[1] = dicom.dimensions[1];
-        } else if dimensions[1] != dicom.dimensions[1] {
-            panic!("Different frames had different heights")
-        }
+        let mut dicom = read_dicom(bytes, false);
+
         for i in 0..3 {
             if scaling[i] == 1.0 {
                 scaling[i] = dicom.scaling[i]
@@ -225,9 +217,6 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
                 panic!("Different frames had different scaling")
             }
         }
-        dimensions[2] += dicom.dimensions[2];
-        // We can just append here, as the data is in exactly the order GL expects it to be in
-        data.append(&mut dicom.data.to_vec());
 
         if histogram.is_empty() {
             histogram.append(&mut dicom.histogram)
@@ -243,10 +232,15 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
         if dicom.max > max {
             max = dicom.max
         }
+
+        if let Some(result) = &mut result {
+            result.append_depth_slice(&mut dicom.data)
+        } else {
+            result = Some(dicom.data)
+        }
     }
     DicomDataInternal {
-        data: Uint16Array::from(data.as_slice()),
-        dimensions,
+        data: result.expect("No dicom data collected"),
         scaling,
         histogram,
         min,
