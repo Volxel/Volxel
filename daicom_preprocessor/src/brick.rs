@@ -2,7 +2,7 @@ use crate::buf3d::Buf3D;
 use crate::grid::Grid;
 use glam::{IVec3, UVec3, Vec2, Vec3};
 use half::f16;
-use js_sys::{Int32Array, Uint32Array, Uint8Array};
+use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 // constants
 
@@ -336,8 +336,8 @@ impl BrickGrid {
     pub fn indirection_data(&self) -> Uint32Array {
         Uint32Array::from(self.indirection.data.as_slice())
     }
-    pub fn range_data(&self) -> Uint32Array {
-        Uint32Array::from(self.range.data.as_slice())
+    pub fn range_data(&self) -> Uint16Array {
+        Uint16Array::from(bytemuck::cast_slice(self.range.data.as_slice()))
     }
     pub fn atlas_data(&self) -> Uint8Array {
         Uint8Array::from(self.atlas.data.as_slice())
