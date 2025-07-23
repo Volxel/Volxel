@@ -7,5 +7,8 @@ export default defineConfig({
     plugins: [glslIncludePlugin(), wasm(), topLevelAwait()],
     base: "/Volxel",
     assetsInclude: ["**/*.dcm"],
-    appType: "mpa"
+    appType: "mpa",
+    optimizeDeps: {
+        exclude: ["daicom_preprocessor"]
+    }
 })
