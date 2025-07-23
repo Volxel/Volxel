@@ -66,6 +66,7 @@ export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Ve
   let lastTouchDistance = 0;
 
   element.addEventListener("mousedown", e => {
+    e.preventDefault()
     if (e.shiftKey) {
       isMoving = true;
     } else {
