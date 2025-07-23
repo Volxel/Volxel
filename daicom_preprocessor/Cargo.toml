@@ -26,6 +26,7 @@ dicom-pixeldata = { version = "0.8.1", features = ["image", "jpeg", "jpegxl", "n
 js-sys = "0.3.77"
 glam = "0.30.4"
 bytemuck = "1.23.1"
+half = "2.6.0" # TODO: Remove this once f16 is stable in Rust
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.50"

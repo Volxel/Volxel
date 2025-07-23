@@ -1,6 +1,7 @@
 use crate::buf3d::Buf3D;
 use crate::grid::Grid;
 use glam::{IVec3, UVec3, Vec2, Vec3};
+use half::f16;
 use js_sys::{Uint32Array, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 // constants
@@ -16,9 +17,9 @@ const NUM_MIPMAPS: u32 = 3;
 // encoding
 
 fn encode_range(x: f32, y: f32) -> u32 {
-    // TODO: Deal with f16 stuff
-    let x = x as u16;
-    let y = y as u16;
+    // TODO: This uses the half crate's f16 type, because the f16 isn't in stable Rust yet
+    let x = f16::from_f32(x);
+    let y = f16::from_f32(y);
     // TODO: Check whether this is the correct endianess
     let x = x.to_le_bytes();
     let y = y.to_le_bytes();
@@ -29,9 +30,9 @@ fn encode_range(x: f32, y: f32) -> u32 {
 fn decode_range(data: u32) -> Vec2 {
     let x = (data & (0b1111_1111_1111_1111)) as u16;
     let y = (data >> 16) as u16;
-    let x = u16::from_le_bytes(x.to_le_bytes());
-    let y = u16::from_le_bytes(y.to_le_bytes());
-    Vec2::new(x as f32, y as f32)
+    let x = f16::from_le_bytes(x.to_le_bytes());
+    let y = f16::from_le_bytes(y.to_le_bytes());
+    Vec2::new(x.to_f32(), y.to_f32())
 }
 
 fn encode_ptr(ptr: &UVec3) -> u32 {
