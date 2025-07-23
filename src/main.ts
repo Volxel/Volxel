@@ -7,9 +7,11 @@ import {Camera, setupPanningListeners} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
 import {
-  ColorStop, dicomBasePaths, DicomData,
+  ColorStop,
+  dicomBasePaths,
   generateTransferFunction,
-  loadDicomData, loadDicomDataFromFiles, loadGrid, loadGridFromFiles,
+  loadGrid,
+  loadGridFromFiles,
   loadTransferFunction,
   TransferFunction
 } from "./data.ts";
@@ -73,10 +75,15 @@ type Framebuffer = {
 class State {
   private canvas: HTMLCanvasElement;
   private gl: WebGL2RenderingContext;
+  private compressedExt: EXT_texture_compression_rgtc
   private program: WebGLProgram;
   private blit: WebGLProgram;
 
-  private textureLoc: WebGLUniformLocation;
+  private indirectionLoc: WebGLUniformLocation;
+  private rangeLoc: WebGLUniformLocation;
+  private atlasLoc: WebGLUniformLocation;
+  private volumeDimensionsLoc: WebGLUniformLocation;
+
   private sampleRangeLoc: WebGLUniformLocation;
   private transferLoc: WebGLUniformLocation;
   private densityMultiplierLoc: WebGLUniformLocation;
@@ -97,7 +104,9 @@ class State {
 
   private suspend: boolean = true;
 
-  private texture: WebGLTexture;
+  private indirection: WebGLTexture;
+  private range: WebGLTexture;
+  private atlas: WebGLTexture;
   // @ts-ignore happens in util function
   private transfer: WebGLTexture;
 
@@ -111,6 +120,7 @@ class State {
   private camera: Camera;
   private aabb: number[] = [-1, -1, -1, 1, 1, 1];
   private sampleRange: [number, number] = [0, 2 ** 16 - 1];
+  private volumeDimensions: [number, number, number] = [0, 0, 0]
 
   // Container that is displaying the data, this will be a web component in the future
   private container: HTMLElement = document.body;
@@ -127,6 +137,9 @@ class State {
     // check for float render target extension
     const floatExtension = gl.getExtension("EXT_color_buffer_float");
     if (!floatExtension) throw new Error("EXT_color_buffer_float extension not available, can't render to float target");
+    const compressedExt = gl.getExtension("EXT_texture_compression_rgtc");
+    if (!compressedExt) throw new Error("EXT_texture_compression_rgtc extension not available");
+    this.compressedExt = compressedExt;
 
     // Set up main shaders
     const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
@@ -182,17 +195,6 @@ class State {
     gl.enableVertexAttribArray(positionAttribute);
     gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
 
-    // Prepare Texture for drawing
-    this.texture = gl.createTexture();
-    const width = 256, height = 256, depth = 256;
-    this.changeImageData(null, width, height, depth);
-    // set the filtering so we don't need mips
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-
     // Setup transfer function
     this.transfer = this.gl.createTexture();
     const { data, length } = defaultTransferFunction;
@@ -202,8 +204,37 @@ class State {
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
+    // Prepare Lookup Textures
+    const setupImage = () => {
+      // set the filtering so we don't need mips
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    }
+    this.indirection = gl.createTexture();
+    this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
+    setupImage();
+    this.range = gl.createTexture();
+    this.gl.activeTexture(this.gl.TEXTURE0 + 2);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
+    setupImage();
+    this.atlas = gl.createTexture();
+    this.gl.activeTexture(this.gl.TEXTURE0 + 3);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
+    setupImage();
+    // TODO: Initial data somehow?
+
     // get uniform locations
-    this.textureLoc = this.getUniformLocation("u_texture");
+    this.indirectionLoc = this.getUniformLocation("u_density_indirection");
+    this.rangeLoc = this.getUniformLocation("u_density_range");
+    this.atlasLoc = this.getUniformLocation("u_density_atlas");
+
+    this.volumeDimensionsLoc = this.getUniformLocation("u_volume_dimensions");
+
+
     this.sampleRangeLoc = this.getUniformLocation("u_sample_range");
     this.transferLoc = this.getUniformLocation("u_transfer");
     this.densityMultiplierLoc = this.getUniformLocation("u_density_multiplier");
@@ -339,11 +370,10 @@ class State {
     modelSelect.value = "";
     modelSelect.addEventListener("change", async () => {
       await this.restartRendering(async () => {
-        const dicom = await loadDicomData(Number.parseInt(modelSelect.value.replace("dicom_", "")));
         const grid = await loadGrid(Number.parseInt(modelSelect.value.replace("dicom_", "")))
+        this.setupFromGrid(grid);
+        histogramViewer.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max());
         grid.free();
-        this.setupFromDicom(dicom);
-        histogramViewer.renderHistogram(dicom);
       })
     });
 
@@ -356,11 +386,10 @@ class State {
           return;
         }
 
-        const dicom = await loadDicomDataFromFiles(files);
         const grid = await loadGridFromFiles(files);
+        this.setupFromGrid(grid);
+        histogramViewer.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max());
         grid.free();
-        this.setupFromDicom(dicom);
-        histogramViewer.renderHistogram(dicom);
       })
     })
 
@@ -387,32 +416,48 @@ class State {
     })
   }
 
-  private setupFromDicom(dicom: DicomData) {
-    const data = dicom.data;
-    const dimensions = dicom.dimensions;
-    const scaling = dicom.scaling;
-    const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
-    const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-    const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
-    this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
-    this.sampleRange = [dicom.min_sample, dicom.max_sample];
-    this.changeImageData(data, ...dimensions);
-  }
-
   private getUniformLocation(name: string, program: WebGLProgram = this.program): WebGLUniformLocation {
     const loc = this.gl.getUniformLocation(program, name);
     if (!loc) throw new Error("Failed to get uniform location of '" + name + "'");
     return loc;
   }
 
-  changeImageData(data: Uint16Array | null, width: number, height: number, depth: number) {
-    this.gl.activeTexture(this.gl.TEXTURE0 + 0);
-    this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
+  private setupFromGrid(grid: wasm.BrickGrid) {
+    // setup AABB
+    const scaling = [grid.scale_x(), grid.scale_y(), grid.scale_z()]
+    const dimensions = [grid.ind_x(), grid.ind_y(), grid.ind_z()]
+
+    this.volumeDimensions = dimensions.map(dim => dim * 8) as [number, number, number] // TODO: this 8 needs to somehow come from the rust constant
+
+    const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
+    const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
+    const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
+    this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+
+    // upload data to respective images
+    const ind = grid.indirection_data()
+    const range = grid.range_data()
+    const atlas = grid.atlas_data()
+
+    // upload indirection buffer
+    this.gl.activeTexture(this.gl.TEXTURE0 + 1)
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R16UI, width, height, depth, 0, this.gl.RED_INTEGER, this.gl.UNSIGNED_SHORT, data)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RGB10_A2UI, grid.ind_x(), grid.ind_y(), grid.ind_z(), 0, this.gl.RGBA_INTEGER, this.gl.UNSIGNED_INT_2_10_10_10_REV, ind) // TODO: Check the last parameter again
+    // upload range buffer
+    this.gl.activeTexture(this.gl.TEXTURE0 + 2)
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
+    this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RG16F, grid.range_x(), grid.range_y(), grid.range_z(), 0, this.gl.RG, this.gl.HALF_FLOAT, range)
+    // upload atlas buffer
+    this.gl.activeTexture(this.gl.TEXTURE0 + 3)
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
+    this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.compressedExt.COMPRESSED_RED_RGTC1_EXT, grid.ind_x(), grid.ind_y(), grid.ind_z(), 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
   }
+
   changeTransferFunc(data: Float32Array, length: number) {
-    this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
     this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
@@ -473,25 +518,35 @@ class State {
 
   bindUniforms(framebuffer: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
-    this.gl.bindTexture(this.gl.TEXTURE_3D, this.texture);
-    this.gl.uniform1i(this.textureLoc, 0);
-    this.gl.activeTexture(this.gl.TEXTURE0 + 1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
-    this.gl.uniform1i(this.transferLoc, 1);
+    this.gl.uniform1i(this.transferLoc, 0);
+    // brick lookup textures
+    this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
+    this.gl.uniform1i(this.indirectionLoc, 1);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 2);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
+    this.gl.uniform1i(this.rangeLoc, 2);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 3);
+    this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
+    this.gl.uniform1i(this.atlasLoc, 3);
+
+    // bind volume dimension
+    this.gl.uniform3ui(this.volumeDimensionsLoc, ...this.volumeDimensions);
 
     // bind density multiplyer
     this.gl.uniform1f(this.densityMultiplierLoc, this.input.density_multiplier);
 
     // bind sample range
-    this.gl.uniform2ui(this.sampleRangeLoc, ...this.sampleRange);
+    this.gl.uniform2f(this.sampleRangeLoc, ...this.sampleRange);
 
     // reduce stepsize for first few samples to improve performance when looking around
     this.gl.uniform1f(this.stepsizeLoc, this.frameIndex < 2 ? 0.1 : 0.025);
 
     // bind previous frame
-    this.gl.activeTexture(this.gl.TEXTURE0 + 2 + framebuffer);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 4 + framebuffer);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
-    this.gl.uniform1i(this.previousFrameLoc, 2 + framebuffer);
+    this.gl.uniform1i(this.previousFrameLoc, 4 + framebuffer);
 
     this.gl.uniform1ui(this.frameIndexLoc, this.frameIndex);
 

@@ -1,4 +1,4 @@
-use glam::UVec3;
+use glam::{UVec3, Vec3};
 
 pub trait Grid {
     /// index-space grid lookup
@@ -11,4 +11,10 @@ pub trait Grid {
     fn num_voxels(&self) -> usize;
     /// required bytes to store this grid
     fn size_bytes(&self) -> usize;
+    /// the scaling in the axis directions provided by the data
+    fn scaling(&self) -> Vec3;
+    /// histogram of absolute number of voxels per density
+    fn histogram(&self) -> Vec<u32>;
+    /// discretized gradient of histogram, then abs min then abs max
+    fn histogram_gradient(&self) -> (Vec<i32>, u32, u32);
 }

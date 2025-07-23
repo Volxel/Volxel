@@ -8,11 +8,17 @@ out vec4 outColor;
 
 in vec2 tex;
 
-uniform usampler3D u_texture;
-uniform uvec2 u_sample_range;
 uniform sampler2D u_transfer;
-uniform float u_density_multiplier;
 uniform sampler2D u_previous_frame;
+
+uniform usampler3D u_density_indirection;
+uniform sampler3D u_density_range;
+uniform sampler3D u_density_atlas;
+
+uniform uvec3 u_volume_dimensions;
+
+uniform vec2 u_sample_range;
+uniform float u_density_multiplier;
 uniform uint u_frame_index;
 uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
@@ -95,13 +101,24 @@ float map_to_range(float x, vec2 range) {
     return (x - range.x) / (range.y - range.x);
 }
 
+float lookup_density_brick(const vec3 ipos) {
+    ivec3 iipos = ivec3(ipos * vec3(u_volume_dimensions));
+    ivec3 brick = iipos >> 3;
+    uvec3 ptr = texelFetch(u_density_indirection, brick, 0).xyz;
+    vec2 range = texelFetch(u_density_range, brick, 0).xy;
+    float value_unorm = texelFetch(u_density_atlas, ivec3(ptr << 3) + (iipos & 7), 0).x;
+    return range.x + value_unorm * (range.y - range.x);
+}
+
 vec4 eval_volume_world(vec3 world_pos) {
     vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
-    uint raw_sample = texture(u_texture, sample_pos).r;
+    float data_density = lookup_density_brick(sample_pos);
 
-    if (raw_sample < u_sample_range.x || raw_sample > u_sample_range.y) return vec4(0);
+    // TODO this check could be done in the lookup_density_brick
+    if (data_density < u_sample_range.x || data_density > u_sample_range.y) {
+        data_density += 0.000001;
+    }
 
-    float data_density = clamp(float(raw_sample - u_sample_range.x) / float(u_sample_range.y - u_sample_range.x), 0.0, 1.0);
     vec4 transfer_result = texture(u_transfer, vec2(data_density, 0.0));
     return vec4(transfer_result.xzy, transfer_result.w * u_density_multiplier);
 }

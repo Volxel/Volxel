@@ -1,17 +1,5 @@
 import * as wasm from "daicom_preprocessor"
 
-export type DicomData = {
-    data: Uint16Array;
-    dimensions: [width: number, height: number, depth: number],
-    scaling: [x: number, y: number, z: number],
-    min_sample: number,
-    max_sample: number,
-    min_gradient: number,
-    max_gradient: number,
-    histogram: Uint32Array,
-    gradient: Int32Array
-}
-
 export const dicomBasePaths: {
     url: `${string}#${string}`,
     from: number,
@@ -35,46 +23,6 @@ export const dicomBasePaths: {
     {url: "/Volxel/Dicom/DeutschesMuseum/board/ROI#.dcm", from: 0, to: 523, replaceLength: 3},
     {url: "/Volxel/Dicom/DeutschesMuseum/chiffredevice/2017-402#.dcm", from: 0, to: 783, replaceLength: 3}
 ]
-
-export function readDicomData(data: Uint8Array[]) {
-    const dicomData = wasm.read_dicoms(data);
-
-    const dimensions: [number, number, number] = [dicomData.width, dicomData.height, dicomData.depth];
-    const scaling: [number, number, number] = [dicomData.x, dicomData.y, dicomData.z];
-    const min = dicomData.min;
-    const max = dicomData.max;
-    const min_gradient = dicomData.gradmin;
-    const max_gradient = dicomData.gradmax;
-    const histogram = wasm.extract_dicom_histogram(dicomData);
-    const gradient = wasm.extract_dicom_gradient(dicomData);
-    const readBytes = wasm.consume_dicom_to_data(dicomData);
-
-    return {
-        data: readBytes,
-        dimensions: dimensions,
-        scaling: scaling,
-        min_sample: min,
-        max_sample: max,
-        min_gradient,
-        max_gradient,
-        histogram,
-        gradient
-    }
-}
-
-export async function loadDicomData(index: number = 0): Promise<DicomData> {
-    const { url, from, to, replaceLength } = dicomBasePaths[index];
-    const urls = new Array(to - from).fill(0).map((_, i) => {
-        return url.replace("#", `${from + i}`.padStart(replaceLength, "0"))
-    })
-    const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
-    return readDicomData(allBytes);
-}
-
-export async function loadDicomDataFromFiles(files: FileList | File[]): Promise<DicomData> {
-    const data = await Promise.all([...files].map(file => file.bytes()));
-    return readDicomData(data);
-}
 
 export async function loadGrid(index: number = 0): Promise<wasm.BrickGrid> {
     const { url, from, to, replaceLength } = dicomBasePaths[index];

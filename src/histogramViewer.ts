@@ -1,10 +1,8 @@
 import {css} from "./util.ts";
-import {DicomData} from "./data.ts";
 
 export class HistogramViewer extends HTMLElement {
     private canvas: HTMLCanvasElement;
     private buttons: [HTMLButtonElement, HTMLButtonElement]
-    private max: number = 0;
 
     private selectedRange: [number, number] = [0, 1];
 
@@ -119,14 +117,12 @@ export class HistogramViewer extends HTMLElement {
         if (!context) throw new Error("Failed to get 2d context for histogram viewer canvas");
     }
 
-    public renderHistogram(dicom: DicomData) {
-        const histogram = dicom.histogram;
+    public renderHistogram(histogram: Uint32Array, gradient: Int32Array, gradientMax: number) {
         const max = histogram.reduce((acc, cur, i) => i > 0 ? (cur > acc ? cur : acc) : acc, 0);
         const logMax = Math.log10(max);
 
         this.canvas.height = this.canvas.getBoundingClientRect().height * 10;
         this.canvas.width = Math.min(histogram.length, 4096);
-        this.max = histogram.length;
 
         this.selectedRange = [0, 1];
         this.buttons[0].style.setProperty("--relative-position", `${0}`)
@@ -135,7 +131,7 @@ export class HistogramViewer extends HTMLElement {
         const context = this.canvas.getContext("2d");
         if (!context) throw new Error("Failed to get 2d context for histogram viewer canvas");
 
-        const gradient_max_log = Math.log10(dicom.max_gradient);
+        const gradient_max_log = Math.log10(gradientMax);
 
         context.fillStyle = "#000000"
         context.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -143,7 +139,7 @@ export class HistogramViewer extends HTMLElement {
         context.fillStyle = `#00ff00`;
         for (let i = 1; i < histogram.length; i++) {
             // the gradient, alpha of the color displays intensity of gradient
-            context.globalAlpha = Math.max(Math.log10(Math.abs(dicom.gradient[i])) / gradient_max_log, 0);
+            context.globalAlpha = Math.max(Math.log10(Math.abs(gradient[i])) / gradient_max_log, 0);
             context.fillRect(Math.floor(i / histogram.length * this.canvas.width), 0, 1, this.canvas.height);
         }
         // the actual sample count, logarithmically scaled
@@ -157,6 +153,6 @@ export class HistogramViewer extends HTMLElement {
     private emitChange() {
         const min = Math.min(...this.selectedRange);
         const max = Math.max(...this.selectedRange);
-        this.dispatchEvent(new CustomEvent("change", { detail: [Math.floor(this.max * min), Math.ceil(this.max * max)]}))
+        this.dispatchEvent(new CustomEvent("change", { detail: [min, max]}))
     }
 }

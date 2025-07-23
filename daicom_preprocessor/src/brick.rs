@@ -2,7 +2,7 @@ use crate::buf3d::Buf3D;
 use crate::grid::Grid;
 use glam::{IVec3, UVec3, Vec2, Vec3};
 use half::f16;
-use js_sys::{Uint32Array, Uint8Array};
+use js_sys::{Int32Array, Uint32Array, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 // constants
 
@@ -74,7 +74,10 @@ pub struct BrickGrid {
     indirection: Buf3D<u32>,
     range: Buf3D<u32>,
     atlas: Buf3D<u8>,
-    range_mipmaps: Vec<Buf3D<u32>>
+    range_mipmaps: Vec<Buf3D<u32>>,
+    scaling: Vec3,
+    histogram: Vec<u32>,
+    histogram_gradient: (Vec<i32>, u32, u32),
 }
 
 impl BrickGrid {
@@ -201,7 +204,10 @@ impl BrickGrid {
             indirection,
             atlas,
             brick_counter,
-            range_mipmaps
+            range_mipmaps,
+            scaling: from.scaling(),
+            histogram: from.histogram(),
+            histogram_gradient: from.histogram_gradient()
         }
     }
 }
@@ -256,6 +262,18 @@ impl Grid for BrickGrid {
 
         size_indirection + size_range + size_atlas + size_mipmaps
     }
+
+    fn scaling(&self) -> Vec3 {
+        self.scaling.clone()
+    }
+
+    fn histogram(&self) -> Vec<u32> {
+        self.histogram.clone()
+    }
+
+    fn histogram_gradient(&self) -> (Vec<i32>, u32, u32) {
+        self.histogram_gradient.clone()
+    }
 }
 
 // wasm stuff
@@ -290,6 +308,29 @@ impl BrickGrid {
     }
     pub fn atlas_z(&self) -> u32 {
         self.atlas.stride.z
+    }
+
+    pub fn scale_x(&self) -> f32 {
+        self.scaling.x
+    }
+    pub fn scale_y(&self) -> f32 {
+        self.scaling.y
+    }
+    pub fn scale_z(&self) -> f32 {
+        self.scaling.z
+    }
+
+    pub fn histogram(&self) -> Uint32Array {
+        Uint32Array::from(self.histogram.as_slice())
+    }
+    pub fn histogram_gradient_min(&self) -> u32 {
+        self.histogram_gradient.1
+    }
+    pub fn histogram_gradient_max(&self) -> u32 {
+        self.histogram_gradient.2
+    }
+    pub fn histogram_gradient(&self) -> Int32Array {
+        Int32Array::from(self.histogram_gradient.0.as_slice())
     }
 
     pub fn indirection_data(&self) -> Uint32Array {

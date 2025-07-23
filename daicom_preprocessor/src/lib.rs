@@ -27,70 +27,6 @@ pub struct DicomDataInternal {
     max: u16
 }
 
-#[wasm_bindgen]
-#[allow(dead_code)]
-pub struct DicomData {
-    data: Uint16Array,
-    histogram: Uint32Array,
-    gradient: Int32Array,
-    pub min: u16,
-    pub max: u16,
-    pub gradmin: u32,
-    pub gradmax: u32,
-    pub width: u32,
-    pub height: u32,
-    pub depth: u32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-impl Into<DicomData> for DicomDataInternal {
-    fn into(self) -> DicomData {
-        let mut gradient: Vec<i32> = Vec::with_capacity(self.histogram.len());
-        let mut last: u32 = 0;
-        let mut gradmin: u32 = u32::MAX;
-        let mut gradmax: u32 = u32::MIN;
-        for histogram_step in &self.histogram {
-            let gradient_step: i32 = histogram_step.clone() as i32 - last as i32;
-            let abs_step = gradient_step.abs_diff(0);
-            if abs_step > gradmax {
-                gradmax = abs_step;
-            }
-            if abs_step < gradmin {
-                gradmin = abs_step;
-            }
-            gradient.push(gradient_step);
-            last = histogram_step.clone();
-        }
-
-        // smoothes the gradient a bit for nicer display
-        let mut smoothed: Vec<i32> = Vec::with_capacity(gradient.len());
-        smoothed.push(gradient[0]);
-        for i in 1..(gradient.len() - 1) {
-            let avg = gradient[i - 1] + gradient[i] + gradient[i + 1];
-            smoothed.push(avg / 3);
-        }
-        smoothed.push(gradient[gradient.len() - 1]);
-
-        DicomData {
-            data: Uint16Array::from(self.data.data.as_slice()),
-            width: self.data.stride.x,
-            height: self.data.stride.y,
-            depth: self.data.stride.z,
-            x: self.scaling[0],
-            y: self.scaling[1],
-            z: self.scaling[2],
-            min: self.min,
-            max: self.max,
-            gradmax,
-            gradmin,
-            histogram: Uint32Array::from(self.histogram.as_slice()),
-            gradient: Int32Array::from(smoothed.as_slice())
-        }
-    }
-}
-
 // relevant tags
 // -- from official registry https://dicom.nema.org/medical/Dicom/2017e/output/chtml/part06/chapter_6.html
 // const REFERENCED_IMAGE_SEQUENCE: Tag = Tag(0x0008, 0x1140);
@@ -250,25 +186,6 @@ fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
 }
 
 #[wasm_bindgen]
-pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
-    read_dicoms_internal(all_bytes).into()
-}
-
-#[wasm_bindgen]
 pub fn read_dicoms_to_grid(all_bytes: Vec<Uint8Array>) -> BrickGrid {
     BrickGrid::construct(&read_dicoms_internal(all_bytes))
-}
-
-#[wasm_bindgen]
-pub fn extract_dicom_histogram(dicom: &DicomData) -> Uint32Array {
-    dicom.histogram.clone()
-}
-#[wasm_bindgen]
-pub fn extract_dicom_gradient(dicom: &DicomData) -> Int32Array {
-    dicom.gradient.clone()
-}
-
-#[wasm_bindgen]
-pub fn consume_dicom_to_data(dicom: DicomData) -> Uint16Array {
-    dicom.data
 }
