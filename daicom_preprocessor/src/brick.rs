@@ -1,0 +1,187 @@
+use glam::{IVec3, UVec3, Vec2, Vec3};
+use crate::buf3d::Buf3D;
+use crate::grid::Grid;
+// constants
+
+const BRICK_SIZE: u32 = 8;
+const BITS_PER_AXIS: u32 = 10;
+const MAX_BRICKS: u32 = 1 << BITS_PER_AXIS;
+const VOXELS_PER_BRICK: u32 = BRICK_SIZE * BRICK_SIZE * BRICK_SIZE;
+const NUM_MIPMAPS: u32 = 3;
+
+// ---
+
+// encoding
+
+fn encode_range(x: f32, y: f32) -> u32 {
+    todo!("f16, which is needed for this, is WIP")
+}
+fn decode_range(data: u32) -> Vec2 {
+    todo!("f16, which is needed for this, is WIP")
+}
+
+fn encode_ptr(ptr: &UVec3) -> u32 {
+    assert!(ptr.x < MAX_BRICKS && ptr.y < MAX_BRICKS && ptr.z < MAX_BRICKS);
+    ptr.x.clamp(0, MAX_BRICKS - 1) << (2 + 2 * BITS_PER_AXIS) |
+        ptr.y.clamp(0, MAX_BRICKS - 1) << (2 + 1 * BITS_PER_AXIS) |
+        ptr.z.clamp(0, MAX_BRICKS - 1) << (2 + 0 * BITS_PER_AXIS)
+}
+
+fn decode_ptr(data: u32) -> UVec3 {
+    UVec3::new(
+        data >> (2 + 2 * BITS_PER_AXIS) & (MAX_BRICKS - 1),
+        data >> (2 + 1 * BITS_PER_AXIS) & (MAX_BRICKS - 1),
+        data >> (2 + 0 * BITS_PER_AXIS) & (MAX_BRICKS - 1)
+    )
+}
+
+fn encode_voxel(value: f32, range: &Vec2) -> u8 {
+    let normalized = ((value - range.x) / (range.y - range.x)).clamp(0.0, 1.0);
+    (255f32 * normalized).round() as u8 // TODO: Check whether this does the conversion correctly
+}
+
+fn div_round_up(num: UVec3, denom: UVec3) -> UVec3 {
+    let div = (Vec3::new(num.x as f32, num.y as f32, num.z as f32) / Vec3::new(denom.x as f32, denom.y as f32, denom.z as f32)).ceil();
+    UVec3::new(div.x as u32, div.y as u32, div.z as u32)
+}
+
+// ---
+
+struct BrickGrid {
+    brick_count: UVec3,
+    min_maj: (f32, f32),
+    brick_counter: usize, // TODO: This was somehow used for multithreading
+    indirection: Buf3D<u32>,
+    range: Buf3D<u32>,
+    atlas: Buf3D<u8>,
+    range_mipmaps: Vec<Buf3D<u32>>
+}
+
+impl BrickGrid {
+    fn construct(from: &dyn Grid) -> Self {
+        let brick_count = div_round_up(div_round_up(*from.index_extent(), UVec3::splat(BRICK_SIZE)), UVec3::splat(1 << NUM_MIPMAPS)) * (1 << NUM_MIPMAPS);
+
+        if brick_count.x >= MAX_BRICKS || brick_count.y >= MAX_BRICKS || brick_count.z >= MAX_BRICKS {
+            panic!("Exceeded max brick count")
+        }
+
+        let mut indirection = Buf3D::new(brick_count);
+        let mut range = Buf3D::new(brick_count);
+        let mut atlas = Buf3D::new(brick_count * BRICK_SIZE);
+
+        let mut brick_counter = 0;
+
+        // Fill range, indirection and atlas buffers
+        for brick_z in 0..brick_count.z { // TODO: This was multithreaded in the original voldata
+            for brick_y in 0..brick_count.y {
+                for brick_x in 0..brick_count.x {
+                    let brick_coord = UVec3::new(brick_x, brick_y, brick_z);
+                    // store an empty brick first
+                    let indirection_brick_index = indirection.calculate_index(brick_coord);
+                    indirection.data[indirection_brick_index] = 0;
+
+                    // compute local range over dilated (TODO: ?) Brick
+                    let mut local_min = f32::MAX;
+                    let mut local_max = f32::MIN;
+                    for local_z in -2..(BRICK_SIZE as i32) + 2 {
+                        for local_y in -2..(BRICK_SIZE as i32) + 2 {
+                            for local_x in -2..(BRICK_SIZE as i32) + 2 {
+                                // TODO: This whole uvec -> ivec stuff seems weird, ask about this
+                                let i_pos = brick_coord * BRICK_SIZE;
+                                let i_pos = IVec3::new(i_pos.x as i32, i_pos.y as i32, i_pos.z as i32) + IVec3::new(local_x, local_y, local_z);
+                                let looked_up = from.lookup(UVec3::new(i_pos.x as u32, i_pos.y as u32, i_pos.z as u32));
+                                local_min = local_min.min(looked_up);
+                                local_max = local_max.max(looked_up);
+                            }
+                        }
+                    }
+
+                    // now we know the min and max of the block we're considering.
+                    // We can skip storing things in the atlas and indirection buffers
+                    // if we know these are equal. But we still need to know what density the entire
+                    // block has, so we need to store the information in the range buffer
+                    let range_brick_index = range.calculate_index(brick_coord);
+                    range.data[range_brick_index] = encode_range(local_min, local_max);
+                    if local_min == local_max { continue; }
+
+                    // If we reach this point, min and max are different, so we need to store an entry
+                    // in the atlas and point to it in the indirection buffer
+
+                    // TODO: In the multithreaded version, this was done via atomics
+                    // This essentially "allocates" a new brick in the indirection and atlas
+                    let brick_index = brick_counter;
+                    brick_counter += 1;
+                    let indirection_pointer = indirection.calculate_coord(brick_index);
+
+                    // stores the pointer to the brick in the indirection buffer
+                    indirection.data[indirection_brick_index] = encode_ptr(&indirection_pointer);
+
+                    // stores the actual data in the atlas
+                    // we decode the range again here because the intermittent conversion to f16 may have changed the values a bit TODO: CHeck whether that's right
+                    let local_range = decode_range(range.data[range_brick_index]);
+                    for local_z in 0..BRICK_SIZE {
+                        for local_y in 0..BRICK_SIZE {
+                            for local_x in 0..BRICK_SIZE {
+                                let atlas_pos = indirection_pointer * BRICK_SIZE + UVec3::new(local_x, local_y, local_z);
+                                let atlas_index = atlas.calculate_index(atlas_pos);
+                                atlas.data[atlas_index] = encode_voxel(from.lookup(brick_coord * BRICK_SIZE + UVec3::new(local_x, local_y, local_z)), &local_range);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Since some bricks are empty/constant it may be that we didn't fill up the entire atlas, so we can prune it
+        atlas.prune((BRICK_SIZE as f32 * (brick_counter as f32 / (brick_count.x * brick_count.y) as f32).ceil().round()) as usize);
+
+        // To speed up lookups (and possibly for delta tracking), we can create mipmaps for the range buffer
+        let mut range_mipmaps = Vec::new();
+        for mipmap_level in 0..NUM_MIPMAPS as usize {
+            let mip_size = brick_count / (1 << (mipmap_level + 1));
+            let mut buf = Buf3D::new(mip_size);
+
+            let source = if mipmap_level == 0 {
+                &range
+            } else {
+                &range_mipmaps[mipmap_level - 1]
+            };
+
+            // TODO: This was multithreaded
+            for brick_z in 0..mip_size.z {
+                for brick_y in 0..mip_size.y {
+                    for brick_x in 0..mip_size.x {
+                        let brick = UVec3::new(brick_x, brick_y, brick_z);
+                        let mut local_min = f32::MAX;
+                        let mut local_max = f32::MIN;
+                        for z in 0..2 {
+                            for y in 0..2 {
+                                for x in 0..2 {
+                                    let source_at = brick * 2 + UVec3::new(x, y, z);
+                                    let source_index = source.calculate_index(source_at);
+                                    let current_range = decode_range(source.data[source_index]);
+                                    local_min = local_min.min(current_range.x);
+                                    local_max = local_max.max(current_range.y);
+                                }
+                            }
+                        }
+                        let buffer_index = buf.calculate_index(brick);
+                        buf.data[buffer_index] = encode_range(local_min, local_max);
+                    }
+                }
+            }
+
+            range_mipmaps.push(buf);
+        }
+
+        Self {
+            brick_count,
+            min_maj: from.minorant_majorant(),
+            range,
+            indirection,
+            atlas,
+            brick_counter,
+            range_mipmaps
+        }
+    }
+}
