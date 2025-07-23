@@ -40,6 +40,10 @@ fn encode_voxel(value: f32, range: &Vec2) -> u8 {
     (255f32 * normalized).round() as u8 // TODO: Check whether this does the conversion correctly
 }
 
+fn decode_voxel(data: u8, range: &Vec2) -> f32 {
+    range.x + data as f32 * (1.0 / 255.0) * (range.y - range.x)
+}
+
 fn div_round_up(num: UVec3, denom: UVec3) -> UVec3 {
     let div = (Vec3::new(num.x as f32, num.y as f32, num.z as f32) / Vec3::new(denom.x as f32, denom.y as f32, denom.z as f32)).ceil();
     UVec3::new(div.x as u32, div.y as u32, div.z as u32)
@@ -59,7 +63,7 @@ struct BrickGrid {
 
 impl BrickGrid {
     fn construct(from: &dyn Grid) -> Self {
-        let brick_count = div_round_up(div_round_up(*from.index_extent(), UVec3::splat(BRICK_SIZE)), UVec3::splat(1 << NUM_MIPMAPS)) * (1 << NUM_MIPMAPS);
+        let brick_count = div_round_up(div_round_up(from.index_extent(), UVec3::splat(BRICK_SIZE)), UVec3::splat(1 << NUM_MIPMAPS)) * (1 << NUM_MIPMAPS);
 
         if brick_count.x >= MAX_BRICKS || brick_count.y >= MAX_BRICKS || brick_count.z >= MAX_BRICKS {
             panic!("Exceeded max brick count")
@@ -183,5 +187,57 @@ impl BrickGrid {
             brick_counter,
             range_mipmaps
         }
+    }
+}
+
+impl Grid for BrickGrid {
+    fn lookup(&self, ipos: UVec3) -> f32 {
+        // Note: this forgoes mipmap lookup of ranges
+
+        // basically a division by 8, which cuts of the index into the brick,
+        // so all that remains is the index of the brick
+        let brick_coord = ipos >> 3;
+
+        // resolve the indirection to find out where in the atlas the brick data is stored
+        let indirection_index = self.indirection.calculate_index(brick_coord);
+        let indirection_pointer = decode_ptr(self.indirection.data[indirection_index]);
+
+        // resolve the range of the brick
+        let range_index = self.range.calculate_index(brick_coord);
+        let minmax = decode_range(self.range.data[range_index]);
+
+        // calculate the position of the specific voxel in the atlas by offsetting into the brick
+        // in the atlas with the lower bits of the passed position
+        let voxel = (indirection_pointer << 3) + UVec3::new(ipos.x & 7, ipos.y & 7, ipos.z & 7);
+
+        // Actually looks up the u8 compressed data in the atlas, then decodes it with the range
+        let atlas_index = self.atlas.calculate_index(voxel);
+        decode_voxel(self.atlas.data[atlas_index], &minmax)
+    }
+
+    fn minorant_majorant(&self) -> (f32, f32) {
+        self.min_maj
+    }
+
+    fn index_extent(&self) -> UVec3 {
+        self.brick_count * BRICK_SIZE
+    }
+
+    fn num_voxels(&self) -> usize {
+        self.brick_counter * VOXELS_PER_BRICK as usize
+    }
+
+    fn size_bytes(&self) -> usize {
+        let dense_bricks = (self.brick_count.x * self.brick_count.y * self.brick_count.z) as usize;
+        let size_indirection = dense_bricks * size_of::<u32>();
+        let size_range = dense_bricks * size_of::<u32>();
+        let size_atlas = self.brick_counter * VOXELS_PER_BRICK as usize * size_of::<u8>();
+
+        let mut size_mipmaps: usize = 0;
+        for mipmap in &self.range_mipmaps {
+            size_mipmaps += size_of::<u32>() * (mipmap.stride.x * mipmap.stride.y * mipmap.stride.z) as usize;
+        }
+
+        size_indirection + size_range + size_atlas + size_mipmaps
     }
 }

@@ -15,8 +15,8 @@ impl Grid for DicomDataInternal {
         (0.0, 1.0)
     }
 
-    fn index_extent(&self) -> &UVec3 {
-        &self.data.stride
+    fn index_extent(&self) -> UVec3 {
+        self.data.stride.clone()
     }
 
     fn num_voxels(&self) -> usize {
