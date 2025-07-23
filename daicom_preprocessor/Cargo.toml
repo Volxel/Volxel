@@ -12,7 +12,6 @@ default = ["console_error_panic_hook"]
 
 [dependencies]
 wasm-bindgen = "0.2.100"
-wasm-bindgen-futures = "0.4.50"
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
@@ -25,11 +24,6 @@ dicom-core = "0.8.1"
 dicom-object = "0.8.1"
 dicom-pixeldata = { version = "0.8.1", features = ["image", "jpeg", "jpegxl", "native"] }
 js-sys = "0.3.77"
-web-sys = { version = "0.3.77", features = [
-    "Window",
-    "Response",
-    "ReadableStream"
-] }
 glam = "0.30.4"
 bytemuck = "1.23.1"
 
