@@ -7,11 +7,12 @@ mod grid;
 use dicom_core::Tag;
 use wasm_bindgen::prelude::*;
 
+use crate::brick::BrickGrid;
+use crate::buf3d::Buf3D;
 use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
 use glam::UVec3;
 use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
-use crate::buf3d::Buf3D;
 
 #[wasm_bindgen]
 pub fn init() {
@@ -160,7 +161,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             max_sample = *short;
         }
     }
-    let mut collected_data = Vec::from(shorts);
+    let collected_data = Vec::from(shorts);
 
     let pixel_spacing = result_obj
         .get(PIXEL_SPACING)
@@ -185,7 +186,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
     }
 
     let mut data = Buf3D::new(UVec3::new(pixel_data.columns(), pixel_data.rows(), pixel_data.number_of_frames()));
-    data.data.append(&mut collected_data);
+    data.data = collected_data;
 
     DicomDataInternal {
         data,
@@ -200,8 +201,8 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
     }
 }
 
-#[wasm_bindgen]
-pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
+fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
+
     let mut result: Option<Buf3D<u16>> = None;
     let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
     let mut histogram: Vec<u32> = Vec::new();
@@ -246,7 +247,16 @@ pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
         min,
         max
     }
-    .into()
+}
+
+#[wasm_bindgen]
+pub fn read_dicoms(all_bytes: Vec<Uint8Array>) -> DicomData {
+    read_dicoms_internal(all_bytes).into()
+}
+
+#[wasm_bindgen]
+pub fn read_dicoms_to_grid(all_bytes: Vec<Uint8Array>) -> BrickGrid {
+    BrickGrid::construct(&read_dicoms_internal(all_bytes))
 }
 
 #[wasm_bindgen]

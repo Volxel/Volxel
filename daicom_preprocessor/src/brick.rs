@@ -1,6 +1,8 @@
-use glam::{IVec3, UVec3, Vec2, Vec3};
 use crate::buf3d::Buf3D;
 use crate::grid::Grid;
+use glam::{IVec3, UVec3, Vec2, Vec3};
+use js_sys::{Uint32Array, Uint8Array};
+use wasm_bindgen::prelude::wasm_bindgen;
 // constants
 
 const BRICK_SIZE: u32 = 8;
@@ -14,10 +16,22 @@ const NUM_MIPMAPS: u32 = 3;
 // encoding
 
 fn encode_range(x: f32, y: f32) -> u32 {
-    todo!("f16, which is needed for this, is WIP")
+    // TODO: Deal with f16 stuff
+    let x = x as u16;
+    let y = y as u16;
+    // TODO: Check whether this is the correct endianess
+    let x = x.to_le_bytes();
+    let y = y.to_le_bytes();
+    let x = u16::from_le_bytes(x);
+    let y = u16::from_le_bytes(y);
+    (x as u32) & ((y as u32) << 16)
 }
 fn decode_range(data: u32) -> Vec2 {
-    todo!("f16, which is needed for this, is WIP")
+    let x = (data & (0b1111_1111_1111_1111)) as u16;
+    let y = (data >> 16) as u16;
+    let x = u16::from_le_bytes(x.to_le_bytes());
+    let y = u16::from_le_bytes(y.to_le_bytes());
+    Vec2::new(x as f32, y as f32)
 }
 
 fn encode_ptr(ptr: &UVec3) -> u32 {
@@ -51,7 +65,8 @@ fn div_round_up(num: UVec3, denom: UVec3) -> UVec3 {
 
 // ---
 
-struct BrickGrid {
+#[wasm_bindgen]
+pub struct BrickGrid {
     brick_count: UVec3,
     min_maj: (f32, f32),
     brick_counter: usize, // TODO: This was somehow used for multithreading
@@ -62,7 +77,7 @@ struct BrickGrid {
 }
 
 impl BrickGrid {
-    fn construct(from: &dyn Grid) -> Self {
+    pub fn construct(from: &dyn Grid) -> Self {
         let brick_count = div_round_up(div_round_up(from.index_extent(), UVec3::splat(BRICK_SIZE)), UVec3::splat(1 << NUM_MIPMAPS)) * (1 << NUM_MIPMAPS);
 
         if brick_count.x >= MAX_BRICKS || brick_count.y >= MAX_BRICKS || brick_count.z >= MAX_BRICKS {
@@ -241,3 +256,50 @@ impl Grid for BrickGrid {
         size_indirection + size_range + size_atlas + size_mipmaps
     }
 }
+
+// wasm stuff
+
+#[wasm_bindgen]
+impl BrickGrid {
+    pub fn ind_x(&self) -> u32 {
+        self.indirection.stride.x
+    }
+    pub fn ind_y(&self) -> u32 {
+        self.indirection.stride.y
+    }
+    pub fn ind_z(&self) -> u32 {
+        self.indirection.stride.z
+    }
+
+    pub fn range_x(&self) -> u32 {
+        self.range.stride.x
+    }
+    pub fn range_y(&self) -> u32 {
+        self.range.stride.y
+    }
+    pub fn range_z(&self) -> u32 {
+        self.range.stride.z
+    }
+
+    pub fn atlas_x(&self) -> u32 {
+        self.atlas.stride.x
+    }
+    pub fn atlas_y(&self) -> u32 {
+        self.atlas.stride.y
+    }
+    pub fn atlas_z(&self) -> u32 {
+        self.atlas.stride.z
+    }
+
+    pub fn indirection_data(&self) -> Uint32Array {
+        Uint32Array::from(self.indirection.data.as_slice())
+    }
+    pub fn range_data(&self) -> Uint32Array {
+        Uint32Array::from(self.range.data.as_slice())
+    }
+    pub fn atlas_data(&self) -> Uint8Array {
+        Uint8Array::from(self.atlas.data.as_slice())
+    }
+}
+
+// ---

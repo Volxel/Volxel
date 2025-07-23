@@ -5,9 +5,9 @@ pub struct Buf3D<T : Default> {
     pub data: Vec<T>
 }
 
-impl<T : Default> Buf3D<T> {
+impl<T : Default + Clone> Buf3D<T> {
     pub fn new(stride: UVec3) -> Self {
-        Self { stride, data: Vec::with_capacity((stride.x * stride.y * stride.z) as usize)}
+        Self { stride, data: vec![T::default(); (stride.x * stride.y * stride.z) as usize]}
     }
     pub fn empty() -> Self {
         Self::new(UVec3::new(0, 0, 0))
