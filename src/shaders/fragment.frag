@@ -106,17 +106,35 @@ float lookup_density_brick(const vec3 ipos) {
     ivec3 brick = iipos >> 3;
     uvec3 ptr = texelFetch(u_density_indirection, brick, 0).xyz;
     vec2 range = texelFetch(u_density_range, brick, 0).xy;
+    //if (range.x == range.y) return range.x;
     float value_unorm = texelFetch(u_density_atlas, ivec3(ptr << 3) + (iipos & 7), 0).x;
-    return range.x + value_unorm * (range.y - range.x);
+
+//    uvec3 specified_pos = uvec3(10, 10, 10);
+//
+//    float atlas_result = texelFetch(u_density_atlas, ivec3(specified_pos), 0).x;
+//
+//    if (atlas_result == 0.5) return -2.0;
+//    if (atlas_result < 0.25) return -3.0;
+//    if (atlas_result > 0.75) return -4.0;
+//
+//    uvec3 indirection_result = texelFetch(u_density_indirection, ivec3(specified_pos), 0).xyz;
+//    if (indirection_result.x == 10u && indirection_result.y == 10u && indirection_result.y == 10u) return -1.0;
+
+    return (range.x + value_unorm * (range.y - range.x));
 }
 
 vec4 eval_volume_world(vec3 world_pos) {
     vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
     float data_density = lookup_density_brick(sample_pos);
 
+    if (data_density == -1.0) return vec4(0, 1, 0, 1);
+    if (data_density == -2.0) return vec4(1, 0, 0, 1);
+    if (data_density == -3.0) return vec4(0, 0, 1, 1);
+    if (data_density == -4.0) return vec4(1, 1, 0, 1);
+
     // TODO this check could be done in the lookup_density_brick
     if (data_density < u_sample_range.x || data_density > u_sample_range.y) {
-        data_density += 0.000001;
+        return vec4(0);
     }
 
     vec4 transfer_result = texture(u_transfer, vec2(data_density, 0.0));

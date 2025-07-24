@@ -448,12 +448,12 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 2)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RG16F, grid.range_x(), grid.range_y(), grid.range_z(), 0, this.gl.RG, this.gl.HALF_FLOAT, range)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RG32F, grid.range_x(), grid.range_y(), grid.range_z(), 0, this.gl.RG, this.gl.FLOAT, range)
     // upload atlas buffer
     this.gl.activeTexture(this.gl.TEXTURE0 + 3)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, grid.ind_x(), grid.ind_y(), grid.ind_z(), 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, grid.atlas_x(), grid.atlas_y(), grid.atlas_z(), 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
   }
 
   changeTransferFunc(data: Float32Array, length: number) {

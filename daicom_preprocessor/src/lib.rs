@@ -13,6 +13,7 @@ use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
 use glam::UVec3;
 use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
+use crate::grid::Grid;
 
 #[wasm_bindgen]
 pub fn init() {
@@ -187,5 +188,15 @@ fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
 
 #[wasm_bindgen]
 pub fn read_dicoms_to_grid(all_bytes: Vec<Uint8Array>) -> BrickGrid {
-    BrickGrid::construct(&read_dicoms_internal(all_bytes))
+    let dicom = read_dicoms_internal(all_bytes);
+    let brick = BrickGrid::construct(&dicom);
+
+    for i in 0..100 {
+        let dicom = dicom.lookup(UVec3::new(i, i, i));
+        let brick = brick.lookup(UVec3::new(i, i, i));
+
+        log_to_console(&format!("looked up: {}\ndicom: {}\nbrick:  {}", i, dicom, brick))
+    }
+
+    brick
 }
