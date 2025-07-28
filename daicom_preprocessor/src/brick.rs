@@ -2,7 +2,8 @@ use crate::buf3d::Buf3D;
 use crate::grid::Grid;
 use crate::utils::log_to_console;
 use glam::{IVec3, UVec3, Vec2, Vec3};
-use js_sys::{Float32Array, Int32Array, Uint32Array, Uint8Array};
+use half::f16;
+use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 // constants
 
@@ -16,15 +17,15 @@ const NUM_MIPMAPS: u32 = 3;
 
 // encoding
 
-fn encode_range(x: f32, y: f32) -> u64 {
-    let x = x.to_bits() as u64;
-    let y = y.to_bits() as u64;
-    (x << 32) | (y)
+fn encode_range(x: f32, y: f32) -> u32 {
+    let x = f16::from_f32(x).to_bits() as u32;
+    let y = f16::from_f32(y).to_bits() as u32;
+    (x << 16) | (y)
 }
-fn decode_range(data: u64) -> Vec2 {
-    let x = (data >> 32) as u32;
-    let y = data as u32;
-    Vec2::new(f32::from_bits(x), f32::from_bits(y))
+fn decode_range(data: u32) -> Vec2 {
+    let x = (data >> 16) as u16;
+    let y = data as u16;
+    Vec2::new(f16::from_bits(x).to_f32(), f16::from_bits(y).to_f32())
 }
 
 fn encode_ptr(ptr: &UVec3) -> u32 {
@@ -64,9 +65,9 @@ pub struct BrickGrid {
     min_maj: (f32, f32),
     brick_counter: usize, // TODO: This was somehow used for multithreading
     indirection: Buf3D<u32>,
-    range: Buf3D<u64>,
+    range: Buf3D<u32>,
     atlas: Buf3D<u8>,
-    range_mipmaps: Vec<Buf3D<u64>>,
+    range_mipmaps: Vec<Buf3D<u32>>,
     scaling: Vec3,
     histogram: Vec<u32>,
     histogram_gradient: (Vec<i32>, u32, u32),
@@ -154,13 +155,6 @@ impl BrickGrid {
 
         // Since some bricks are empty/constant it may be that we didn't fill up the entire atlas, so we can prune it
         atlas.prune((BRICK_SIZE as f32 * (brick_counter as f32 / (brick_count.x * brick_count.y) as f32).ceil().round()) as usize);
-
-        let specified_atlas_pos = UVec3::new(10, 10, 10);
-        let specified_atlas_index = atlas.calculate_index(specified_atlas_pos);
-        let specified_range = Vec2::new(0.0, 1.0);
-        atlas.data[specified_atlas_index] = encode_voxel(0.5, &specified_range);
-        let indirection_index = indirection.calculate_index(specified_atlas_pos);
-        indirection.data[indirection_index] = encode_ptr(&specified_atlas_pos);
 
         // To speed up lookups (and possibly for delta tracking), we can create mipmaps for the range buffer
         let mut range_mipmaps = Vec::new();
@@ -261,12 +255,12 @@ impl Grid for BrickGrid {
     fn size_bytes(&self) -> usize {
         let dense_bricks = (self.brick_count.x * self.brick_count.y * self.brick_count.z) as usize;
         let size_indirection = dense_bricks * size_of::<u32>();
-        let size_range = dense_bricks * size_of::<u64>();
+        let size_range = dense_bricks * size_of::<u32>();
         let size_atlas = self.brick_counter * VOXELS_PER_BRICK as usize * size_of::<u8>();
 
         let mut size_mipmaps: usize = 0;
         for mipmap in &self.range_mipmaps {
-            size_mipmaps += size_of::<u64>() * (mipmap.stride.x * mipmap.stride.y * mipmap.stride.z) as usize;
+            size_mipmaps += size_of::<u32>() * (mipmap.stride.x * mipmap.stride.y * mipmap.stride.z) as usize;
         }
 
         size_indirection + size_range + size_atlas + size_mipmaps
@@ -345,8 +339,8 @@ impl BrickGrid {
     pub fn indirection_data(&self) -> Uint32Array {
         Uint32Array::from(self.indirection.data.as_slice())
     }
-    pub fn range_data(&self) -> Float32Array {
-        Float32Array::from(bytemuck::cast_slice(self.range.data.as_slice()))
+    pub fn range_data(&self) -> Uint16Array {
+        Uint16Array::from(bytemuck::cast_slice(self.range.data.as_slice()))
     }
     pub fn atlas_data(&self) -> Uint8Array {
         Uint8Array::from(self.atlas.data.as_slice())
