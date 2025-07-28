@@ -105,20 +105,26 @@ float lookup_density_brick(const vec3 ipos) {
     ivec3 iipos = ivec3(ipos * vec3(u_volume_dimensions));
     ivec3 brick = iipos >> 3;
     uvec3 ptr = texelFetch(u_density_indirection, brick, 0).xyz;
-    vec2 range = texelFetch(u_density_range, brick, 0).xy;
+    vec2 range = texelFetch(u_density_range, brick, 0).yx;
     //if (range.x == range.y) return range.x;
     float value_unorm = texelFetch(u_density_atlas, ivec3(ptr << 3) + (iipos & 7), 0).x;
 
 //    uvec3 specified_pos = uvec3(10, 10, 10);
 //
+//    vec2 range_result = texelFetch(u_density_range, ivec3(specified_pos), 0).yx;
+//
+//    if (range_result.x == 0.25 && range_result.y == 0.5) return -2.0;
+//    if (range_result.x == 0.5) return -3.0; // blue
+//    if (0.49 < range_result.y && 0.51 > range_result.y) return -4.0;
+
 //    float atlas_result = texelFetch(u_density_atlas, ivec3(specified_pos), 0).x;
 //
 //    if (atlas_result == 0.5) return -2.0;
-//    if (atlas_result < 0.25) return -3.0;
-//    if (atlas_result > 0.75) return -4.0;
-//
+//    if (atlas_result > 0.49 && atlas_result < 0.51) return -3.0;
+//    if (atlas_result < 0.25 || atlas_result > 0.75) return -4.0;
+
 //    uvec3 indirection_result = texelFetch(u_density_indirection, ivec3(specified_pos), 0).xyz;
-//    if (indirection_result.x == 10u && indirection_result.y == 10u && indirection_result.y == 10u) return -1.0;
+    //if (indirection_result.x == 10u && indirection_result.y == 10u && indirection_result.y == 10u) return -1.0;
 
     return (range.x + value_unorm * (range.y - range.x));
 }

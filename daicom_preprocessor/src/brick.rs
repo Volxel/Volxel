@@ -152,6 +152,14 @@ impl BrickGrid {
             }
         }
 
+        // let specified_pos = UVec3::new(10, 10, 10);
+        // let ptr = encode_ptr(&specified_pos);
+        // let indirection_index = indirection.calculate_index(specified_pos);
+        // indirection.data[indirection_index] = ptr;
+        // let atlas_index = atlas.calculate_index(specified_pos);
+        // atlas.data[atlas_index] = encode_voxel(0.5, &Vec2::new(0.0, 1.0));
+        // let range_index = range.calculate_index(specified_pos);
+        // range.data[range_index] = encode_range(0.25, 0.5);
 
         // Since some bricks are empty/constant it may be that we didn't fill up the entire atlas, so we can prune it
         atlas.prune((BRICK_SIZE as f32 * (brick_counter as f32 / (brick_count.x * brick_count.y) as f32).ceil().round()) as usize);
