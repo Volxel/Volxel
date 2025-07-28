@@ -123,7 +123,7 @@ vec4 eval_volume_world(vec3 world_pos) {
     }
 
     vec4 transfer_result = texture(u_transfer, vec2(data_density, 0.0));
-    return vec4(transfer_result.xzy, transfer_result.w * u_density_multiplier);
+    return vec4(transfer_result.xyz, transfer_result.w * u_density_multiplier);
 }
 
 float phase(float g, float cos_theta) {
