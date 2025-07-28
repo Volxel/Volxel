@@ -125,6 +125,7 @@ export class HistogramViewer extends HTMLElement {
         this.canvas.width = Math.min(histogram.length, 4096);
 
         this.selectedRange = [0, 1];
+        this.emitChange();
         this.buttons[0].style.setProperty("--relative-position", `${0}`)
         this.buttons[1].style.setProperty("--relative-position", `${1}`)
 
