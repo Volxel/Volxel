@@ -1,6 +1,5 @@
 use crate::buf3d::Buf3D;
 use crate::grid::Grid;
-use crate::utils::log_to_console;
 use glam::{IVec3, UVec3, Vec2, Vec3};
 use half::f16;
 use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
@@ -216,7 +215,7 @@ impl Grid for BrickGrid {
         // resolve the indirection to find out where in the atlas the brick data is stored
         let indirection_index = self.indirection.calculate_index(brick_coord);
         let indirection_pointer = decode_ptr(self.indirection.data[indirection_index]);
-        
+
         // resolve the range of the brick
         let range_index = self.range.calculate_index(brick_coord);
         let minmax = decode_range(self.range.data[range_index]);

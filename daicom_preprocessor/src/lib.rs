@@ -12,8 +12,7 @@ use crate::buf3d::Buf3D;
 use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
 use glam::UVec3;
-use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
-use crate::grid::Grid;
+use js_sys::Uint8Array;
 
 #[wasm_bindgen]
 pub fn init() {
