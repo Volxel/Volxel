@@ -75,7 +75,6 @@ type Framebuffer = {
 class State {
   private canvas: HTMLCanvasElement;
   private gl: WebGL2RenderingContext;
-  private compressedExt: EXT_texture_compression_rgtc
   private program: WebGLProgram;
   private blit: WebGLProgram;
 
@@ -137,9 +136,6 @@ class State {
     // check for float render target extension
     const floatExtension = gl.getExtension("EXT_color_buffer_float");
     if (!floatExtension) throw new Error("EXT_color_buffer_float extension not available, can't render to float target");
-    const compressedExt = gl.getExtension("EXT_texture_compression_rgtc");
-    if (!compressedExt) throw new Error("EXT_texture_compression_rgtc extension not available");
-    this.compressedExt = compressedExt;
 
     // Set up main shaders
     const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);

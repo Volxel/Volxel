@@ -75,10 +75,6 @@ pub struct BrickGrid {
 
 impl BrickGrid {
     pub fn construct(from: &dyn Grid) -> Self {
-        let encoded = encode_range(1.234_f32, -5.678_f32);
-        log_to_console(&format!("{:x}; {}", encoded, decode_range(encoded)));
-
-
         let brick_count = div_round_up(div_round_up(from.index_extent(), UVec3::splat(BRICK_SIZE)), UVec3::splat(1 << NUM_MIPMAPS)) * (1 << NUM_MIPMAPS);
 
         if brick_count.x >= MAX_BRICKS || brick_count.y >= MAX_BRICKS || brick_count.z >= MAX_BRICKS {
@@ -152,15 +148,6 @@ impl BrickGrid {
             }
         }
 
-        // let specified_pos = UVec3::new(10, 10, 10);
-        // let ptr = encode_ptr(&specified_pos);
-        // let indirection_index = indirection.calculate_index(specified_pos);
-        // indirection.data[indirection_index] = ptr;
-        // let atlas_index = atlas.calculate_index(specified_pos);
-        // atlas.data[atlas_index] = encode_voxel(0.5, &Vec2::new(0.0, 1.0));
-        // let range_index = range.calculate_index(specified_pos);
-        // range.data[range_index] = encode_range(0.25, 0.5);
-
         // Since some bricks are empty/constant it may be that we didn't fill up the entire atlas, so we can prune it
         atlas.prune((BRICK_SIZE as f32 * (brick_counter as f32 / (brick_count.x * brick_count.y) as f32).ceil().round()) as usize);
 
@@ -229,14 +216,10 @@ impl Grid for BrickGrid {
         // resolve the indirection to find out where in the atlas the brick data is stored
         let indirection_index = self.indirection.calculate_index(brick_coord);
         let indirection_pointer = decode_ptr(self.indirection.data[indirection_index]);
-
-        log_to_console(&format!("looked up: {}\nindirection: {}", ipos, indirection_pointer));
-
+        
         // resolve the range of the brick
         let range_index = self.range.calculate_index(brick_coord);
         let minmax = decode_range(self.range.data[range_index]);
-
-        log_to_console(&format!("looked up: {}\nrange: {}", range_index, minmax));
 
         // calculate the position of the specific voxel in the atlas by offsetting into the brick
         // in the atlas with the lower bits of the passed position
@@ -244,7 +227,6 @@ impl Grid for BrickGrid {
 
         // Actually looks up the u8 compressed data in the atlas, then decodes it with the range
         let atlas_index = self.atlas.calculate_index(voxel);
-        log_to_console(&format!("looked up: {}\nvoxel: {}", atlas_index, voxel));
         decode_voxel(self.atlas.data[atlas_index], &minmax)
     }
 
