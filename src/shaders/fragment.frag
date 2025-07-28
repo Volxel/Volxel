@@ -61,7 +61,7 @@ Ray setup_world_ray(vec2 ss_position, int i) {
     return Ray(camera_pos, dir);
 }
 
-bool intersect_ray(Ray ray, vec3 aabb[2], out vec3 hit_min, out vec3 hit_max) {
+bool ray_box_intersection(Ray ray, vec3 aabb[2], out vec2 near_far) {
     vec3 inv_dir = 1.0 / ray.direction;
 
     vec3 t0s = (aabb[0] - ray.origin) * inv_dir;
@@ -70,21 +70,22 @@ bool intersect_ray(Ray ray, vec3 aabb[2], out vec3 hit_min, out vec3 hit_max) {
     vec3 tmin = min(t0s, t1s);
     vec3 tmax = max(t0s, t1s);
 
-    float t_near = max(max(tmin.x, tmin.y), tmin.z);
-    float t_far = min(min(tmax.x, tmax.y), tmax.z);
+    near_far.x = max(0.f, max(tmin.x, max(tmin.y, tmin.z)));
+    near_far.y = min(tmax.x, min(tmax.y, tmax.z));
 
-    // No intersection
-    if (t_near > t_far || t_far < 0.0) {
-        return false;
-    }
+    return near_far.x <= near_far.y;
+}
+bool ray_box_intersection_positions(Ray ray, vec3 aabb[2], out vec3 hit_min, out vec3 hit_max) {
+    vec2 near_far;
+    if (!ray_box_intersection(ray, aabb, near_far)) return false;
 
     // If ray starts inside the box
-    if (t_near < 0.0) {
+    if (near_far.x < 0.0) {
         hit_min = ray.origin;
-        hit_max = ray.origin + ray.direction * t_far;
+        hit_max = ray.origin + ray.direction * near_far.y;
     } else {
-        hit_min = ray.origin + ray.direction * t_near;
-        hit_max = ray.origin + ray.direction * t_far;
+        hit_min = ray.origin + ray.direction * near_far.x;
+        hit_max = ray.origin + ray.direction * near_far.y;
     }
 
     return true;
@@ -126,6 +127,16 @@ vec4 eval_volume_world(vec3 world_pos) {
     return vec4(transfer_result.xyz, transfer_result.w * u_density_multiplier);
 }
 
+// Delta/Ratio tracking without range mipmaps
+
+float transmittance_ratio_track(Ray ray, inout uint seed) {
+    vec2 near_far;
+    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return 1.0F;
+    return 0.0F;
+}
+
+// SIMPLE RAYMARCH ------------------
+
 float phase(float g, float cos_theta) {
     float denom = 1.0 + g * g - 2.0 * g * cos_theta;
     return 1.0 / (4.0 * 3.141) * (1.0 - g * g) / (denom * sqrt(denom));
@@ -162,7 +173,7 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
         // In Scattering
         vec3 light_ray_exit;
         vec3 light_ray_entry;
-        if (intersect_ray(Ray(pos, normalize(-light_dir)), u_volume_aabb, light_ray_entry, light_ray_exit)) {
+        if (ray_box_intersection_positions(Ray(pos, normalize(-light_dir)), u_volume_aabb, light_ray_entry, light_ray_exit)) {
             vec3 diff_inside = light_ray_exit - light_ray_entry;
             float dt_inside = stepsize / length(diff_inside);
             vec3 step_inside = diff_inside * dt_inside;
@@ -194,6 +205,8 @@ vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
     return background * transmission + result_col;
 }
 
+// ------------
+
 vec3 get_background_color(Ray ray) {
     float angleHorizontal = dot(vec3(0, 0, 1), normalize(vec3(ray.direction.x, 0, ray.direction.z))) * 0.5 + 0.5;
     angleHorizontal = int(round(angleHorizontal * 8.0)) % 2 == 0 ? 1.0 : 0.0;
@@ -215,7 +228,7 @@ void main() {
     for (uint i = 0u; i < ray_count; ++i) {
         seed += i;
         Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i));
-        if (intersect_ray(ray, u_volume_aabb, hit_min, hit_max)) {
+        if (ray_box_intersection_positions(ray, u_volume_aabb, hit_min, hit_max)) {
             if(u_debugHits) {
                 result += vec4(world_to_aabb(hit_min, u_volume_aabb), 1);
             } else {
