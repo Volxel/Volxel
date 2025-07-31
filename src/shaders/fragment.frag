@@ -35,7 +35,6 @@ uniform sampler3D u_density_atlas;
 // ----------------------------
 
 uniform vec2 u_sample_range;
-uniform float u_density_multiplier;
 uniform uint u_frame_index;
 uniform ivec2 u_res;
 

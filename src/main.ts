@@ -505,21 +505,18 @@ class State {
       const [min, maj] = this.volume.minMaj();
       const aabb = this.volume.aabb();
       this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(aabb.flat()));
-      this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale);
-      this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale);
-      this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale))
+      this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.input.density_multiplier);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.input.density_multiplier);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.input.density_multiplier))
 
       this.gl.uniform3f(this.getUniformLocation("u_volume_albedo"), 0.9, 0.9, 0.9) // TODO
       this.gl.uniform1f(this.getUniformLocation("u_volume_phase_g"), 0) // TODO
-      this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale * this.input.density_multiplier);
 
       const combinedMatrix = this.volume.combinedTransform()
-      this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform"), false, combinedMatrix) // TODO
+      this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform"), false, combinedMatrix)
       this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform_inv"), false, combinedMatrix.invert())
     }
-
-    // bind density multiplyer
-    this.gl.uniform1f(this.getUniformLocation("u_density_multiplier"), this.input.density_multiplier);
 
     // bind sample range
     this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.sampleRange);
