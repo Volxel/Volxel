@@ -11,7 +11,7 @@ use crate::brick::BrickGrid;
 use crate::buf3d::Buf3D;
 use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
-use glam::{Mat4, UVec3, Vec3, Vec4};
+use glam::{Mat4, UVec3, Vec3};
 use js_sys::Uint8Array;
 
 #[wasm_bindgen]
@@ -32,8 +32,6 @@ pub struct DicomDataInternal {
 // const REFERENCED_IMAGE_SEQUENCE: Tag = Tag(0x0008, 0x1140);
 const PIXEL_SPACING: Tag = Tag(0x0028, 0x0030);
 const SLICE_THICKNESS: Tag = Tag(0x0018, 0x0050);
-const IMAGE_ORIENTATION_PATIENT: Tag = Tag(0x0020, 0x0037);
-const IMAGE_POSITION_PATIENT: Tag = Tag(0x0020, 0x0032);
 
 const FLOAT_PIXEL_DATA: Tag = Tag(0x7fe0, 0x0008);
 const DOUBLE_FLOAT_PIXEL_DATA: Tag = Tag(0x7fe0, 0x0009);

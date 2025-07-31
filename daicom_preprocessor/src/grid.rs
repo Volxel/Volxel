@@ -1,4 +1,4 @@
-use glam::{Mat4, UVec3, Vec3};
+use glam::{Mat4, UVec3};
 
 pub trait Grid {
     /// index-space grid lookup

@@ -1,7 +1,7 @@
-use glam::{Mat4, UVec3, Vec3};
-use crate::DicomDataInternal;
 use crate::grid::Grid;
 use crate::utils::log_to_console;
+use crate::DicomDataInternal;
+use glam::{Mat4, UVec3};
 
 impl Grid for DicomDataInternal {
     fn lookup(&self, ipos: UVec3) -> f32 {
