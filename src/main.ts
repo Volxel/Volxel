@@ -212,7 +212,7 @@ class State {
     // TODO: Initial data somehow?
 
     // Setup camera
-    this.camera = new Camera(10, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
+    this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
     // Prepare automatic resizing of canvas
     const resizeObserver = new ResizeObserver((entries) => {

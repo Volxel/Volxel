@@ -65,29 +65,7 @@ export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Ve
   let lastPos = Vector2.from([0, 0]);
   let lastTouchDistance = 0;
 
-  element.addEventListener("mousedown", e => {
-    e.preventDefault()
-    if (e.shiftKey) {
-      isMoving = true;
-    } else {
-      isDragging = true;
-    }
-    lastPos = new Vector2(e.clientX, e.clientY);
-  });
-  element.addEventListener("touchstart", e => {
-    if (e.touches.length === 1 || e.touches.length === 3) {
-      e.preventDefault();
-      isDragging = e.touches.length === 1;
-      isMoving = e.touches.length === 3;
-      lastPos = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
-    } else if (e.touches.length === 2) {
-      e.preventDefault();
-      isZooming = true;
-      lastTouchDistance = new Vector2(e.touches[0].clientX, e.touches[0].clientY).distance(new Vector2(e.touches[1].clientX, e.touches[1].clientY));
-    }
-  })
-
-  element.addEventListener("mousemove", e => {
+  const mouseMoveListener = (e: MouseEvent) => {
     if (!isDragging && !isMoving) return;
     const current = new Vector2(e.clientX, e.clientY);
     if (isDragging) {
@@ -96,8 +74,8 @@ export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Ve
       onMove(current.clone().subtract(lastPos).divide(new Vector2(element.clientWidth, element.clientHeight)));
     }
     lastPos = current;
-  });
-  element.addEventListener("touchmove", e => {
+  }
+  const touchMoveListener = (e: TouchEvent) => {
     if (isDragging) {
       if (e.touches.length !== 1) {
         isDragging = false;
@@ -123,18 +101,47 @@ export function setupPanningListeners(element: HTMLCanvasElement, onPan: (by: Ve
       onMove(current.clone().subtract(lastPos).divide(new Vector2(element.clientWidth, element.clientHeight)));
       lastPos = current;
     }
-  })
+  }
 
   const stop = () => {
+    document.removeEventListener("mousemove", mouseMoveListener);
+    document.removeEventListener("touchmove", touchMoveListener);
+    document.removeEventListener("mouseup", stop);
+    document.removeEventListener("mouseleave", stop);
+    document.removeEventListener("touchend", stop);
+    document.removeEventListener("touchcancel", stop);
     isDragging = false;
     isZooming = false;
     isMoving = false;
   }
 
-  element.addEventListener("mouseup", stop);
-  element.addEventListener("mouseleave", stop);
-  element.addEventListener("touchend", stop);
-  element.addEventListener("touchcancel", stop);
+  element.addEventListener("mousedown", e => {
+    e.preventDefault()
+    document.addEventListener("mousemove", mouseMoveListener);
+    document.addEventListener("mouseup", stop);
+    document.addEventListener("mouseleave", stop);
+    if (e.shiftKey) {
+      isMoving = true;
+    } else {
+      isDragging = true;
+    }
+    lastPos = new Vector2(e.clientX, e.clientY);
+  });
+  element.addEventListener("touchstart", e => {
+    if (e.touches.length === 1 || e.touches.length === 3) {
+      e.preventDefault();
+      isDragging = e.touches.length === 1;
+      isMoving = e.touches.length === 3;
+      lastPos = new Vector2(e.touches[0].clientX, e.touches[0].clientY);
+    } else if (e.touches.length === 2) {
+      e.preventDefault();
+      isZooming = true;
+      lastTouchDistance = new Vector2(e.touches[0].clientX, e.touches[0].clientY).distance(new Vector2(e.touches[1].clientX, e.touches[1].clientY));
+    }
+    document.addEventListener("touchmove", touchMoveListener);
+    document.addEventListener("touchcancel", stop);
+    document.addEventListener("touchend", stop);
+  })
 
   element.addEventListener("wheel", e => {
     let by = 1;
