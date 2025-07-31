@@ -12,9 +12,7 @@ export class Volume {
     }
 
     combinedTransform(): Matrix4 {
-        const gridTransform = this.grid.transform();
-        console.log("grid transform", gridTransform)
-        return this.transform.clone().multiplyRight(gridTransform);
+        return this.transform.clone().multiplyRight(this.grid.transform());
     }
     toWorld(index: Vector4): Vector4 {
         // @ts-expect-error this should return a 4 element vector always

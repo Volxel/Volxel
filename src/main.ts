@@ -33,6 +33,7 @@ function createShader(gl: WebGL2RenderingContext, type: GLenum, source: string):
   else {
     const log = gl.getShaderInfoLog(shader);
     console.error("Shader compilation failed\n", log)
+    console.error("Full shader source:\n", source.split("\n").map((it, i) => `${i + 1}: ${it}`).join("\n"));
     gl.deleteShader(shader);
     throw new Error("Failed to compile shader, check Browser Console for details.");
   }
@@ -392,7 +393,6 @@ class State {
     // prepare rescale matrix for AABB of volume (it's not rescaled yet so we can safely call the aabb function)
     const [box_min, box_max] = this.volume.aabb();
     const extent = box_max.subtract(box_min);
-    console.log("calculating extent", extent);
     const size = Math.max(extent.x, Math.max(extent.y, extent.z));
     if (size != 1) {
       // TODO: Check order
@@ -505,8 +505,6 @@ class State {
       const [min, maj] = this.volume.minMaj();
       const aabb = this.volume.aabb();
       this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(aabb.flat()));
-      // TODO: other volume uniforms https://github.com/nihofm/volren/blob/e8aea40952ced6f8c04e8c3a5c0ff99e12af94ca/src/renderer.cpp#L101
-      console.log(`min: ${min}; maj: ${maj}; scale: ${this.densityScale}; aabb`, aabb)
       this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale);
       this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale);
       this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale))
@@ -516,7 +514,6 @@ class State {
       this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale);
 
       const combinedMatrix = this.volume.combinedTransform()
-      //console.log("combined", combinedMatrix, "grid", this.gridTransform, "volume", this.volume.getTransform());
       this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform"), false, combinedMatrix) // TODO
       this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform_inv"), false, combinedMatrix.invert())
     }

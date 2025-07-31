@@ -52,15 +52,16 @@ uniform float u_sample_weight;
 
 // Light
 const vec3 light_dir = normalize(vec3(-1.0, -1.0, -1.0));
-const vec3 light_col = vec3(50.0, 50.0, 50.0);
+const vec3 light_col = vec3(1);
 
-#include "utils.glsl"
-#include "random.glsl"
 
 struct Ray {
     vec3 origin;
     vec3 direction;
 };
+
+#include "utils.glsl"
+#include "random.glsl"
 
 Ray setup_world_ray(vec2 ss_position, int i) {
     float aspect = float(u_res.x) / float(u_res.y);
@@ -124,23 +125,13 @@ float lookup_density_brick(const vec3 index_pos) {
 }
 
 vec4 lookup_transfer(float density) {
+    if (density < u_sample_range.x || density > u_sample_range.y) {
+        return vec4(0);
+    }
     return texture(u_transfer, vec2(density, 0.0));
 }
 
-vec4 lookup_volume(vec3 aabb_pos) {
-    float data_density = lookup_density_brick(aabb_pos);
-
-    // TODO this check could be done in the lookup_density_brick
-    if (data_density < u_sample_range.x || data_density > u_sample_range.y) {
-        return vec4(0);
-    }
-
-    vec4 transfer_result = lookup_transfer(data_density);
-    return vec4(transfer_result.xyz, transfer_result.w * u_density_multiplier);
-}
-
 // Delta/Ratio tracking without range mipmaps
-
 
 float transmittance_ratio_track(Ray ray, inout uint seed) {
     vec2 near_far;
@@ -177,6 +168,49 @@ float transmittance_ratio_track(Ray ray, inout uint seed) {
     return clamp(transmittance, 0.0, 1.0);
 }
 
+bool sample_delta_track(Ray ray, out float t, inout vec3 throughput, inout uint seed) {
+    vec2 near_far;
+    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return false;
+
+    // in index space
+    vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1.0));
+    vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0.0));
+
+    t = near_far.x - log(1.0 - rng(seed)) * u_volume_inv_maj;
+
+    while (t < near_far.y) {
+        vec4 transfer_result = lookup_transfer(lookup_density_brick(ipos + t * idir) * u_volume_inv_maj);
+        float density = u_volume_maj * transfer_result.a;
+
+        float P_real = density * u_volume_inv_maj;
+        if(rng(seed) < P_real) {
+            throughput *= transfer_result.rgb * u_volume_albedo;
+            return true;
+        }
+
+        t -= log(1.0 - rng(seed)) * u_volume_inv_maj;
+    }
+
+    return false;
+}
+
+vec4 direct_render(Ray ray, inout uint seed) {
+    vec3 background = get_background_color(ray);
+    float t = 0.0;
+    vec3 throughput = vec3(1);
+    if (!sample_delta_track(ray, t, throughput, seed)) {
+        return vec4(background, 1);
+    }
+
+    // this is a simple direct rendering approach, no multiple paths traced
+    vec3 sample_pos = ray.origin + t * ray.direction;
+    // check light intensity
+    float light_att = transmittance_ratio_track(Ray(sample_pos, -light_dir), seed);
+
+    // TODO: Phase function
+    return vec4(throughput + light_col * light_att, 1);
+}
+
 // SIMPLE RAYMARCH ------------------
 
 float phase(float g, float cos_theta) {
@@ -186,7 +220,7 @@ float phase(float g, float cos_theta) {
 
 #define RAYMARCH_STEPS 64
 
-float raymarch_transmittance(Ray ray, inout uint seed) {
+float transmittance_raymarch(Ray ray, inout uint seed) {
     vec2 near_far;
     if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return -1.0F;
 
@@ -205,14 +239,6 @@ float raymarch_transmittance(Ray ray, inout uint seed) {
 }
 
 // ------------
-
-vec3 get_background_color(Ray ray) {
-    float angleHorizontal = dot(vec3(0, 0, 1), normalize(vec3(ray.direction.x, 0, ray.direction.z))) * 0.5 + 0.5;
-    angleHorizontal = int(round(angleHorizontal * 8.0)) % 2 == 0 ? 1.0 : 0.0;
-    float angleVertical = dot(normalize(ray.direction), normalize(vec3(ray.direction.x, 0, ray.direction.z)));
-    angleVertical = int(round(angleVertical * 8.0)) % 2 == 0 ? 0.0 : 1.0;
-    return vec3(abs(angleHorizontal - angleVertical) * 0.05); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
-}
 
 const uint ray_count = 1u;
 
@@ -241,9 +267,7 @@ void main() {
             continue;
         }
 
-        float transmittance = transmittance_ratio_track(ray, seed);
-        if (transmittance >= 0.0) result = vec4(vec3(1.0 - transmittance) + background, 1);
-        else result = vec4(background, 1);
+        result = direct_render(ray, seed);
     }
     result = result / float(ray_count);
 
