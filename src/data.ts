@@ -6,7 +6,12 @@ export const dicomBasePaths: {
     to: number,
     replaceLength: number
 }[] = [
-    {url: "/Volxel/Dicom/Anatomie_24-16/axial/WT/Anatomie^2416^^^=^^^^=^^^^.CT.1.1.#.DCM", from: 1, to: 349, replaceLength: 3},
+    {
+        url: "/Volxel/Dicom/Anatomie_24-16/axial/WT/Anatomie^2416^^^=^^^^=^^^^.CT.1.1.#.DCM",
+        from: 1,
+        to: 349,
+        replaceLength: 3
+    },
     {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/2/02690#", from: 2, to: 429, replaceLength: 3},
     {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/3/02700#", from: 2, to: 510, replaceLength: 3},
     {url: "/Volxel/Dicom/53_ER_ANA_AS20180009/0/4/02710#", from: 2, to: 456, replaceLength: 3},
@@ -25,7 +30,7 @@ export const dicomBasePaths: {
 ]
 
 export async function loadGrid(index: number = 0): Promise<wasm.BrickGrid> {
-    const { url, from, to, replaceLength } = dicomBasePaths[index];
+    const {url, from, to, replaceLength} = dicomBasePaths[index];
     const urls = new Array(to - from).fill(0).map((_, i) => {
         return url.replace("#", `${from + i}`.padStart(replaceLength, "0"))
     })
@@ -34,8 +39,8 @@ export async function loadGrid(index: number = 0): Promise<wasm.BrickGrid> {
 }
 
 export async function loadGridFromFiles(files: FileList | File[]): Promise<wasm.BrickGrid> {
-    const data = await Promise.all([...files].map(file => file.bytes()));
-    return wasm.read_dicoms_to_grid(data);
+    const data = await Promise.all([...files].toSorted((a, b) => a.name.localeCompare(b.name)).map(file => file.arrayBuffer()));
+    return wasm.read_dicoms_to_grid(data.map(buffer => new Uint8Array(buffer)));
 }
 
 
@@ -55,7 +60,10 @@ async function loadTransferFromNetwork(path: string): Promise<number[][]> {
     return await parseTransferFunction(await (await fetch(path)).text());
 }
 
-export async function loadTransferFunction(transfer: TransferFunction | File = TransferFunction.None): Promise<{data: Float32Array, length: number}> {
+export async function loadTransferFunction(transfer: TransferFunction | File = TransferFunction.None): Promise<{
+    data: Float32Array,
+    length: number
+}> {
     let result: number[][]
     if (transfer instanceof File) {
         result = await parseTransferFunction(await transfer.text());
@@ -88,7 +96,10 @@ export type ColorStop = {
     stop: number
 }
 
-export function generateTransferFunction(colors: ColorStop[], generatedSteps: number = 128): {data: Float32Array, length: number} {
+export function generateTransferFunction(colors: ColorStop[], generatedSteps: number = 128): {
+    data: Float32Array,
+    length: number
+} {
     if (colors.length < 1) throw new Error("At least one color stop required");
     const sortedColors = [...colors];
     sortedColors.sort((a, b) => a.stop - b.stop);
@@ -109,7 +120,7 @@ export function generateTransferFunction(colors: ColorStop[], generatedSteps: nu
             const next = sortedColors[currentStop + 1];
             if (!next) generatedColors.push(sortedColors[currentStop].color);
             else {
-                const progressToNext = (currentPosition - sortedColors[currentStop].stop)/(next.stop - sortedColors[currentStop].stop);
+                const progressToNext = (currentPosition - sortedColors[currentStop].stop) / (next.stop - sortedColors[currentStop].stop);
                 if (progressToNext >= 1.0) {
                     generatedColors.push(next.color);
                     currentStop++;
