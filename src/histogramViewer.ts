@@ -76,16 +76,18 @@ export class HistogramViewer extends HTMLElement {
                 const bounding = container.getBoundingClientRect();
                 return Math.min(Math.max((x - bounding.left) / bounding.width, 0), 1);
             }
-            const moveListener = (event: MouseEvent) => {
-                if (dragging || Math.abs(event.clientX - dragStart) > 1) {
+            const moveListener = (event: MouseEvent | TouchEvent) => {
+                const clientX = event instanceof MouseEvent ? event.clientX : event.touches[0]!.clientX;
+                if (dragging || Math.abs(clientX - dragStart) > 1) {
                     dragging = true
 
-                    button.style.setProperty("--temp-offset", `${calculatePositionInButton(event.clientX)}`)
+                    button.style.setProperty("--temp-offset", `${calculatePositionInButton(clientX)}`)
                 }
             }
-            const upListener = (event: MouseEvent) => {
+            const upListener = (event: MouseEvent | TouchEvent) => {
+                const clientX = event instanceof MouseEvent ? event.clientX : event.touches[0]!.clientX;
                 if (dragging) {
-                    this.selectedRange[i] = calculatePositionInButton(event.clientX);
+                    this.selectedRange[i] = calculatePositionInButton(clientX);
                     this.emitChange()
                     button.style.removeProperty("--temp-offset");
                     button.style.setProperty("--relative-position", `${this.selectedRange[i]}`)
@@ -95,12 +97,22 @@ export class HistogramViewer extends HTMLElement {
 
                 document.removeEventListener("mousemove", moveListener);
                 document.removeEventListener("mouseup", upListener);
+                document.removeEventListener("mouseleave", upListener);
+                document.removeEventListener("touchmove", moveListener);
+                document.removeEventListener("touchend", upListener);
+                document.removeEventListener("touchcancel", upListener);
             }
-            button.addEventListener("mousedown", (event) => {
-                dragStart = event.clientX;
+            const downnListener = (event: MouseEvent | TouchEvent) => {
+                dragStart = event instanceof MouseEvent ? event.clientX : event.touches[0]!.clientX;
                 document.addEventListener("mousemove", moveListener);
                 document.addEventListener("mouseup", upListener);
-            });
+                document.addEventListener("mouseleave", upListener);
+                document.addEventListener("touchmove", moveListener);
+                document.addEventListener("touchend", upListener);
+                document.addEventListener("touchcancel", upListener);
+            }
+            button.addEventListener("mousedown", downnListener);
+            button.addEventListener("touchstart", downnListener);
         }
 
         container.appendChild(button1);
