@@ -86,6 +86,8 @@ class State {
   private frameIndex: number = 0;
 
   private suspend: boolean = true;
+  private resolutionFactor: number = 1;
+  private lowResolutionDuration: number = 5;
 
   private indirection: WebGLTexture;
   private range: WebGLTexture;
@@ -229,23 +231,6 @@ class State {
 
           c.width = width;
           c.height = height;
-
-          // resize framebuffer textures
-          for (const { target } of this.framebuffers) {
-            gl.bindTexture(gl.TEXTURE_2D, target);
-            gl.texImage2D(
-                gl.TEXTURE_2D,
-                0,
-                gl.RGBA32F,
-                width,
-                height,
-                0,
-                gl.RGBA,
-                gl.FLOAT,
-                null
-            )
-            gl.bindTexture(gl.TEXTURE_2D, null);
-          }
         }
       })
     });
@@ -374,6 +359,31 @@ class State {
     })
   }
 
+  private resizeFramebuffersToCanvas() {
+    const gl = this.gl;
+
+    const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor)
+    const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor)
+
+    gl.viewport(0, 0, scaledWidth, scaledHeight);
+    // resize framebuffer textures
+    for (const { target } of this.framebuffers) {
+      gl.bindTexture(gl.TEXTURE_2D, target);
+      gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA32F,
+          scaledWidth,
+          scaledHeight,
+          0,
+          gl.RGBA,
+          gl.FLOAT,
+          null
+      )
+      gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+  }
+
   private alreadyWarned: Set<string> = new Set<string>();
   private getUniformLocation(name: string, program: WebGLProgram = this.program) {
     const loc = this.gl.getUniformLocation(program, name);
@@ -436,12 +446,18 @@ class State {
     this.container.classList.add("restarting");
     this.suspend = true;
     const result = await action();
+    this.resolutionFactor = 0.33;
+    this.resizeFramebuffersToCanvas();
     this.frameIndex = 0;
     this.suspend = false;
     return result;
   }
 
   render() {
+    if (this.frameIndex >= this.lowResolutionDuration && this.resolutionFactor !== 1.0) {
+      this.resolutionFactor = 1.0;
+      this.resizeFramebuffersToCanvas();
+    }
     if (!this.suspend && this.frameIndex < this.input.max_samples) {
       this.gl.disable(this.gl.DEPTH_TEST);
       const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
@@ -449,7 +465,7 @@ class State {
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
       this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
       // Set up viewport size, since canvas size can change
-      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+      this.gl.viewport(0, 0, this.resolutionFactor * this.gl.canvas.width, this.resolutionFactor * this.gl.canvas.height);
 
       // Clear stuff
       this.gl.clearColor(1, 0, 0, 1);
@@ -521,9 +537,6 @@ class State {
     // bind sample range
     this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.sampleRange);
 
-    // reduce stepsize for first few samples to improve performance when looking around
-    this.gl.uniform1f(this.getUniformLocation("u_stepsize"), this.frameIndex < 2 ? 0.1 : 0.025);
-
     // bind previous frame
     this.gl.activeTexture(this.gl.TEXTURE0 + 4 + framebuffer);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
@@ -534,7 +547,7 @@ class State {
     this.gl.uniform2i(this.getUniformLocation("u_res"), this.canvas.width, this.canvas.height)
     this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.input.debugHits ? 1 : 0);
 
-    this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < 2 ? 0 : (this.frameIndex - 2) / (this.frameIndex - 1));
+    this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < this.lowResolutionDuration ? 0 : (this.frameIndex - this.lowResolutionDuration) / (this.frameIndex - this.lowResolutionDuration + 1));
   }
 }
 
