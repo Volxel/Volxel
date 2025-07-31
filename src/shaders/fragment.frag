@@ -11,16 +11,32 @@ in vec2 tex;
 uniform sampler2D u_transfer;
 uniform sampler2D u_previous_frame;
 
+// VOLUME INFO --------------
+
+uniform vec3 u_volume_aabb[2];
+
+uniform float u_volume_min;
+uniform float u_volume_maj;
+uniform float u_volume_inv_maj;
+
+uniform vec3 u_volume_albedo;
+uniform float u_volume_phase_g;
+uniform float u_volume_density_scale;
+
+// -- Density
+
+uniform mat4 u_volume_density_transform;
+uniform mat4 u_volume_density_transform_inv;
+
 uniform usampler3D u_density_indirection;
 uniform sampler3D u_density_range;
 uniform sampler3D u_density_atlas;
 
-uniform uvec3 u_volume_dimensions;
+// ----------------------------
 
 uniform vec2 u_sample_range;
 uniform float u_density_multiplier;
 uniform uint u_frame_index;
-uniform vec3 u_volume_aabb[2];
 uniform ivec2 u_res;
 
 uniform float u_stepsize;
@@ -62,17 +78,12 @@ Ray setup_world_ray(vec2 ss_position, int i) {
 }
 
 bool ray_box_intersection(Ray ray, vec3 aabb[2], out vec2 near_far) {
-    vec3 inv_dir = 1.0 / ray.direction;
-
-    vec3 t0s = (aabb[0] - ray.origin) * inv_dir;
-    vec3 t1s = (aabb[1] - ray.origin) * inv_dir;
-
-    vec3 tmin = min(t0s, t1s);
-    vec3 tmax = max(t0s, t1s);
-
+    vec3 inv_dir = 1.f / ray.direction;
+    vec3 lo = (aabb[0] - ray.origin) * inv_dir;
+    vec3 hi = (aabb[1] - ray.origin) * inv_dir;
+    vec3 tmin = min(lo, hi), tmax = max(lo, hi);
     near_far.x = max(0.f, max(tmin.x, max(tmin.y, tmin.z)));
     near_far.y = min(tmax.x, min(tmax.y, tmax.z));
-
     return near_far.x <= near_far.y;
 }
 bool ray_box_intersection_positions(Ray ray, vec3 aabb[2], out vec3 hit_min, out vec3 hit_max) {
@@ -102,37 +113,68 @@ float map_to_range(float x, vec2 range) {
     return (x - range.x) / (range.y - range.x);
 }
 
-float lookup_density_brick(const vec3 ipos) {
-    ivec3 iipos = ivec3(ipos * vec3(u_volume_dimensions));
+float lookup_density_brick(const vec3 index_pos) {
+    ivec3 iipos = ivec3(floor(index_pos));
     ivec3 brick = iipos >> 3;
     vec2 range = texelFetch(u_density_range, brick, 0).yx;
-    if (range.x == range.y) return range.x;
-
     uvec3 ptr = texelFetch(u_density_indirection, brick, 0).xyz;
     float value_unorm = texelFetch(u_density_atlas, ivec3(ptr << 3) + (iipos & 7), 0).x;
 
-    return (range.x + value_unorm * (range.y - range.x));
+    return u_volume_density_scale * (range.x + value_unorm * (range.y - range.x));
 }
 
-vec4 eval_volume_world(vec3 world_pos) {
-    vec3 sample_pos = world_to_aabb(world_pos, u_volume_aabb);
-    float data_density = lookup_density_brick(sample_pos);
+vec4 lookup_transfer(float density) {
+    return texture(u_transfer, vec2(density, 0.0));
+}
+
+vec4 lookup_volume(vec3 aabb_pos) {
+    float data_density = lookup_density_brick(aabb_pos);
 
     // TODO this check could be done in the lookup_density_brick
     if (data_density < u_sample_range.x || data_density > u_sample_range.y) {
         return vec4(0);
     }
 
-    vec4 transfer_result = texture(u_transfer, vec2(data_density, 0.0));
+    vec4 transfer_result = lookup_transfer(data_density);
     return vec4(transfer_result.xyz, transfer_result.w * u_density_multiplier);
 }
 
 // Delta/Ratio tracking without range mipmaps
 
+
 float transmittance_ratio_track(Ray ray, inout uint seed) {
     vec2 near_far;
     if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return 1.0F;
-    return 0.0F;
+
+    // in index space
+    vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1.0));
+    vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0.0));
+
+    // calculate transmittance via ratio tracking
+    float step_pos = near_far.x - log(1.0 - rng(seed)) * u_volume_inv_maj;
+    float transmittance = 1.0F;
+
+    while (step_pos < near_far.y) {
+        float density = lookup_density_brick(ipos + step_pos * idir);
+        density *= u_volume_inv_maj;
+        vec4 transfer_result = lookup_transfer(density);
+        density = u_volume_maj * transfer_result.a;
+
+        // ratio tracking works via null particles. The amount of null particles is everything leftover
+        // not filled by normal particles, so 1 minus the density
+        transmittance *= 1.0 - density * u_volume_inv_maj;
+
+        // russian roulette early exit for rays that probably won't hit anything anymore
+        if (transmittance < .1F) {
+            if (rng(seed) > transmittance) return 0.0F;
+            transmittance /= 1.0 - transmittance;
+        }
+
+        // advance by the new delta_t
+        step_pos -= log(1.0 - rng(seed)) * u_volume_inv_maj;
+    }
+
+    return clamp(transmittance, 0.0, 1.0);
 }
 
 // SIMPLE RAYMARCH ------------------
@@ -142,67 +184,24 @@ float phase(float g, float cos_theta) {
     return 1.0 / (4.0 * 3.141) * (1.0 - g * g) / (denom * sqrt(denom));
 }
 
-vec3 raymarch(vec3 from, vec3 to, vec3 background, inout uint seed) {
-    float stepsize = u_stepsize;
-    vec3 diff = to - from;
-    uint numSteps = uint(ceil(length(diff) / stepsize));
-    float dt = stepsize / length(diff);
-    vec3 step = diff * dt;
+#define RAYMARCH_STEPS 64
 
-    // https://www.scratchapixel.com/lessons/3d-basic-rendering/volume-rendering-for-developers/volume-rendering-3D-density-field.html
-    float sigma_a = 0.5; // absorption coefficient;
-    float sigma_s = 0.5; // scattering coefficient
-    float sigma_t = sigma_a + sigma_s; // extinction coefficient
-    float g = 0.0; // henyey-greenstein asymmetry factor
-    uint d = 2u; // russian roulette "probability"
+float raymarch_transmittance(Ray ray, inout uint seed) {
+    vec2 near_far;
+    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return -1.0F;
 
-    float transmission = 1.0; // fully transmissive to start with
-    vec3 result_col = vec3(0);
+    vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1));
+    vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0));
 
-    for (uint i = 0u; i < numSteps; ++i) {
-        vec3 pos = from + (float(i) + rng(seed)) * step;
+    float dt = (near_far.y - near_far.x) / float(RAYMARCH_STEPS);
+    near_far.x += rng(seed) * dt;
+    float tau = 0.0F;
 
-        vec4 sampled = eval_volume_world(pos);
-        float density = sampled.a;
-
-        if (density <= 0.0) continue;
-
-        float sample_attenuation = exp(-stepsize * density * sigma_t);
-        transmission *= sample_attenuation;
-
-        // In Scattering
-        vec3 light_ray_exit;
-        vec3 light_ray_entry;
-        if (ray_box_intersection_positions(Ray(pos, normalize(-light_dir)), u_volume_aabb, light_ray_entry, light_ray_exit)) {
-            vec3 diff_inside = light_ray_exit - light_ray_entry;
-            float dt_inside = stepsize / length(diff_inside);
-            vec3 step_inside = diff_inside * dt_inside;
-            uint numStepsInside = uint(ceil(length(diff_inside) / stepsize));
-
-            float light_attenuation = 0.0; // tau in scratchapixel code
-            // another raymarch to accumulate light attenuation
-            for (uint j = 0u; j < numStepsInside; ++j) {
-                vec3 pos_inside = light_ray_entry + (float(j) + rng(seed)) * step_inside;
-                light_attenuation += eval_volume_world(pos_inside).a;
-            }
-            float light_ray_att = exp(-light_attenuation * stepsize * sigma_t);
-
-            result_col += sampled.rgb * light_col *
-                light_ray_att *
-                phase(g, dot(normalize(diff), normalize(light_dir))) *
-                sigma_s *
-                transmission *
-                stepsize *
-                density;
-        }
-
-        if (transmission <= 1e-3) {
-            if (rng(seed) > 1.0 / float(d)) break;
-            else transmission *= float(d);
-        }
+    for (int i = 0; i < RAYMARCH_STEPS; ++i) {
+        tau += lookup_transfer(lookup_density_brick(ipos + min(near_far.x + float(i) * dt, near_far.y) * idir) * u_volume_inv_maj).a * u_volume_maj * dt;
     }
 
-    return background * transmission + result_col;
+    return clamp(exp(-tau), 0.0, 1.0);
 }
 
 // ------------
@@ -223,22 +222,30 @@ void main() {
 
     vec4 previous_frame = texture(u_previous_frame, tex * 0.5 + 0.5);
 
-    vec4 result;
+    vec3 aabb[2] = u_volume_aabb;
+
+    outColor = vec4(0.0);
+
+    vec4 result = vec4(0);
     uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y)) + u_frame_index * 12356789u;
     for (uint i = 0u; i < ray_count; ++i) {
         seed += i;
         Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i));
-        if (ray_box_intersection_positions(ray, u_volume_aabb, hit_min, hit_max)) {
-            if(u_debugHits) {
-                result += vec4(world_to_aabb(hit_min, u_volume_aabb), 1);
+        vec3 background = get_background_color(ray);
+        if (u_debugHits) {
+            if (ray_box_intersection_positions(ray, aabb, hit_min, hit_max)) {
+                result = vec4(world_to_aabb(hit_min, aabb), 1);
             } else {
-                result += vec4(raymarch(hit_min, hit_max, get_background_color(ray), seed), 1.0);
+                result = vec4(background, 1);
             }
-        } else {
-            result += vec4(get_background_color(ray), 1.0);
+            continue;
         }
+
+        float transmittance = transmittance_ratio_track(ray, seed);
+        if (transmittance >= 0.0) result = vec4(vec3(1.0 - transmittance) + background, 1);
+        else result = vec4(background, 1);
     }
     result = result / float(ray_count);
 
-    outColor = u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result;
+    if (outColor.a == 0.0) outColor = u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result;
 }

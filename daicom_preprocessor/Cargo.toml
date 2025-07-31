@@ -20,11 +20,11 @@ wasm-bindgen = "0.2.100"
 console_error_panic_hook = { version = "0.1.7", optional = true }
 
 # dicom
-dicom-core = "0.8.1"
-dicom-object = "0.8.1"
-dicom-pixeldata = { version = "0.8.1", features = ["image", "jpeg", "jpegxl", "native"] }
+dicom-core = "0.8.2"
+dicom-object = "0.8.2"
+dicom-pixeldata = { version = "0.8.2", features = ["image", "jpeg", "jpegxl", "native"] }
 js-sys = "0.3.77"
-glam = "0.30.4"
+glam = "0.30.5"
 bytemuck = "1.23.1"
 half = "2.6.0" # TODO: Remove this once f16 is stable in Rust
 

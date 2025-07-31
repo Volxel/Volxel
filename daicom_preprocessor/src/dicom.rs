@@ -1,4 +1,4 @@
-use glam::{UVec3, Vec3};
+use glam::{Mat4, UVec3, Vec3};
 use crate::DicomDataInternal;
 use crate::grid::Grid;
 use crate::utils::log_to_console;
@@ -32,10 +32,6 @@ impl Grid for DicomDataInternal {
         todo!()
     }
 
-    fn scaling(&self) -> Vec3 {
-        Vec3::from(self.scaling)
-    }
-
     fn histogram(&self) -> Vec<u32> {
         self.histogram.clone()
     }
@@ -67,5 +63,9 @@ impl Grid for DicomDataInternal {
         }
         smoothed.push(gradient[gradient.len() - 1]);
         (smoothed, gradmin, gradmax)
+    }
+
+    fn transform(&self) -> Mat4 {
+        self.transform.clone()
     }
 }

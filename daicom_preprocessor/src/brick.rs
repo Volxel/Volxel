@@ -1,8 +1,8 @@
 use crate::buf3d::Buf3D;
 use crate::grid::Grid;
-use glam::{IVec3, UVec3, Vec2, Vec3};
+use glam::{IVec3, Mat4, UVec3, Vec2, Vec3};
 use half::f16;
-use js_sys::{Int32Array, Uint16Array, Uint32Array, Uint8Array};
+use js_sys::{Float32Array, Int32Array, Uint16Array, Uint32Array, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 // constants
 
@@ -67,7 +67,7 @@ pub struct BrickGrid {
     range: Buf3D<u32>,
     atlas: Buf3D<u8>,
     range_mipmaps: Vec<Buf3D<u32>>,
-    scaling: Vec3,
+    transform: Mat4,
     histogram: Vec<u32>,
     histogram_gradient: (Vec<i32>, u32, u32),
 }
@@ -197,7 +197,7 @@ impl BrickGrid {
             atlas,
             brick_counter,
             range_mipmaps,
-            scaling: from.scaling(),
+            transform: from.transform(),
             histogram: from.histogram(),
             histogram_gradient: from.histogram_gradient()
         }
@@ -254,17 +254,17 @@ impl Grid for BrickGrid {
 
         size_indirection + size_range + size_atlas + size_mipmaps
     }
-
-    fn scaling(&self) -> Vec3 {
-        self.scaling.clone()
-    }
-
+    
     fn histogram(&self) -> Vec<u32> {
         self.histogram.clone()
     }
 
     fn histogram_gradient(&self) -> (Vec<i32>, u32, u32) {
         self.histogram_gradient.clone()
+    }
+
+    fn transform(&self) -> Mat4 {
+        self.transform.clone()
     }
 }
 
@@ -302,14 +302,8 @@ impl BrickGrid {
         self.atlas.stride.z
     }
 
-    pub fn scale_x(&self) -> f32 {
-        self.scaling.x
-    }
-    pub fn scale_y(&self) -> f32 {
-        self.scaling.y
-    }
-    pub fn scale_z(&self) -> f32 {
-        self.scaling.z
+    pub fn transform(&self) -> Float32Array {
+        Float32Array::from(self.transform.to_cols_array().as_slice())
     }
 
     pub fn histogram(&self) -> Uint32Array {
@@ -323,6 +317,22 @@ impl BrickGrid {
     }
     pub fn histogram_gradient(&self) -> Int32Array {
         Int32Array::from(self.histogram_gradient.0.as_slice())
+    }
+
+    pub fn minorant(&self) -> f32 {
+        self.minorant_majorant().0
+    }
+    pub fn majorant(&self) -> f32 {
+        self.minorant_majorant().1
+    }
+    pub fn index_extent_x(&self) -> u32 {
+        self.index_extent().x
+    }
+    pub fn index_extent_y(&self) -> u32 {
+        self.index_extent().y
+    }
+    pub fn index_extent_z(&self) -> u32 {
+        self.index_extent().z
     }
 
     pub fn indirection_data(&self) -> Uint32Array {

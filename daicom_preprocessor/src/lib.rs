@@ -11,7 +11,7 @@ use crate::brick::BrickGrid;
 use crate::buf3d::Buf3D;
 use crate::utils::{debug_print_tags, log_to_console};
 use dicom_pixeldata::{PixelDecoder, PixelRepresentation};
-use glam::UVec3;
+use glam::{Mat4, UVec3, Vec3, Vec4};
 use js_sys::Uint8Array;
 
 #[wasm_bindgen]
@@ -21,10 +21,10 @@ pub fn init() {
 
 pub struct DicomDataInternal {
     data: Buf3D<u16>,
-    scaling: [f32; 3],
     histogram: Vec<u32>,
     min: u16,
-    max: u16
+    max: u16,
+    transform: Mat4
 }
 
 // relevant tags
@@ -32,6 +32,8 @@ pub struct DicomDataInternal {
 // const REFERENCED_IMAGE_SEQUENCE: Tag = Tag(0x0008, 0x1140);
 const PIXEL_SPACING: Tag = Tag(0x0028, 0x0030);
 const SLICE_THICKNESS: Tag = Tag(0x0018, 0x0050);
+const IMAGE_ORIENTATION_PATIENT: Tag = Tag(0x0020, 0x0037);
+const IMAGE_POSITION_PATIENT: Tag = Tag(0x0020, 0x0032);
 
 const FLOAT_PIXEL_DATA: Tag = Tag(0x7fe0, 0x0008);
 const DOUBLE_FLOAT_PIXEL_DATA: Tag = Tag(0x7fe0, 0x0009);
@@ -61,10 +63,10 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
 
         return DicomDataInternal {
             data: Buf3D::empty(),
-            scaling: [1.0, 1.0, 1.0],
             histogram: vec![],
             min: 0,
             max: u16::MAX,
+            transform: Mat4::IDENTITY
         };
     }
 
@@ -108,6 +110,9 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
     else {
         panic!("Pixel spacing did not contain two values x and y")
     };
+    let pixel_sizing_x: f32 = x.trim().parse().expect("Couldn't parse x spacing to float");
+    let pixel_sizing_y: f32 = y.trim().parse().expect("Couldn't parse y spacing to float");
+
     let slice_thickness = result_obj.get(SLICE_THICKNESS).map(|obj| {
         obj.strings()
             .expect("Slice thickness was not a string sequence")
@@ -118,7 +123,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
     }).unwrap_or(0.1);
 
     if debug_print {
-        log_to_console(&format!("Pixel Spacing: x={}, y={}, z={}", x, y, slice_thickness));
+        log_to_console(&format!("Pixel Spacing: x={}, y={}, z={}", pixel_sizing_x, pixel_sizing_y, slice_thickness));
     }
 
     let mut data = Buf3D::new(UVec3::new(pixel_data.columns(), pixel_data.rows(), pixel_data.number_of_frames()));
@@ -126,34 +131,25 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
 
     DicomDataInternal {
         data,
-        scaling: [
-            x.trim().parse().expect("Couldn't parse x spacing to float"),
-            y.trim().parse().expect("Couldn't parse y spacing to float"),
-            slice_thickness
-        ],
         histogram,
         min: min_sample,
-        max: max_sample
+        max: max_sample,
+        transform: Mat4::from_scale(Vec3::new(pixel_sizing_x, pixel_sizing_y, slice_thickness))
     }
 }
 
 fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
 
     let mut result: Option<Buf3D<u16>> = None;
-    let mut scaling: [f32; 3] = [1.0, 1.0, 1.0];
+    let mut transform: Mat4 = Mat4::IDENTITY;
     let mut histogram: Vec<u32> = Vec::new();
     let mut min: u16 = u16::MAX;
     let mut max: u16 = 0;
     for bytes in all_bytes {
         let mut dicom = read_dicom(bytes, false);
 
-        for i in 0..3 {
-            if scaling[i] == 1.0 {
-                scaling[i] = dicom.scaling[i]
-            } else if scaling[i] != dicom.scaling[i] {
-                panic!("Different frames had different scaling")
-            }
-        }
+        // I just assume every dicom object has the same transform
+        transform = dicom.transform;
 
         if histogram.is_empty() {
             histogram.append(&mut dicom.histogram)
@@ -178,7 +174,7 @@ fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
     }
     DicomDataInternal {
         data: result.expect("No dicom data collected"),
-        scaling,
+        transform,
         histogram,
         min,
         max

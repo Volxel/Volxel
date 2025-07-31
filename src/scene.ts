@@ -8,8 +8,8 @@ export class Camera {
   static up: Vector3 = new Vector3(0, 1, 0);
 
   constructor(distance: number,
-              private posLoc: WebGLUniformLocation,
-              private viewLoc: WebGLUniformLocation) {
+              private posLoc: WebGLUniformLocation | null,
+              private viewLoc: WebGLUniformLocation | null) {
     this.view = new Vector3();
     this.pos = new Vector3(0, 0, distance);
   }

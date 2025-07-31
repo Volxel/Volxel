@@ -17,6 +17,8 @@ import {
 } from "./data.ts";
 import {ColorRampComponent} from "./colorramp.ts";
 import {HistogramViewer} from "./histogramViewer.ts";
+import {Volume} from "./representation/volume.ts";
+import {Matrix4} from "math.gl";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -78,25 +80,6 @@ class State {
   private program: WebGLProgram;
   private blit: WebGLProgram;
 
-  private indirectionLoc: WebGLUniformLocation;
-  private rangeLoc: WebGLUniformLocation;
-  private atlasLoc: WebGLUniformLocation;
-  private volumeDimensionsLoc: WebGLUniformLocation;
-
-  private sampleRangeLoc: WebGLUniformLocation;
-  private transferLoc: WebGLUniformLocation;
-  private densityMultiplierLoc: WebGLUniformLocation;
-  private previousFrameLoc: WebGLUniformLocation;
-  private frameIndexLoc: WebGLUniformLocation;
-  private volumeAABBLoc: WebGLUniformLocation;
-  private resLoc: WebGLUniformLocation;
-  private debugHitsLoc: WebGLUniformLocation;
-  private sampleWeightLoc: WebGLUniformLocation;
-
-  private stepsizeLoc: WebGLUniformLocation;
-
-  private targetLocation: WebGLUniformLocation;
-
   private framebuffers: Framebuffer[] = [];
   private framebufferPingPong: number = 0;
   private frameIndex: number = 0;
@@ -117,9 +100,11 @@ class State {
   }
 
   private camera: Camera;
-  private aabb: number[] = [-1, -1, -1, 1, 1, 1];
   private sampleRange: [number, number] = [0, 2 ** 16 - 1];
-  private volumeDimensions: [number, number, number] = [0, 0, 0]
+
+  // volume settings
+  private densityScale: number = 1;
+  private volume: Volume | null = null;
 
   // Container that is displaying the data, this will be a web component in the future
   private container: HTMLElement = document.body;
@@ -223,30 +208,8 @@ class State {
     setupImage();
     // TODO: Initial data somehow?
 
-    // get uniform locations
-    this.indirectionLoc = this.getUniformLocation("u_density_indirection");
-    this.rangeLoc = this.getUniformLocation("u_density_range");
-    this.atlasLoc = this.getUniformLocation("u_density_atlas");
-
-    this.volumeDimensionsLoc = this.getUniformLocation("u_volume_dimensions");
-
-
-    this.sampleRangeLoc = this.getUniformLocation("u_sample_range");
-    this.transferLoc = this.getUniformLocation("u_transfer");
-    this.densityMultiplierLoc = this.getUniformLocation("u_density_multiplier");
-    this.previousFrameLoc = this.getUniformLocation("u_previous_frame");
-    this.frameIndexLoc = this.getUniformLocation("u_frame_index");
-    this.volumeAABBLoc = this.getUniformLocation("u_volume_aabb");
-    this.resLoc = this.getUniformLocation("u_res");
-    this.debugHitsLoc = this.getUniformLocation("u_debugHits");
-    this.sampleWeightLoc = this.getUniformLocation("u_sample_weight");
-
-    this.stepsizeLoc = this.getUniformLocation("u_stepsize");
-
-    this.targetLocation = this.getUniformLocation("u_result", this.blit);
-
     // Setup camera
-    this.camera = new Camera(5, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
+    this.camera = new Camera(10, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
     // Prepare automatic resizing of canvas
     const resizeObserver = new ResizeObserver((entries) => {
@@ -369,7 +332,6 @@ class State {
         const grid = await loadGrid(Number.parseInt(modelSelect.value.replace("dicom_", "")))
         this.setupFromGrid(grid);
         histogramViewer.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max());
-        grid.free();
       })
     });
 
@@ -385,7 +347,6 @@ class State {
         const grid = await loadGridFromFiles(files);
         this.setupFromGrid(grid);
         histogramViewer.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max());
-        grid.free();
       })
     })
 
@@ -412,23 +373,35 @@ class State {
     })
   }
 
-  private getUniformLocation(name: string, program: WebGLProgram = this.program): WebGLUniformLocation {
+  private alreadyWarned: Set<string> = new Set<string>();
+  private getUniformLocation(name: string, program: WebGLProgram = this.program) {
     const loc = this.gl.getUniformLocation(program, name);
-    if (!loc) throw new Error("Failed to get uniform location of '" + name + "'");
+    if (!loc && !this.alreadyWarned.has(name)) {
+      console.warn("Failed to get uniform location of '" + name + "'");
+      this.alreadyWarned.add(name);
+    }
     return loc;
   }
 
   private setupFromGrid(grid: wasm.BrickGrid) {
-    // setup AABB
-    const scaling = [grid.scale_x(), grid.scale_y(), grid.scale_z()]
-    const dimensions = [grid.ind_x(), grid.ind_y(), grid.ind_z()]
+    this.volume?.free();
+    this.densityScale = 1.0;
 
-    this.volumeDimensions = dimensions.map(dim => dim * 8) as [number, number, number] // TODO: this 8 needs to somehow come from the rust constant
+    this.volume = Volume.fromWasm(grid);
 
-    const rescaledDimensions = dimensions.map((dim, i) => dim * scaling[i]);
-    const longestLength = rescaledDimensions.reduce((max, cur) => cur > max ? cur : max, 0);
-    const [nwidth, nheight, ndepth] = rescaledDimensions.map(side => (side / longestLength));
-    this.aabb = [-nwidth, -nheight, -ndepth, nwidth, nheight, ndepth];
+    // prepare rescale matrix for AABB of volume (it's not rescaled yet so we can safely call the aabb function)
+    const [box_min, box_max] = this.volume.aabb();
+    const extent = box_max.subtract(box_min);
+    console.log("calculating extent", extent);
+    const size = Math.max(extent.x, Math.max(extent.y, extent.z));
+    if (size != 1) {
+      // TODO: Check order
+      this.volume.setTransform(new Matrix4()
+          .scale(1 / size)
+          .translate(box_min.multiplyByScalar(-1).subtract(extent.multiplyByScalar(0.5)))
+        );
+      this.densityScale *= size;
+    }
 
     // upload data to respective images
     const ind = grid.indirection_data()
@@ -499,7 +472,7 @@ class State {
       this.gl.useProgram(this.blit);
       this.gl.activeTexture(this.gl.TEXTURE0 + 2 + this.framebufferPingPong);
       this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[this.framebufferPingPong].target);
-      this.gl.uniform1i(this.targetLocation, 2 + this.framebufferPingPong);
+      this.gl.uniform1i(this.getUniformLocation("u_result", this.blit), 2 + this.framebufferPingPong);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
       // ping pong
@@ -515,42 +488,59 @@ class State {
   bindUniforms(framebuffer: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
-    this.gl.uniform1i(this.transferLoc, 0);
+    this.gl.uniform1i(this.getUniformLocation("u_transfer"), 0);
     // brick lookup textures
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
-    this.gl.uniform1i(this.indirectionLoc, 1);
+    this.gl.uniform1i(this.getUniformLocation("u_density_indirection"), 1);
     this.gl.activeTexture(this.gl.TEXTURE0 + 2);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
-    this.gl.uniform1i(this.rangeLoc, 2);
+    this.gl.uniform1i(this.getUniformLocation("u_density_range"), 2);
     this.gl.activeTexture(this.gl.TEXTURE0 + 3);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
-    this.gl.uniform1i(this.atlasLoc, 3);
+    this.gl.uniform1i(this.getUniformLocation("u_density_atlas"), 3);
 
-    // bind volume dimension
-    this.gl.uniform3ui(this.volumeDimensionsLoc, ...this.volumeDimensions);
+    // bind volume
+    if (this.volume) {
+      const [min, maj] = this.volume.minMaj();
+      const aabb = this.volume.aabb();
+      this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(aabb.flat()));
+      // TODO: other volume uniforms https://github.com/nihofm/volren/blob/e8aea40952ced6f8c04e8c3a5c0ff99e12af94ca/src/renderer.cpp#L101
+      console.log(`min: ${min}; maj: ${maj}; scale: ${this.densityScale}; aabb`, aabb)
+      this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale))
+
+      this.gl.uniform3f(this.getUniformLocation("u_volume_albedo"), 0.9, 0.9, 0.9) // TODO
+      this.gl.uniform1f(this.getUniformLocation("u_volume_phase_g"), 0) // TODO
+      this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale);
+
+      const combinedMatrix = this.volume.combinedTransform()
+      //console.log("combined", combinedMatrix, "grid", this.gridTransform, "volume", this.volume.getTransform());
+      this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform"), false, combinedMatrix) // TODO
+      this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform_inv"), false, combinedMatrix.invert())
+    }
 
     // bind density multiplyer
-    this.gl.uniform1f(this.densityMultiplierLoc, this.input.density_multiplier);
+    this.gl.uniform1f(this.getUniformLocation("u_density_multiplier"), this.input.density_multiplier);
 
     // bind sample range
-    this.gl.uniform2f(this.sampleRangeLoc, ...this.sampleRange);
+    this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.sampleRange);
 
     // reduce stepsize for first few samples to improve performance when looking around
-    this.gl.uniform1f(this.stepsizeLoc, this.frameIndex < 2 ? 0.1 : 0.025);
+    this.gl.uniform1f(this.getUniformLocation("u_stepsize"), this.frameIndex < 2 ? 0.1 : 0.025);
 
     // bind previous frame
     this.gl.activeTexture(this.gl.TEXTURE0 + 4 + framebuffer);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
-    this.gl.uniform1i(this.previousFrameLoc, 4 + framebuffer);
+    this.gl.uniform1i(this.getUniformLocation("u_previous_frame"), 4 + framebuffer);
 
-    this.gl.uniform1ui(this.frameIndexLoc, this.frameIndex);
+    this.gl.uniform1ui(this.getUniformLocation("u_frame_index"), this.frameIndex);
 
-    this.gl.uniform3fv(this.volumeAABBLoc, new Float32Array(this.aabb));
-    this.gl.uniform2i(this.resLoc, this.canvas.width, this.canvas.height)
-    this.gl.uniform1i(this.debugHitsLoc, this.input.debugHits ? 1 : 0);
+    this.gl.uniform2i(this.getUniformLocation("u_res"), this.canvas.width, this.canvas.height)
+    this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.input.debugHits ? 1 : 0);
 
-    this.gl.uniform1f(this.sampleWeightLoc, this.frameIndex < 2 ? 0 : (this.frameIndex - 2) / (this.frameIndex - 1));
+    this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < 2 ? 0 : (this.frameIndex - 2) / (this.frameIndex - 1));
   }
 }
 
