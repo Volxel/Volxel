@@ -118,7 +118,7 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
             .expect("Slice thickness didn't contain anything")
             .trim()
             .parse::<f32>().expect("Couldn't parse slice thickness to float")
-    }).unwrap_or(0.1);
+    }).unwrap_or(pixel_sizing_x.min(pixel_sizing_y));
 
     if debug_print {
         log_to_console(&format!("Pixel Spacing: x={}, y={}, z={}", pixel_sizing_x, pixel_sizing_y, slice_thickness));
