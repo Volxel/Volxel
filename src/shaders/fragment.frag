@@ -160,6 +160,12 @@ float lookup_density_brick(ivec3 index_pos) {
     return lookup_density_brick(vec3(index_pos));
 }
 
+// brick majorant lookup (nearest neighbor)
+float lookup_majorant(vec3 ipos, int mip) {
+    ivec3 brick = ivec3(floor(ipos)) >> (3 + mip);
+    return u_volume_density_scale * texelFetch(u_density_range, brick, mip).x;
+}
+
 // density lookup (nearest neighbor)
 float lookup_density(const vec3 ipos) {
     return u_volume_density_scale * lookup_density_brick(ipos);
@@ -190,9 +196,23 @@ vec4 lookup_transfer(float density) {
     return texture(u_transfer, vec2(density, 0.0));
 }
 
-// Delta/Ratio tracking without range mipmaps
+// --------------------------------------------------------------
+// DDA-based null-collision methods
 
-float transmittance_ratio_track(Ray ray, inout uint seed) {
+#define MIP_START 3.0
+#define MIP_SPEED_UP 0.25
+#define MIP_SPEED_DOWN 2.0
+
+// perform DDA step on given mip level
+float stepDDA(vec3 pos, vec3 inv_dir, int mip) {
+    float dim = float(8 << mip);
+    vec3 offs = mix(vec3(-0.5f), vec3(dim + 0.5f), greaterThanEqual(inv_dir, vec3(0)));
+    vec3 tmax = (floor(pos * (1.f / dim)) * dim + offs - pos) * inv_dir;
+    return min(tmax.x, min(tmax.y, tmax.z));
+}
+
+// DDA-based transmittance
+float transmittanceDDA(Ray ray, inout uint seed) {
     vec2 near_far;
     if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return 1.0F;
 
@@ -200,104 +220,96 @@ float transmittance_ratio_track(Ray ray, inout uint seed) {
     vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1.0));
     vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0.0));
 
-    // calculate transmittance via ratio tracking
-    float step_pos = near_far.x - log(1.0 - rng(seed)) * u_volume_inv_maj;
-    float transmittance = 1.0F;
+    vec3 ri = 1.f / idir;
+    // march brick grid
+    float t = near_far.x + 1e-6f, Tr = 1.f, tau = -log(1.f - rng(seed)), mip = MIP_START;
+    while (t < near_far.y) {
+        vec3 curr = ipos + t * idir;
 
-    while (step_pos < near_far.y) {
-        float density = lookup_density_trilinear(ipos + step_pos * idir);
-        density *= u_volume_inv_maj;
-        vec4 transfer_result = lookup_transfer(density);
-        density = u_volume_maj * transfer_result.a;
+        float majorant = u_volume_maj * lookup_transfer(lookup_majorant(curr, int(round(mip))) * u_volume_inv_maj).a;
 
-        // ratio tracking works via null particles. The amount of null particles is everything leftover
-        // not filled by normal particles, so 1 minus the density
-        transmittance *= 1.0 - density * u_volume_inv_maj;
+        float dt = stepDDA(curr, ri, int(round(mip)));
+        t += dt;
+        tau -= majorant * dt;
+        mip = min(mip + MIP_SPEED_UP, 3.f);
+        if (tau > 0.0) continue; // no collision, step ahead
+        t += tau / majorant; // step back to point of collision
+        if (t >= near_far.y) break;
 
-        // russian roulette early exit for rays that probably won't hit anything anymore
-        if (transmittance < .1F) {
-            if (rng(seed) > transmittance) return 0.0F;
-            transmittance /= 1.0 - transmittance;
+        vec4 rgba = lookup_transfer(lookup_density_trilinear(ipos + t * idir) * u_volume_inv_maj);
+        float d = u_volume_maj * rgba.a;
+
+        if (rng(seed) * majorant < d) { // check if real or null collision
+            Tr *= max(0.f, 1.f - u_volume_maj / majorant); // adjust by ratio of global to local majorant
+            // russian roulette
+            if (Tr < .1f) {
+                float prob = 1.0 - Tr;
+                if (rng(seed) < prob) return 0.f;
+                Tr /= 1.0 - prob;
+            }
         }
-
-        // advance by the new delta_t
-        step_pos -= log(1.0 - rng(seed)) * u_volume_inv_maj;
+        tau = -log(1.f - rng(seed));
+        mip = max(0.f, mip - MIP_SPEED_DOWN);
     }
-
-    return clamp(transmittance, 0.0, 1.0);
+    return Tr;
 }
 
-bool sample_delta_track(Ray ray, out float t, inout vec3 throughput, inout uint seed) {
+// DDA-based volume sampling
+bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout uint seed) {
     vec2 near_far;
-    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return false;
+    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) false;
 
     // in index space
     vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1.0));
     vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0.0));
-
-    t = near_far.x - log(1.0 - rng(seed)) * u_volume_inv_maj;
-
+    vec3 ri = 1.f / idir;
+    // march brick grid
+    t = near_far.x + 1e-6f;
+    float tau = -log(1.f - rng(seed)), mip = MIP_START;
     while (t < near_far.y) {
-        vec4 transfer_result = lookup_transfer(lookup_density_trilinear(ipos + t * idir) * u_volume_inv_maj);
-        float density = u_volume_maj * transfer_result.a;
+        vec3 curr = ipos + t * idir;
+        float majorant = u_volume_maj * lookup_transfer(lookup_majorant(curr, int(round(mip))) * u_volume_inv_maj).a;
 
-        float P_real = density * u_volume_inv_maj;
-        if(rng(seed) < P_real) {
-            throughput *= transfer_result.rgb * u_volume_albedo;
+        float dt = stepDDA(curr, ri, int(round(mip)));
+        t += dt;
+        tau -= majorant * dt;
+        mip = min(mip + MIP_SPEED_UP, 3.f);
+        if (tau > 0.0) continue; // no collision, step ahead
+        t += tau / majorant; // step back to point of collision
+        if (t >= near_far.y) break;
+
+        vec4 rgba = lookup_transfer(lookup_density_trilinear(ipos + t * idir) * u_volume_inv_maj);
+        float d = u_volume_maj * rgba.a;
+
+        if (rng(seed) * majorant < d) { // check if real or null collision
+            throughput *= u_volume_albedo;
+            throughput *= rgba.rgb;
             return true;
         }
-
-        t -= log(1.0 - rng(seed)) * u_volume_inv_maj;
+        tau = -log(1.f - rng(seed));
+        mip = max(0.f, mip - MIP_SPEED_DOWN);
     }
-
     return false;
 }
+
+// ------------
 
 vec4 direct_render(Ray ray, inout uint seed) {
     vec3 background = get_background_color(ray);
     float t = 0.0;
     vec3 throughput = vec3(1);
-    if (!sample_delta_track(ray, t, throughput, seed)) {
+    if (!sample_volumeDDA(ray, t, throughput, seed)) {
         return vec4(background, 1);
     }
 
     // this is a simple direct rendering approach, no multiple paths traced
     vec3 sample_pos = ray.origin + t * ray.direction;
     // check light intensity
-    float light_att = transmittance_ratio_track(Ray(sample_pos, -light_dir), seed);
+    float light_att = transmittanceDDA(Ray(sample_pos, -light_dir), seed);
 
     // TODO: Phase function
     return vec4(throughput + light_col * light_att, 1);
 }
-
-// SIMPLE RAYMARCH ------------------
-
-float phase(float g, float cos_theta) {
-    float denom = 1.0 + g * g - 2.0 * g * cos_theta;
-    return 1.0 / (4.0 * 3.141) * (1.0 - g * g) / (denom * sqrt(denom));
-}
-
-#define RAYMARCH_STEPS 64
-
-float transmittance_raymarch(Ray ray, inout uint seed) {
-    vec2 near_far;
-    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return -1.0F;
-
-    vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1));
-    vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0));
-
-    float dt = (near_far.y - near_far.x) / float(RAYMARCH_STEPS);
-    near_far.x += rng(seed) * dt;
-    float tau = 0.0F;
-
-    for (int i = 0; i < RAYMARCH_STEPS; ++i) {
-        tau += lookup_transfer(lookup_density_brick(ipos + min(near_far.x + float(i) * dt, near_far.y) * idir) * u_volume_inv_maj).a * u_volume_maj * dt;
-    }
-
-    return clamp(exp(-tau), 0.0, 1.0);
-}
-
-// ------------
 
 const uint ray_count = 1u;
 
