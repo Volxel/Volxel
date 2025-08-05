@@ -1,4 +1,4 @@
-import {css} from "./util.ts";
+import {css} from "../util.ts";
 
 export class HistogramViewer extends HTMLElement {
     private canvas: HTMLCanvasElement;

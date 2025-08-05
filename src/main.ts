@@ -15,10 +15,11 @@ import {
   loadTransferFunction,
   TransferFunction
 } from "./data.ts";
-import {ColorRampComponent} from "./colorramp.ts";
-import {HistogramViewer} from "./histogramViewer.ts";
+import {ColorRampComponent} from "./elements/colorramp.ts";
+import {HistogramViewer} from "./elements/histogramViewer.ts";
 import {Volume} from "./representation/volume.ts";
 import {Matrix4} from "math.gl";
+import {DirectionSelector} from "./elements/directionSelector.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -214,8 +215,9 @@ class State {
     setupImage();
     // TODO: Initial data somehow?
 
+    const directionSelector = this.container.querySelector("#direction") as DirectionSelector;
     // Setup camera
-    this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
+    this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"), directionSelector)
 
     // Prepare automatic resizing of canvas
     const resizeObserver = new ResizeObserver((entries) => {
@@ -583,6 +585,7 @@ class State {
 
 customElements.define("color-ramp-component", ColorRampComponent);
 customElements.define("volxel-histogram-viewer", HistogramViewer);
+customElements.define("volxel-direction-selector", DirectionSelector);
 
 async function main() {
   wasm.init();
