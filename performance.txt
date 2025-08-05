@@ -1,6 +1,6 @@
 delta/ratio tracking simple direct without empty space skipping:
 
-full body, 1000 samples, max density:
+full body, 1000 samples, max density, nearest neighbor lookup:
 188
 187
 184
@@ -9,3 +9,26 @@ full body, 1000 samples, max density:
 221
 180
 177
+221
+
+full body, 1000 samples, max density, stochastic lookup:
+239
+231
+263
+261
+286
+275
+252
+270
+284
+
+full body, 1000 samples, max density, trilinear lookup (looks better):
+232
+237
+232
+209
+214
+235
+227
+224
+243

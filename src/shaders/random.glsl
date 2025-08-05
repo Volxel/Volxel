@@ -34,7 +34,31 @@ float sobol2(uint i, uint scramble) {
 }
 
 
+uint tea(const uint val0, const uint val1, const uint N) { // tiny encryption algorithm (TEA) to calculate a seed per launch index and iteration
+    uint v0 = val0;
+    uint v1 = val1;
+    uint s0 = 0u;
+    for (uint n = 0u; n < N; ++n) {
+        s0 += uint(0x9e3779b9);
+        v0 += ((v1 << 4) + uint(0xA341316C)) ^ (v1 + s0) ^ ((v1 >> 5) + uint(0xC8013EA4));
+        v1 += ((v0 << 4) + uint(0xAD90777D)) ^ (v0 + s0) ^ ((v0 >> 5) + uint(0x7E95761E));
+    }
+    return v0;
+}
+
 float rng(inout uint previous) { // return a random sample in the range [0, 1) with a simple linear congruential generator
     previous = previous * 1664525u + 1013904223u;
     return float(previous & 0x00FFFFFFu) / float(0x01000000u);
+}
+
+vec2 rng2(inout uint previous) {
+    return vec2(rng(previous), rng(previous));
+}
+
+vec3 rng3(inout uint previous) {
+    return vec3(rng(previous), rng(previous), rng(previous));
+}
+
+vec4 rng4(inout uint previous) {
+    return vec4(rng(previous), rng(previous), rng(previous), rng(previous));
 }
