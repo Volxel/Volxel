@@ -1,0 +1,11 @@
+delta/ratio tracking simple direct without empty space skipping:
+
+full body, 1000 samples, max density:
+188
+187
+184
+172
+210
+221
+180
+177

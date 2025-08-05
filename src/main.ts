@@ -85,6 +85,9 @@ class State {
   private framebufferPingPong: number = 0;
   private frameIndex: number = 0;
 
+  // stores how much (rendering) time it has taken to reach this frame index
+  private timeTakenMs: number = 0;
+
   private suspend: boolean = true;
   private resolutionFactor: number = 1;
   private lowResolutionDuration: number = 5;
@@ -454,11 +457,13 @@ class State {
   }
 
   render() {
+    if (this.frameIndex == 0) this.timeTakenMs = 0;
     if (this.frameIndex >= this.lowResolutionDuration && this.resolutionFactor !== 1.0) {
       this.resolutionFactor = 1.0;
       this.resizeFramebuffersToCanvas();
     }
     if (!this.suspend && this.frameIndex < this.input.max_samples) {
+      const start = Date.now();
       this.gl.disable(this.gl.DEPTH_TEST);
       const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
       // -- Render into Framebuffer --
@@ -477,6 +482,9 @@ class State {
       this.camera.bindAsUniforms(this.gl);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
+      const end = Date.now();
+      this.timeTakenMs += (end - start);
+
       // -- Render to canvas --
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
       this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
@@ -494,6 +502,8 @@ class State {
       // ping pong
       this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
       this.frameIndex++;
+      if (this.frameIndex >= this.input.max_samples)
+        console.log(`Time taken to reach ${this.input.max_samples} samples: ${this.timeTakenMs}`)
       if (!this.input.accumulation) this.suspend = true;
       this.container.classList.remove("restarting");
     }
