@@ -32,3 +32,15 @@ full body, 1000 samples, max density, trilinear lookup (looks better):
 227
 224
 243
+
+delta/ratio tracking simple direct with empty space skipping:
+
+full body, 1000 samples, max density
+211
+205
+186
+204
+181
+183
+205
+235
