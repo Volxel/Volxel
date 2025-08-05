@@ -426,11 +426,30 @@ class State {
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
     this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RGB10_A2UI, grid.ind_x(), grid.ind_y(), grid.ind_z(), 0, this.gl.RGBA_INTEGER, this.gl.UNSIGNED_INT_2_10_10_10_REV, ind) // TODO: Check the last parameter again
+
     // upload range buffer
     this.gl.activeTexture(this.gl.TEXTURE0 + 2)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
     this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RG16F, grid.range_x(), grid.range_y(), grid.range_z(), 0, this.gl.RG, this.gl.HALF_FLOAT, range)
+    // upload range mipmaps
+    const mipmaps = grid.range_mipmaps();
+    this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_BASE_LEVEL, 0);
+    this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_MAX_LEVEL, mipmaps);
+    for (let i: number = 0; i < mipmaps; ++i) {
+      const x = grid.range_mipmap_stride_x(i), y = grid.range_mipmap_stride_y(i), z = grid.range_mipmap_stride_z(i);
+      this.gl.texImage3D(
+          this.gl.TEXTURE_3D,
+          i + 1,
+          this.gl.RG16F,
+          x, y, z,
+          0,
+          this.gl.RG,
+          this.gl.HALF_FLOAT,
+          grid.range_mipmap(i)
+      )
+    }
+
     // upload atlas buffer
     this.gl.activeTexture(this.gl.TEXTURE0 + 3)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
@@ -515,6 +534,7 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.getUniformLocation("u_transfer"), 0);
+
     // brick lookup textures
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);

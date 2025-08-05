@@ -335,6 +335,22 @@ impl BrickGrid {
         self.index_extent().z
     }
 
+    pub fn range_mipmaps(&self) -> usize {
+        self.range_mipmaps.len()
+    }
+    pub fn range_mipmap(&self, index: usize) -> Uint16Array {
+        Uint16Array::from(bytemuck::cast_slice(self.range_mipmaps[index].data.as_slice()))
+    }
+    pub fn range_mipmap_stride_x(&self, index: usize) -> u32 {
+        self.range_mipmaps[index].stride.x
+    }
+    pub fn range_mipmap_stride_y(&self, index: usize) -> u32 {
+        self.range_mipmaps[index].stride.y
+    }
+    pub fn range_mipmap_stride_z(&self, index: usize) -> u32 {
+        self.range_mipmaps[index].stride.z
+    }
+
     pub fn indirection_data(&self) -> Uint32Array {
         Uint32Array::from(self.indirection.data.as_slice())
     }
