@@ -51,7 +51,8 @@ uniform float u_sample_weight;
 
 // Light
 const vec3 light_dir = normalize(vec3(-1.0, -1.0, -1.0));
-const vec3 light_col = vec3(1);
+const vec3 light_col = vec3(2);
+const vec3 light_amb = vec3(0.6);
 
 
 struct Ray {
@@ -308,7 +309,7 @@ vec4 direct_render(Ray ray, inout uint seed) {
     float light_att = transmittanceDDA(Ray(sample_pos, -light_dir), seed);
 
     // TODO: Phase function
-    return vec4(throughput + light_col * light_att, 1);
+    return vec4(throughput * (light_att * light_col + light_amb), 1);
 }
 
 const uint ray_count = 1u;
