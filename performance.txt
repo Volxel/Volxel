@@ -1,46 +1,34 @@
-delta/ratio tracking simple direct without empty space skipping:
+1000 samples, 3x density multiplier, body donor, no camera movement
+unit: ms per 1000 samples
 
-full body, 1000 samples, max density, nearest neighbor lookup:
-188
-187
-184
-172
-210
-221
-180
-177
-221
+basic
 
-full body, 1000 samples, max density, stochastic lookup:
-239
-231
-263
-261
-286
-275
-252
-270
-284
+13422
+13865
+13407
+13198
+13247
 
-full body, 1000 samples, max density, trilinear lookup (looks better):
-232
-237
-232
-209
-214
-235
-227
-224
-243
+stochastic
 
-delta/ratio tracking simple direct with empty space skipping:
+20983
+20207
+20122
+19843
+19933
 
-full body, 1000 samples, max density
-211
-205
-186
-204
-181
-183
-205
-235
+trilinear
+
+18232
+18526
+19113
+18942
+18874
+
+DDA/empty space skipping
+
+5800
+5837
+5726
+5805
+5725
