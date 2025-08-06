@@ -324,8 +324,11 @@ void main() {
 
     outColor = vec4(0.0);
 
+    ivec2 pixel = ivec2((tex * 0.5 + 0.5) * vec2(u_res));
+
     vec4 result = vec4(0);
-    uint seed = uint((tex.x * 0.5 + 0.5) * float(u_res.x) * float(u_res.y) + (tex.y * 0.5 + 0.5) * float(u_res.y)) + u_frame_index * 12356789u;
+    uint seed = 42u;
+    seed = tea(seed * uint(pixel.y * u_res.x + pixel.x), u_frame_index, 32u);
     for (uint i = 0u; i < ray_count; ++i) {
         seed += i;
         Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i));

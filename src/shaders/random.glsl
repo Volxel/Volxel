@@ -34,7 +34,7 @@ float sobol2(uint i, uint scramble) {
 }
 
 
-uint tea(const uint val0, const uint val1, const uint N) { // tiny encryption algorithm (TEA) to calculate a seed per launch index and iteration
+uint tea(uint val0, uint val1, uint N) { // tiny encryption algorithm (TEA) to calculate a seed per launch index and iteration
     uint v0 = val0;
     uint v1 = val1;
     uint s0 = 0u;
