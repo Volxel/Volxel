@@ -73,11 +73,14 @@ div.loadingIndicator {
   backdrop-filter: blur(10px);
   color: white;
 
-  display: none;
+  display: flex;
+  pointer-events: none;
+  opacity: 0;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 10px;
+  transition-delay: 0s;
 
   &:before {
     content: "";
@@ -93,7 +96,9 @@ div.loadingIndicator {
 }
 
 body.restarting div.loadingIndicator {
-  display: flex;
+  opacity: 1;
+  pointer-events: all;
+  transition-delay: .2s;
 }
 
 @keyframes spin {
