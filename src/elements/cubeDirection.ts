@@ -130,9 +130,6 @@ export class UnitCubeDisplay extends HTMLElement {
      */
     connectedCallback() {
         this.addEventListener('mousedown', this.handleMouseDown);
-        this.addEventListener('mousemove', this.handleMouseMove);
-        this.addEventListener('mouseup', this.handleMouseUp);
-        this.addEventListener('mouseleave', this.handleMouseLeave);
         // Emit initial direction when component is connected
         this._dispatchDirectionEvent();
     }
@@ -143,9 +140,9 @@ export class UnitCubeDisplay extends HTMLElement {
      */
     disconnectedCallback() {
         this.removeEventListener('mousedown', this.handleMouseDown);
-        this.removeEventListener('mousemove', this.handleMouseMove);
-        this.removeEventListener('mouseup', this.handleMouseUp);
-        this.removeEventListener('mouseleave', this.handleMouseLeave);
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+        document.removeEventListener('mouseleave', this.handleMouseLeave);
     }
 
 
@@ -235,6 +232,10 @@ export class UnitCubeDisplay extends HTMLElement {
      * @param {MouseEvent} e - The mouse event object.
      */
     handleMouseDown(e: MouseEvent) {
+        e.preventDefault()
+        document.addEventListener('mousemove', this.handleMouseMove);
+        document.addEventListener('mouseup', this.handleMouseUp);
+        document.addEventListener('mouseleave', this.handleMouseLeave);
         this.isDragging = true;
         this.lastMouseX = e.clientX;
         this.lastMouseY = e.clientY;
@@ -272,6 +273,9 @@ export class UnitCubeDisplay extends HTMLElement {
      */
     handleMouseUp() {
         this.isDragging = false;
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+        document.removeEventListener('mouseleave', this.handleMouseLeave);
         this.style.cursor = 'grab';
     }
 
@@ -280,6 +284,9 @@ export class UnitCubeDisplay extends HTMLElement {
      */
     handleMouseLeave() {
         this.isDragging = false;
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+        document.removeEventListener('mouseleave', this.handleMouseLeave);
         this.style.cursor = 'grab';
     }
 }
