@@ -508,6 +508,8 @@ class State {
       this.camera.bindAsUniforms(this.gl);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
+      this.gl.finish();
+
       const end = performance.now();
       this.timeTakenMs += (end - start);
 
@@ -527,7 +529,6 @@ class State {
 
       // ping pong
       this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
-      console.log(`frame ${this.frameIndex} took ${end - start}`)
       this.frameIndex++;
       if (this.frameIndex >= this.input.max_samples)
         console.log(`Time taken to reach ${this.input.max_samples} samples: ${this.timeTakenMs}`)
