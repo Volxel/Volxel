@@ -4,7 +4,6 @@ cubeTemplate.innerHTML = `
             <style>
                 /* Styles for the custom element itself, applied via :host */
                 :host {
-                    display: block; /* Custom elements are inline by default */
                     width: 250px; /* Base size for the 3D scene */
                     height: 250px;
                     perspective: 800px; /* Defines the strength of the 3D perspective */
@@ -19,13 +18,8 @@ cubeTemplate.innerHTML = `
                     align-items: center;
                     flex-shrink: 0; /* Prevent shrinking on smaller screens */
                 }
-
-                /* Responsive adjustments for the component itself */
-                @media (min-width: 768px) {
-                    :host {
-                        width: 300px;
-                        height: 300px;
-                    }
+                :host(.grabbing) {
+                    cursor: grabbing;
                 }
 
                 /* Styles specific to the Shadow DOM's internal elements */
@@ -63,6 +57,7 @@ cubeTemplate.innerHTML = `
                     text-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
                     pointer-events: none; /* Disable pointer events on faces to prevent text selection */
                     user-select: none; /* Further prevent text selection */
+                    backdrop-filter: blur(4px); /* doesn't work in firefox but makes the user interface nicer on chrome */
                 }
 
                 /* Cube face transforms */
@@ -237,9 +232,9 @@ export class UnitCubeDisplay extends HTMLElement {
         document.addEventListener('mouseup', this.handleMouseUp);
         document.addEventListener('mouseleave', this.handleMouseLeave);
         this.isDragging = true;
+        this.classList.add("grabbing");
         this.lastMouseX = e.clientX;
         this.lastMouseY = e.clientY;
-        this.style.cursor = 'grabbing';
     }
 
     /**
@@ -273,10 +268,10 @@ export class UnitCubeDisplay extends HTMLElement {
      */
     handleMouseUp() {
         this.isDragging = false;
+        this.classList.remove("grabbing");
         document.removeEventListener('mousemove', this.handleMouseMove);
         document.removeEventListener('mouseup', this.handleMouseUp);
         document.removeEventListener('mouseleave', this.handleMouseLeave);
-        this.style.cursor = 'grab';
     }
 
     /**
@@ -284,9 +279,9 @@ export class UnitCubeDisplay extends HTMLElement {
      */
     handleMouseLeave() {
         this.isDragging = false;
+        this.classList.remove("grabbing");
         document.removeEventListener('mousemove', this.handleMouseMove);
         document.removeEventListener('mouseup', this.handleMouseUp);
         document.removeEventListener('mouseleave', this.handleMouseLeave);
-        this.style.cursor = 'grab';
     }
 }
