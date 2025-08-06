@@ -18,7 +18,7 @@ import {
 import {ColorRampComponent} from "./elements/colorramp.ts";
 import {HistogramViewer} from "./elements/histogramViewer.ts";
 import {Volume} from "./representation/volume.ts";
-import {Matrix4} from "math.gl";
+import {Matrix4, Vector3} from "math.gl";
 import {DirectionSelector} from "./elements/directionSelector.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
@@ -108,6 +108,9 @@ class State {
 
   private camera: Camera;
   private sampleRange: [number, number] = [0, 2 ** 16 - 1];
+
+  // light
+  private lightDir: Vector3 = new Vector3(-1, -1, -1).normalize();
 
   // volume settings
   private densityScale: number = 1;
@@ -215,9 +218,8 @@ class State {
     setupImage();
     // TODO: Initial data somehow?
 
-    const directionSelector = this.container.querySelector("#direction") as DirectionSelector;
     // Setup camera
-    this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"), directionSelector)
+    this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
     // Prepare automatic resizing of canvas
     const resizeObserver = new ResizeObserver((entries) => {
@@ -362,6 +364,9 @@ class State {
         this.input.density_multiplier = densityMultiplierInput.valueAsNumber;
       })
     })
+
+    const directionSelector = this.container.querySelector("#direction") as DirectionSelector;
+    directionSelector.direction = this.lightDir;
   }
 
   private resizeFramebuffersToCanvas() {
@@ -484,7 +489,7 @@ class State {
       this.resizeFramebuffersToCanvas();
     }
     if (!this.suspend && this.frameIndex < this.input.max_samples) {
-      const start = Date.now();
+      const start = performance.now()
       this.gl.disable(this.gl.DEPTH_TEST);
       const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
       // -- Render into Framebuffer --
@@ -503,7 +508,7 @@ class State {
       this.camera.bindAsUniforms(this.gl);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
-      const end = Date.now();
+      const end = performance.now();
       this.timeTakenMs += (end - start);
 
       // -- Render to canvas --
@@ -522,6 +527,7 @@ class State {
 
       // ping pong
       this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
+      console.log(`frame ${this.frameIndex} took ${end - start}`)
       this.frameIndex++;
       if (this.frameIndex >= this.input.max_samples)
         console.log(`Time taken to reach ${this.input.max_samples} samples: ${this.timeTakenMs}`)
@@ -536,6 +542,9 @@ class State {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.getUniformLocation("u_transfer"), 0);
+
+    // light
+    this.gl.uniform3f(this.getUniformLocation("u_light_dir"), this.lightDir.x, this.lightDir.y, this.lightDir.z)
 
     // brick lookup textures
     this.gl.activeTexture(this.gl.TEXTURE0 + 1);

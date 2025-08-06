@@ -1,5 +1,4 @@
 import {Quaternion, Vector2, Vector3} from "math.gl";
-import {DirectionSelector} from "./elements/directionSelector.ts";
 
 export class Camera {
   pos: Vector3;
@@ -10,8 +9,7 @@ export class Camera {
 
   constructor(distance: number,
               private posLoc: WebGLUniformLocation | null,
-              private viewLoc: WebGLUniformLocation | null,
-              private directionSelector: DirectionSelector) {
+              private viewLoc: WebGLUniformLocation | null) {
     this.view = new Vector3();
     this.pos = new Vector3(0, 0, distance);
   }
@@ -31,8 +29,6 @@ export class Camera {
     const orientation = qPitch.multiply(qYaw);
 
     const finalDir = new Vector3(0, 0, -1).transformByQuaternion(orientation).multiplyByScalar(this.pos.clone().subtract(this.view).len());
-
-    this.directionSelector.setAttribute("direction", JSON.stringify(finalDir))
 
     this.pos = finalDir.clone().add(this.view);
   }

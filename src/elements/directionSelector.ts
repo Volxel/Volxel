@@ -4,9 +4,12 @@ import {Vector3} from "math.gl";
 export class DirectionSelector extends HTMLElement {
     public static readonly observedAttributes = ["direction"];
 
-    private get direction(): Vector3 {
+    public get direction(): Vector3 {
         const [x, y, z] = JSON.parse(this.getAttribute("direction") ?? "[0, 0, 1]")
         return new Vector3(x, y, z);
+    }
+    public set direction(value: Vector3) {
+        this.setAttribute("direction", JSON.stringify(value));
     }
 
     constructor() {
@@ -32,6 +35,7 @@ export class DirectionSelector extends HTMLElement {
                 transform-style: preserve-3d;
                 transform-origin: center center;
                 transform: var(--rotation);
+                pointer-events: none;
             }
             .face {
                 position: absolute;
