@@ -3,7 +3,7 @@ import './style.css'
 import vertexShader from "./shaders/vertex.vert"
 import fragmentShader from "./shaders/fragment.frag"
 import blitShader from "./shaders/blit.frag"
-import {Camera, setupPanningListeners} from "./scene.ts";
+import {Camera} from "./scene.ts";
 
 import * as wasm from "daicom_preprocessor";
 import {
@@ -19,7 +19,8 @@ import {ColorRampComponent} from "./elements/colorramp.ts";
 import {HistogramViewer} from "./elements/histogramViewer.ts";
 import {Volume} from "./representation/volume.ts";
 import {Matrix4, Vector3} from "math.gl";
-import {DirectionSelector} from "./elements/directionSelector.ts";
+import {setupPanningListeners} from "./util.ts";
+import {UnitCubeDisplay} from "./elements/cubeDirection.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -365,8 +366,14 @@ class State {
       })
     })
 
-    const directionSelector = this.container.querySelector("#direction") as DirectionSelector;
-    directionSelector.direction = this.lightDir;
+    const cubeDirection = this.container.querySelector("#direction") as UnitCubeDisplay;
+    cubeDirection.addEventListener("direction", async (event) => {
+      const { detail: {x, y, z }} = event as CustomEvent<{x: number, y: number, z: number}>;
+      await this.restartRendering(() => {
+        this.lightDir = new Vector3(x, y, z);
+      })
+    })
+    cubeDirection.direction = this.lightDir;
   }
 
   private resizeFramebuffersToCanvas() {
@@ -595,7 +602,7 @@ class State {
 
 customElements.define("color-ramp-component", ColorRampComponent);
 customElements.define("volxel-histogram-viewer", HistogramViewer);
-customElements.define("volxel-direction-selector", DirectionSelector);
+customElements.define("volxel-cube-direction", UnitCubeDisplay);
 
 async function main() {
   wasm.init();
