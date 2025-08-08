@@ -18,13 +18,12 @@ export class HistogramViewer extends HTMLElement {
             :host {
                 border: 1px solid white;
                 padding: 3px;
-                align-self: flex-start;
             }
             div {
                 position: relative;
             }
             .histogramCanvas {
-                width: 300px;
+                width: 100%;
                 aspect-ratio: 16 / 9;
             }
             button {
@@ -133,7 +132,7 @@ export class HistogramViewer extends HTMLElement {
         const max = histogram.reduce((acc, cur, i) => i > 0 ? (cur > acc ? cur : acc) : acc, 0);
         const logMax = Math.log10(max);
 
-        this.canvas.height = this.canvas.getBoundingClientRect().height * 10;
+        this.canvas.height = (this.canvas.getBoundingClientRect().height * 10) || 1000;
         this.canvas.width = Math.min(histogram.length, 4096);
 
         this.selectedRange = [0, 1];

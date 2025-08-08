@@ -21,7 +21,6 @@ export class ColorRampComponent extends HTMLElement {
         this.attachShadow({ mode: 'open' });
         this.shadowRoot!.adoptedStyleSheets.push(css`
             :host {
-                flex: 1;
                 display: flex;
                 position: relative;
             }

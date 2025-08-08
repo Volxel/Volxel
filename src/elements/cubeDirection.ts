@@ -4,8 +4,9 @@ cubeTemplate.innerHTML = `
             <style>
                 /* Styles for the custom element itself, applied via :host */
                 :host {
-                    width: 250px; /* Base size for the 3D scene */
-                    height: 250px;
+                    width: 100%;
+                    height: auto;
+                    aspect-ratio: 1;
                     perspective: 800px; /* Defines the strength of the 3D perspective */
                     perspective-origin: 50% 50%;
                     border: 1px solid #ddd;
