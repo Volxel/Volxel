@@ -10,7 +10,7 @@ export const volxelStyles = css`
         position: relative;
         margin: 0;
         padding: 0;
-        min-width: 500px;
+        width: 100%;
         min-height: 500px;
         font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
         line-height: 1.5;
@@ -38,7 +38,7 @@ export const volxelStyles = css`
         bottom: 0;
         background: var(--volxel-color-ui, black);
         color: var(--volxel-color-text-ui, white);
-        max-width: 100%;
+        max-width: calc(100% - 30px);
         width: 300px;
         transform: translateX(-100%);
         transition: .1s;
