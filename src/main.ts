@@ -1,5 +1,3 @@
-import './style.css'
-
 import vertexShader from "./shaders/vertex.vert"
 import fragmentShader from "./shaders/fragment.frag"
 import blitShader from "./shaders/blit.frag"
@@ -12,8 +10,7 @@ import {
   generateTransferFunction,
   loadGrid,
   loadGridFromFiles,
-  loadTransferFunction,
-  TransferFunction
+  loadTransferFunction
 } from "./data.ts";
 import {ColorRampComponent} from "./elements/colorramp.ts";
 import {HistogramViewer} from "./elements/histogramViewer.ts";
@@ -21,6 +18,7 @@ import {Volume} from "./representation/volume.ts";
 import {Matrix4, Vector3} from "math.gl";
 import {setupPanningListeners} from "./util.ts";
 import {UnitCubeDisplay} from "./elements/cubeDirection.ts";
+import {volxelStyles, volxelTemplate} from "./template.ts";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -77,7 +75,10 @@ type Framebuffer = {
   target: WebGLTexture,
 }
 
-class State {
+let initialized: boolean = false;
+let template: HTMLTemplateElement | null = null;
+
+export class Volxel3DDicomRenderer extends HTMLElement {
   private canvas: HTMLCanvasElement;
   private gl: WebGL2RenderingContext;
   private program: WebGLProgram;
@@ -86,9 +87,6 @@ class State {
   private framebuffers: Framebuffer[] = [];
   private framebufferPingPong: number = 0;
   private frameIndex: number = 0;
-
-  // stores how much (rendering) time it has taken to reach this frame index
-  private timeTakenMs: number = 0;
 
   private suspend: boolean = true;
   private resolutionFactor: number = 1;
@@ -100,12 +98,13 @@ class State {
   // @ts-ignore happens in util function
   private transfer: WebGLTexture;
 
-  private input = {
-    debugHits: false,
-    accumulation: true,
-    max_samples: 100,
-    density_multiplier: 1
-  }
+  // inputs
+  private densityMultiplier = 1;
+  private maxSamples = 1000;
+
+  // input elements
+  private histogram: HistogramViewer;
+
 
   private camera: Camera;
   private sampleRange: [number, number] = [0, 2 ** 16 - 1];
@@ -117,12 +116,25 @@ class State {
   private densityScale: number = 1;
   private volume: Volume | null = null;
 
-  // Container that is displaying the data, this will be a web component in the future
-  private container: HTMLElement = document.body;
+  public constructor() {
+    // static initialization
+    if (!initialized) {
+      wasm.init();
+      initialized = true;
+      template = document.createElement("template");
+      template.innerHTML = volxelTemplate;
+    }
+    super()
 
-  constructor(defaultTransferFunction: { data: Float32Array, length: number }) {
+    this.attachShadow({mode: "open"});
+    this.shadowRoot!.adoptedStyleSheets.push(volxelStyles)
+
+    // setup template
+    const instantiated = template!.content.cloneNode(true);
+    this.shadowRoot!.appendChild(instantiated);
+
     // Get canvas to render to
-    this.canvas = document.getElementById("app") as HTMLCanvasElement;
+    this.canvas = this.shadowRoot!.getElementById("app") as HTMLCanvasElement;
 
     // set up GL context
     const gl = this.canvas.getContext("webgl2");
@@ -189,7 +201,13 @@ class State {
 
     // Setup transfer function
     this.transfer = this.gl.createTexture();
-    const { data, length } = defaultTransferFunction;
+    const { data, length } = generateTransferFunction([{
+      color: [1, 1, 1, 0],
+      stop: 0
+    }, {
+      color: [1, 1, 1, 1],
+      stop: 1
+    }])
     this.changeTransferFunc(data, length);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
@@ -258,93 +276,36 @@ class State {
         this.camera.translateOnPlane(by);
       })
     });
-    const debugHitsCheckbox = document.getElementById("debug_hit") as HTMLInputElement;
-    debugHitsCheckbox.checked = this.input.debugHits;
-    debugHitsCheckbox.addEventListener("change", () => {
-      this.restartRendering(() => {
-        this.input.debugHits = debugHitsCheckbox.checked;
-      })
-    });
-    const accumulationCheckbox = document.getElementById("accumulation") as HTMLInputElement;
-    accumulationCheckbox.checked = this.input.accumulation;
-    accumulationCheckbox.addEventListener("change", () => {
-      this.restartRendering(() => {
-        this.input.accumulation = accumulationCheckbox.checked;
-      })
-    });
 
-    const samplesRangeInput = document.getElementById("samples") as HTMLInputElement;
-    samplesRangeInput.valueAsNumber = this.input.max_samples;
+    const samplesRangeInput = this.shadowRoot!.getElementById("samples") as HTMLInputElement;
+    samplesRangeInput.valueAsNumber = this.maxSamples;
     samplesRangeInput.addEventListener("change", async () => {
       await this.restartRendering(async () => {
-        this.input.max_samples = samplesRangeInput.valueAsNumber;
+        this.maxSamples = samplesRangeInput.valueAsNumber;
       })
     })
 
-    const colorRamp = document.getElementById("color-ramp") as ColorRampComponent;
-    colorRamp.addEventListener("change", async (event: Event) => {
+    const generatedTransfer = this.shadowRoot!.getElementById("generated_transfer") as HTMLInputElement;
+    generatedTransfer.checked = false;
+    generatedTransfer.addEventListener("change", async () => {
       await this.restartRendering(() => {
-        if (transferSelect.value !== "generated") return;
-        const {data, length} = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
-        this.changeTransferFunc(data, length)
-      });
-    })
-
-    const transferSelect = document.getElementById("transfer") as HTMLSelectElement;
-    transferSelect.value = "none";
-    transferSelect.addEventListener("change", async () => {
-      await this.restartRendering(async () => {
-        let transfer: TransferFunction = {
-          spline: TransferFunction.SplineShaded,
-          a: TransferFunction.AbdA,
-          b: TransferFunction.AbdB,
-          c: TransferFunction.AbdC,
-        }[transferSelect.value] ?? TransferFunction.None
-        const {data, length} = transferSelect.value === "generated" ? generateTransferFunction(colorRamp.colors) : await loadTransferFunction(transfer);
-        this.changeTransferFunc(data, length);
-      })
-    })
-
-    const histogramViewer = document.getElementById("histogram") as HistogramViewer;
-    histogramViewer.addEventListener("change", async (event: Event) => {
-      await this.restartRendering(async () => {
-        this.sampleRange = (event as CustomEvent<[min: number, max: number]>).detail;
-      })
-    })
-
-    const modelSelect = document.getElementById("density") as HTMLSelectElement;
-    for (let i = 0; i < dicomBasePaths.length; i++) {
-      const basePath = dicomBasePaths[i];
-      const option = document.createElement("option");
-      option.value = `dicom_${i}`;
-      option.innerHTML = basePath.url;
-      modelSelect.appendChild(option);
-    }
-    modelSelect.value = "";
-    modelSelect.addEventListener("change", async () => {
-      await this.restartRendering(async () => {
-        const grid = await loadGrid(Number.parseInt(modelSelect.value.replace("dicom_", "")))
-        this.setupFromGrid(grid);
-        histogramViewer.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max());
-      })
-    });
-
-    const dicomFileSelect = document.getElementById("dicom") as HTMLInputElement;
-    dicomFileSelect.addEventListener("change", async () => {
-      await this.restartRendering(async () => {
-        const files = dicomFileSelect.files;
-        if (!files) {
-          alert("no files selected");
-          return;
+        if (generatedTransfer.checked) {
+          const { data, length } = generateTransferFunction(colorRamp.colors);
+          this.changeTransferFunc(data, length);
+        } else {
+          const { data, length } = generateTransferFunction([{
+            color: [1, 1, 1, 0],
+            stop: 0
+          }, {
+            color: [1, 1, 1, 1],
+            stop: 1
+          }])
+          this.changeTransferFunc(data, length);
         }
-
-        const grid = await loadGridFromFiles(files);
-        this.setupFromGrid(grid);
-        histogramViewer.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max());
       })
     })
 
-    const transferFileSelect = document.getElementById("transfer_file") as HTMLInputElement;
+    const transferFileSelect = this.shadowRoot!.getElementById("transfer_file") as HTMLInputElement;
     transferFileSelect.addEventListener("change", async () => {
       await this.restartRendering(async () => {
         const file = transferFileSelect.files;
@@ -355,18 +316,35 @@ class State {
         if (file.length != 1) throw new Error("Multiple files selected");
         const {data, length} = await loadTransferFunction(file.item(0)!);
         this.changeTransferFunc(data, length);
+        generatedTransfer.checked = false;
       })
     });
 
-    const densityMultiplierInput = document.getElementById("density_multiplier") as HTMLInputElement;
-    densityMultiplierInput.valueAsNumber = this.input.density_multiplier;
-    densityMultiplierInput.addEventListener("change", async () => {
+    const colorRamp = this.shadowRoot!.getElementById("color-ramp") as ColorRampComponent;
+    colorRamp.addEventListener("change", async (event: Event) => {
+      await this.restartRendering(() => {
+        if (!generatedTransfer.checked) return;
+        const {data, length} = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
+        this.changeTransferFunc(data, length)
+      });
+    })
+
+    this.histogram = this.shadowRoot!.getElementById("histogram") as HistogramViewer;
+    this.histogram.addEventListener("change", async (event: Event) => {
       await this.restartRendering(async () => {
-        this.input.density_multiplier = densityMultiplierInput.valueAsNumber;
+        this.sampleRange = (event as CustomEvent<[min: number, max: number]>).detail;
       })
     })
 
-    const cubeDirection = this.container.querySelector("#direction") as UnitCubeDisplay;
+    const densityMultiplierInput = this.shadowRoot!.getElementById("density_multiplier") as HTMLInputElement;
+    densityMultiplierInput.valueAsNumber = this.densityMultiplier;
+    densityMultiplierInput.addEventListener("change", async () => {
+      await this.restartRendering(async () => {
+        this.densityMultiplier = densityMultiplierInput.valueAsNumber;
+      })
+    })
+
+    const cubeDirection = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
     cubeDirection.addEventListener("direction", async (event) => {
       const { detail: {x, y, z }} = event as CustomEvent<{x: number, y: number, z: number}>;
       await this.restartRendering(() => {
@@ -374,6 +352,9 @@ class State {
       })
     })
     cubeDirection.direction = this.lightDir;
+
+    // initial call to the render function
+    requestAnimationFrame(this.render)
   }
 
   private resizeFramebuffersToCanvas() {
@@ -411,7 +392,7 @@ class State {
     return loc;
   }
 
-  private setupFromGrid(grid: wasm.BrickGrid) {
+  public setupFromGrid(grid: wasm.BrickGrid) {
     this.volume?.free();
     this.densityScale = 1.0;
 
@@ -469,9 +450,11 @@ class State {
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
     this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, grid.atlas_x(), grid.atlas_y(), grid.atlas_z(), 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
+
+    this.histogram.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max())
   }
 
-  changeTransferFunc(data: Float32Array, length: number) {
+  changeTransferFunc(data: Float32Array | null, length: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
@@ -479,7 +462,7 @@ class State {
   }
 
   async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
-    this.container.classList.add("restarting");
+    this.classList.add("restarting");
     this.suspend = true;
     const result = await action();
     this.resolutionFactor = 0.33;
@@ -489,14 +472,12 @@ class State {
     return result;
   }
 
-  render() {
-    if (this.frameIndex == 0) this.timeTakenMs = 0;
+  render = () => {
     if (this.frameIndex >= this.lowResolutionDuration && this.resolutionFactor !== 1.0) {
       this.resolutionFactor = 1.0;
       this.resizeFramebuffersToCanvas();
     }
-    if (!this.suspend && this.frameIndex < this.input.max_samples) {
-      const start = performance.now()
+    if (!this.suspend && this.frameIndex < this.maxSamples) {
       this.gl.disable(this.gl.DEPTH_TEST);
       const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
       // -- Render into Framebuffer --
@@ -515,11 +496,6 @@ class State {
       this.camera.bindAsUniforms(this.gl);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
-      this.gl.finish();
-
-      const end = performance.now();
-      this.timeTakenMs += (end - start);
-
       // -- Render to canvas --
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
       this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
@@ -537,13 +513,11 @@ class State {
       // ping pong
       this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
       this.frameIndex++;
-      if (this.frameIndex >= this.input.max_samples)
-        console.log(`Time taken to reach ${this.input.max_samples} samples: ${this.timeTakenMs}`)
-      if (!this.input.accumulation) this.suspend = true;
-      this.container.classList.remove("restarting");
+
+      this.classList.remove("restarting");
     }
 
-    requestAnimationFrame(() => this.render());
+    requestAnimationFrame(this.render);
   }
 
   bindUniforms(framebuffer: number) {
@@ -570,13 +544,13 @@ class State {
       const [min, maj] = this.volume.minMaj();
       const aabb = this.volume.aabb();
       this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(aabb.flat()));
-      this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.input.density_multiplier);
-      this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.input.density_multiplier);
-      this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.input.density_multiplier))
+      this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.densityMultiplier);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.densityMultiplier);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.densityMultiplier))
 
       this.gl.uniform3f(this.getUniformLocation("u_volume_albedo"), 0.9, 0.9, 0.9) // TODO
       this.gl.uniform1f(this.getUniformLocation("u_volume_phase_g"), 0) // TODO
-      this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale * this.input.density_multiplier);
+      this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale * this.densityMultiplier);
 
       const combinedMatrix = this.volume.combinedTransform()
       this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform"), false, combinedMatrix)
@@ -594,7 +568,7 @@ class State {
     this.gl.uniform1ui(this.getUniformLocation("u_frame_index"), this.frameIndex);
 
     this.gl.uniform2i(this.getUniformLocation("u_res"), this.canvas.width, this.canvas.height)
-    this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.input.debugHits ? 1 : 0);
+    this.gl.uniform1i(this.getUniformLocation("u_debugHits"), 0);
 
     this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < this.lowResolutionDuration ? 0 : (this.frameIndex - this.lowResolutionDuration) / (this.frameIndex - this.lowResolutionDuration + 1));
   }
@@ -603,11 +577,36 @@ class State {
 customElements.define("color-ramp-component", ColorRampComponent);
 customElements.define("volxel-histogram-viewer", HistogramViewer);
 customElements.define("volxel-cube-direction", UnitCubeDisplay);
+customElements.define("volxel-3d-viewer", Volxel3DDicomRenderer);
 
-async function main() {
-  wasm.init();
-  const state = new State(await loadTransferFunction(TransferFunction.None))
-  state.render();
+const renderer = document.getElementById("renderer") as Volxel3DDicomRenderer;
+
+const modelSelect = document.getElementById("density") as HTMLSelectElement;
+for (let i = 0; i < dicomBasePaths.length; i++) {
+  const basePath = dicomBasePaths[i];
+  const option = document.createElement("option");
+  option.value = `dicom_${i}`;
+  option.innerHTML = basePath.url;
+  modelSelect.appendChild(option);
 }
+modelSelect.value = "";
+modelSelect.addEventListener("change", async () => {
+  await renderer.restartRendering(async () => {
+    const grid = await loadGrid(Number.parseInt(modelSelect.value.replace("dicom_", "")))
+    renderer.setupFromGrid(grid);
+  })
+});
 
-main();
+const dicomFileSelect = document.getElementById("dicom") as HTMLInputElement;
+dicomFileSelect.addEventListener("change", async () => {
+  await renderer.restartRendering(async () => {
+    const files = dicomFileSelect.files;
+    if (!files) {
+      alert("no files selected");
+      return;
+    }
+
+    const grid = await loadGridFromFiles(files);
+    renderer.setupFromGrid(grid);
+  })
+})

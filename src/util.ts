@@ -11,6 +11,15 @@ export function css(strings: TemplateStringsArray, ...props: any[]) {
     return stylesheet;
 }
 
+export function html(strings: TemplateStringsArray, ...props: any[]) {
+    let string = "";
+    for (let i = 0; i < strings.length; i++) {
+        string += strings[i];
+        if (i < props.length) string += props[i];
+    }
+    return string;
+}
+
 
 export function setupPanningListeners(element: HTMLElement, onPan: (by: Vector2) => void, onZoom: (by: number) => void = () => {}, onMove: (by: Vector2) => void = () => {}) {
     let isDragging = false;

@@ -43,49 +43,15 @@ export async function loadGridFromFiles(files: FileList | File[]): Promise<wasm.
     return wasm.read_dicoms_to_grid(data.map(buffer => new Uint8Array(buffer)));
 }
 
-
-export enum TransferFunction {
-    None,
-    SplineShaded,
-    AbdA,
-    AbdB,
-    AbdC
-}
-
 async function parseTransferFunction(text: string): Promise<number[][]> {
     return text.split("\n").map(line => line.split(" ").map(num => Number.parseFloat(num))).filter(line => line.length === 4)
 }
 
-async function loadTransferFromNetwork(path: string): Promise<number[][]> {
-    return await parseTransferFunction(await (await fetch(path)).text());
-}
-
-export async function loadTransferFunction(transfer: TransferFunction | File = TransferFunction.None): Promise<{
+export async function loadTransferFunction(transfer: File): Promise<{
     data: Float32Array,
     length: number
 }> {
-    let result: number[][]
-    if (transfer instanceof File) {
-        result = await parseTransferFunction(await transfer.text());
-    } else {
-        switch (transfer) {
-            case TransferFunction.SplineShaded:
-                result = await loadTransferFromNetwork("/Volxel/Dicom/SplineShaded.txt")
-                break;
-            case TransferFunction.AbdA:
-                result = await loadTransferFromNetwork("/Volxel/Dicom/AbdShaded_a.txt")
-                break;
-            case TransferFunction.AbdB:
-                result = await loadTransferFromNetwork("/Volxel/Dicom/AbdShaded_b.txt")
-                break;
-            case TransferFunction.AbdC:
-                result = await loadTransferFromNetwork("/Volxel/Dicom/AbdShaded_c.txt")
-                break;
-            default:
-                result = new Array(128).fill(0).map((_, i) => [1, 1, 1, i / 128]);
-                break;
-        }
-    }
+    const result: number[][] = await parseTransferFunction(await transfer.text());
     const length = result.length;
     const data = new Float32Array(result.flat());
     return {data, length}
