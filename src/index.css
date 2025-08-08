@@ -1,0 +1,28 @@
+body {
+    margin: 0;
+    padding: 3px;
+    max-width: 1000px;
+    margin-inline: auto;
+}
+
+div.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid currentColor;
+    margin-bottom: 10px;
+    max-width: 400px;
+
+    label {
+        display: flex;
+        gap: 3px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        input:not([type=checkbox]), select {
+            max-width: 100%;
+            width: 200px;
+        }
+    }
+}

@@ -1,3 +1,5 @@
+import "./index.css";
+
 import vertexShader from "./shaders/vertex.vert"
 import fragmentShader from "./shaders/fragment.frag"
 import blitShader from "./shaders/blit.frag"
