@@ -20,6 +20,7 @@ export const volxelStyles = css`
         text-rendering: optimizeLegibility;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        overflow: hidden;
     }
 
     canvas#app {
@@ -39,14 +40,20 @@ export const volxelStyles = css`
         color: var(--volxel-color-text-ui, white);
         max-width: 100%;
         width: 300px;
+        transform: translateX(-100%);
+        transition: .1s;
         --highlight-color: var(--volxel-highlight-color, #444);
         border-right: 1px solid var(--highlight-color);
         
         display: flex;
         flex-direction: column;
         
+        &:has(input#menu:checked) {
+            transform: translateX(0);
+        }
+        
         div.tabbar {
-            display: flex;
+            display: none;
             width: 100%;
             height: max-content;
             flex-shrink: 0;
@@ -81,9 +88,14 @@ export const volxelStyles = css`
                     width: 0;
                     overflow: hidden;
                     cursor: pointer;
+                    opacity: 0;
                 }
             }
         }
+        &:has(input#menu:checked) div.tabbar {
+            display: flex;
+        }
+        
         div.tab {
             display: none;
             flex: 1;
@@ -109,14 +121,84 @@ export const volxelStyles = css`
                 }
             }
         }
-        &:has(input#light:checked) div#light-tab {
+        &:has(input#light:checked):has(input#menu:checked) div#light-tab {
             display: flex;
         }
-        &:has(input#transfer:checked) div#transfer-tab {
+        &:has(input#transfer:checked):has(input#menu:checked) div#transfer-tab {
             display: flex;
         }
-        &:has(input#render:checked) div#render-tab {
+        &:has(input#render:checked):has(input#menu:checked) div#render-tab {
             display: flex;
+        }
+
+        label.menuButton {
+            position: absolute;
+            bottom: 0;
+            left: 100%;
+            background: black;
+            border-top: 1px solid #444;
+            border-right: 1px solid #444;
+            width: 2em;
+            height: 2em;
+            cursor: pointer;
+
+            > span, > input {
+                position: absolute;
+                width: 0;
+                height: 0;
+                overflow: hidden;
+                opacity: 0;
+            }
+
+            &:has(input:is(:hover, :focus-visible)) {
+                background: #444;
+            }
+            
+            div {
+                width: 100%;
+                height: 100%;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: space-between;
+                padding: 30%;
+                
+                span {
+                    display: block;
+                    height: 1px;
+                    background: white;
+                    transition: .1s;
+                    width: 60%;
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    &:first-child {
+                        top: 30%;
+                    }
+                    &:last-child {
+                        top: 70%;
+                    }
+                }
+            }
+            &:has(input:checked) {
+                div {
+                    span:nth-child(2) {
+                        opacity: 0;
+                    }
+                    span:nth-child(2n + 1) {
+                        width: 60%;
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%) rotate(-45deg);
+                        &:nth-child(1) {
+                            transform: translate(-50%, -50%) rotate(45deg);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -206,6 +288,16 @@ export const volxelTemplate: string =  html`
             <input type="range" name="samples" id="samples" min="1" max="3000" step="1">
         </label>
     </div>
+    <label class="menuButton">
+        <span class="label">Menü</span>
+        <input type="checkbox" name="menu" id="menu">
+
+        <div aria-hidden>
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </label>
 </div>
 <div class="loadingIndicator">
     Volumetrische Daten werden geladen...
