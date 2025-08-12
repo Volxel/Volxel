@@ -2,3 +2,11 @@ onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
   - wasm-pack
+
+linkWorkspacePackages: true
+
+packages:
+  - "."
+  - "volxel-3d-viewer"
+  - "dicom_preprocessor/pkg"
+  - "bundle"

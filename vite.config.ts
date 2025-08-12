@@ -1,3 +1,4 @@
+import { resolve } from "path";
 import { defineConfig } from "vite";
 import glslIncludePlugin from "./vite-plugin-glsl-include";
 import wasm from "vite-plugin-wasm";
@@ -9,6 +10,12 @@ export default defineConfig({
     assetsInclude: ["**/*.dcm"],
     appType: "mpa",
     optimizeDeps: {
-        exclude: ["daicom_preprocessor"]
+        exclude: ["dicom_preprocessor"]
+    },
+    resolve: {
+        alias: [{
+            find: "@volxel/3d-viewer",
+            replacement: resolve(__dirname, "./volxel-3d-viewer/src")
+        }]
     }
 })

@@ -1,5 +1,5 @@
-import {ColorStop} from "../data.ts";
-import {css} from "../util.ts";
+import {ColorStop} from "../data";
+import {css} from "../util";
 
 const colorRegexp = /[0-9]*[,)]/g;
 

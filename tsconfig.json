@@ -8,7 +8,6 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
@@ -18,7 +17,20 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+
+    /* Workspaces setup */
+    "composite": true,
+    "paths": {
+      "@volxel/3d-viewer": ["./volxel-3d-viewer/src/index.ts"]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "./src"
+  ],
+  "references": [
+    {
+      "path": "./volxel-3d-viewer"
+    }
+  ]
 }

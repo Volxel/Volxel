@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["./src"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "noEmit": true,
+    "composite": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@volxel/3d-viewer": ["../volxel-3d-viewer/src/index.ts"]
+    }
+  },
+  "references": [
+    {
+      "path": "../volxel-3d-viewer/tsconfig.json"
+    }
+  ]
+}

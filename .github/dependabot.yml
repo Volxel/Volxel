@@ -1,7 +1,7 @@
 version: 2
 updates:
 - package-ecosystem: cargo
-  directory: "/daicom_preprocessor"
+  directory: "/dicom_preprocessor"
   schedule:
     interval: daily
     time: "08:00"

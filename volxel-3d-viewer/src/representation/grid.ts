@@ -1,5 +1,5 @@
 import {Matrix4, Vector3} from "math.gl";
-import * as wasm from "daicom_preprocessor";
+import * as wasm from "@volxel/dicom_preprocessor";
 
 export class Grid {
     constructor(private brickGrid: wasm.BrickGrid) {

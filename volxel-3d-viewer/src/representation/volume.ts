@@ -1,6 +1,6 @@
 import {Matrix4, Vector3, Vector4} from "math.gl";
-import {Grid} from "./grid.ts";
-import * as wasm from "daicom_preprocessor";
+import {Grid} from "./grid";
+import * as wasm from "@volxel/dicom_preprocessor";
 
 export class Volume {
     private transform: Matrix4 = new Matrix4().identity();

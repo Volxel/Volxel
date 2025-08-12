@@ -1,4 +1,4 @@
-import {css, html} from "./util.ts";
+import {css, html} from "./util";
 
 export const volxelStyles = css`
     * {

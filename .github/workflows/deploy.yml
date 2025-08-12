@@ -46,7 +46,7 @@ jobs:
       - name: Setup WASM Pack
         run: pnpm i -g wasm-pack
       - name: Build WASM binary
-        run: wasm-pack build ./daicom_preprocessor
+        run: wasm-pack build ./dicom_preprocessor
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
       - name: Build
