@@ -14,7 +14,6 @@ export default defineConfig({
             output: {
                 file: "dicom_wasm_worker.mjs",
             },
-            external: ["@volxel/dicom_preprocessor"]
         }
     },
     plugins: [glslIncludePlugin(), wasm(), topLevelAwait()],
@@ -22,7 +21,7 @@ export default defineConfig({
     assetsInclude: ["**/*.dcm"],
     appType: "mpa",
     optimizeDeps: {
-        exclude: ["dicom_preprocessor"]
+        exclude: ["@volxel/dicom_preprocessor"]
     },
     resolve: {
         alias: [{
