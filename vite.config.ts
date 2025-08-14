@@ -5,6 +5,18 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 
 export default defineConfig({
+    worker: {
+        plugins: () => [
+            wasm()
+        ],
+        format: "es",
+        rollupOptions: {
+            output: {
+                file: "dicom_wasm_worker.mjs",
+            },
+            external: ["@volxel/dicom_preprocessor"]
+        }
+    },
     plugins: [glslIncludePlugin(), wasm(), topLevelAwait()],
     base: "/Volxel",
     assetsInclude: ["**/*.dcm"],
