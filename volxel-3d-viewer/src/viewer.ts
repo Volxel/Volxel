@@ -371,7 +371,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }
 
   public async connectedCallback() {
-    console.log("attributes", this.getAttributeNames())
     await this.restartFromAttributes()
   }
   public async attributesChangedCallback(name: string) {
@@ -382,15 +381,11 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
   private async restartFromAttributes() {
     const urls = this.getAttribute("data-urls")
-    console.log("parsing from ", urls);
     if (urls) {
       try {
         const parsed = JSON.parse(urls);
-        console.log("parsed", parsed);
         if (Array.isArray(parsed) && parsed.every(url => typeof url === "string")) {
-          console.log("restarting from URLs")
           await this.restartFromURLs(parsed);
-          console.log("restarted from URLs")
         }
       } catch (e) {
         console.error(e)
@@ -454,11 +449,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
           type: WasmWorkerMessageType.LOAD_FROM_URLS,
           urls
         }
-        console.log("sending message", message);
         this.worker.postMessage(message)
-        console.log("sent message")
         this.setupWorkerListener(resolve)
-        console.log("set up resolve manager")
       })
     })
   }
@@ -477,7 +469,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
           break;
         }
         case WasmWorkerMessageType.RETURN: {
-          console.log("received data from WASM worker", event.data)
           this.setupFromGrid(event.data);
           this.worker.removeEventListener("message", handler);
           resolve()
@@ -528,7 +519,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_MAX_LEVEL, grid.rangeMipmaps.length);
     let level = 0;
     for (const {mipmap, stride: [x, y, z]} of grid.rangeMipmaps) {
-      console.log("uploading range mipmap", level)
       this.gl.texImage3D(
           this.gl.TEXTURE_3D,
           level + 1,
