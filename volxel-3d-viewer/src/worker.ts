@@ -62,7 +62,7 @@ self.onmessage = async (ev: MessageEvent<WasmWorkerMessage>) => {
                 break;
             }
             case WasmWorkerMessageType.LOAD_FROM_FILES: {
-                const bytes = await Promise.all([...ev.data.files].map(file => file.bytes()))
+                const bytes = (await Promise.all([...ev.data.files].map(file => file.arrayBuffer()))).map(arrayBuffer => new Uint8Array(arrayBuffer))
                 buildFromBytesAndReturn(bytes);
                 break;
             }
