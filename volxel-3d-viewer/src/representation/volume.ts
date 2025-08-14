@@ -1,13 +1,13 @@
 import {Matrix4, Vector3, Vector4} from "math.gl";
 import {Grid} from "./grid";
-import * as wasm from "@volxel/dicom_preprocessor";
+import {WasmWorkerMessageReturn} from "../common";
 
 export class Volume {
     private transform: Matrix4 = new Matrix4().identity();
     constructor(private grid: Grid) {
 
     }
-    static fromWasm(wasm: wasm.BrickGrid) {
+    static fromWasm(wasm: WasmWorkerMessageReturn) {
         return new Volume(new Grid(wasm))
     }
 
@@ -31,10 +31,6 @@ export class Volume {
     }
     minMaj() {
         return this.grid.minMaj();
-    }
-
-    free() {
-        this.grid.free();
     }
 
     setTransform(from: Matrix4) {

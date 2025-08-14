@@ -3,7 +3,6 @@ import fragmentShader from "./shaders/fragment.frag"
 import blitShader from "./shaders/blit.frag"
 import {Camera} from "./scene";
 
-import * as wasm from "@volxel/dicom_preprocessor";
 import {ColorStop, generateTransferFunction, loadTransferFunction} from "./data";
 import {ColorRampComponent} from "./elements/colorramp";
 import {HistogramViewer} from "./elements/histogramViewer";
@@ -12,6 +11,13 @@ import {Matrix4, Vector3} from "math.gl";
 import {setupPanningListeners} from "./util";
 import {UnitCubeDisplay} from "./elements/cubeDirection";
 import {volxelStyles, volxelTemplate} from "./template";
+import {
+  WasmWorkerMessage,
+  WasmWorkerMessageFiles,
+  WasmWorkerMessageReturn,
+  WasmWorkerMessageType,
+  WasmWorkerMessageUrls
+} from "./common";
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -74,6 +80,11 @@ let template: HTMLTemplateElement | null = null;
 export class Volxel3DDicomRenderer extends HTMLElement {
   public static readonly observedAttributes = ["data-urls"]
 
+  private worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
+  private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
+    resolve();
+  }))
+
   private canvas: HTMLCanvasElement;
   private gl: WebGL2RenderingContext;
   private program: WebGLProgram;
@@ -95,6 +106,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   // inputs
   private densityMultiplier = 1;
   private maxSamples = 1000;
+  private debugHits = false;
 
   // input elements
   private histogram: HistogramViewer;
@@ -113,7 +125,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   public constructor() {
     // static initialization
     if (!initialized) {
-      wasm.init();
       initialized = true;
       template = document.createElement("template");
       template.innerHTML = volxelTemplate;
@@ -262,8 +273,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.camera.rotateAroundView(by);
       })
     }, (by) => {
-      this.restartRendering(() => {
-        this.camera.zoom(by);
+      return this.restartRendering(() => {
+        return this.camera.zoom(by);
       })
     }, (by) => {
       this.restartRendering(() => {
@@ -347,11 +358,20 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     })
     cubeDirection.direction = this.lightDir;
 
+    const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
+    debugHits.checked = this.debugHits
+    debugHits.addEventListener("change", async () => {
+      await this.restartRendering(async () => {
+        this.debugHits = debugHits.checked;
+      })
+    })
+
     // initial call to the render function
     requestAnimationFrame(this.render)
   }
 
   public async connectedCallback() {
+    console.log("attributes", this.getAttributeNames())
     await this.restartFromAttributes()
   }
   public async attributesChangedCallback(name: string) {
@@ -362,12 +382,18 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
   private async restartFromAttributes() {
     const urls = this.getAttribute("data-urls")
+    console.log("parsing from ", urls);
     if (urls) {
       try {
         const parsed = JSON.parse(urls);
-        if (Array.isArray(parsed) && parsed.every(url => typeof url === "string")) await this.restartFromURLs(parsed);
-      } catch {
-        // JSON parse error can be ignored
+        console.log("parsed", parsed);
+        if (Array.isArray(parsed) && parsed.every(url => typeof url === "string")) {
+          console.log("restarting from URLs")
+          await this.restartFromURLs(parsed);
+          console.log("restarted from URLs")
+        }
+      } catch (e) {
+        console.error(e)
       }
     }
   }
@@ -408,26 +434,60 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }
 
   public async restartFromFiles(files: File[] | FileList) {
+    await this.workerInitialized;
     await this.restartRendering(async () => {
-      const bytes = await Promise.all([...files].map(file => file.bytes()))
-      const grid = wasm.read_dicoms_to_grid(bytes);
-      this.setupFromGrid(grid);
+      await new Promise<void>(resolve => {
+        const message: WasmWorkerMessageFiles = {
+          type: WasmWorkerMessageType.LOAD_FROM_FILES,
+          files
+        }
+        this.worker.postMessage(message)
+        this.setupWorkerListener(resolve)
+      })
     })
   }
   public async restartFromURLs(urls: string[]) {
+    await this.workerInitialized;
     await this.restartRendering(async () => {
-      const bytes = await Promise.all(urls.map(url => fetch(url).then(res => res.bytes())))
-      const grid = wasm.read_dicoms_to_grid(bytes);
-      this.setupFromGrid(grid);
+      await new Promise<void>(resolve => {
+        const message: WasmWorkerMessageUrls = {
+          type: WasmWorkerMessageType.LOAD_FROM_URLS,
+          urls
+        }
+        console.log("sending message", message);
+        this.worker.postMessage(message)
+        console.log("sent message")
+        this.setupWorkerListener(resolve)
+        console.log("set up resolve manager")
+      })
     })
   }
-  public async restartFromGrid(grid: wasm.BrickGrid) {
-    await this.restartRendering(async () => {
-      this.setupFromGrid(grid);
-    })
+
+  private setupWorkerListener(resolve: () => void) {
+    const handler = (event: MessageEvent<WasmWorkerMessage>) => {
+      switch (event.data.type) {
+        case WasmWorkerMessageType.LOAD_FROM_FILES:
+        case WasmWorkerMessageType.LOAD_FROM_URLS:
+        case WasmWorkerMessageType.LOAD_FROM_BYTES:
+          throw new Error(`Invalid message type ${event.data.type} received from worker.`)
+        case WasmWorkerMessageType.ERROR: {
+          this.worker.removeEventListener("message", handler);
+          resolve()
+          // TODO: display error somehow
+          break;
+        }
+        case WasmWorkerMessageType.RETURN: {
+          console.log("received data from WASM worker", event.data)
+          this.setupFromGrid(event.data);
+          this.worker.removeEventListener("message", handler);
+          resolve()
+        }
+      }
+    };
+    this.worker.addEventListener("message", handler)
   }
-  private setupFromGrid(grid: wasm.BrickGrid) {
-    this.volume?.free();
+
+  private setupFromGrid(grid: WasmWorkerMessageReturn) {
     this.densityScale = 1.0;
 
     this.volume = Volume.fromWasm(grid);
@@ -446,46 +506,50 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     // upload data to respective images
-    const ind = grid.indirection_data()
-    const range = grid.range_data()
-    const atlas = grid.atlas_data()
+    const ind = grid.indirection
+    const range = grid.range
+    const atlas = grid.atlas
 
     // upload indirection buffer
+    const [indX, indY, indZ] = grid.indirectionSize;
     this.gl.activeTexture(this.gl.TEXTURE0 + 1)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RGB10_A2UI, grid.ind_x(), grid.ind_y(), grid.ind_z(), 0, this.gl.RGBA_INTEGER, this.gl.UNSIGNED_INT_2_10_10_10_REV, ind) // TODO: Check the last parameter again
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RGB10_A2UI, indX, indY, indZ, 0, this.gl.RGBA_INTEGER, this.gl.UNSIGNED_INT_2_10_10_10_REV, ind) // TODO: Check the last parameter again
 
     // upload range buffer
+    const [rangeX, rangeY, rangeZ] = grid.rangeSize
     this.gl.activeTexture(this.gl.TEXTURE0 + 2)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RG16F, grid.range_x(), grid.range_y(), grid.range_z(), 0, this.gl.RG, this.gl.HALF_FLOAT, range)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.RG16F, rangeX, rangeY, rangeZ, 0, this.gl.RG, this.gl.HALF_FLOAT, range)
     // upload range mipmaps
-    const mipmaps = grid.range_mipmaps();
     this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_BASE_LEVEL, 0);
-    this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_MAX_LEVEL, mipmaps);
-    for (let i: number = 0; i < mipmaps; ++i) {
-      const x = grid.range_mipmap_stride_x(i), y = grid.range_mipmap_stride_y(i), z = grid.range_mipmap_stride_z(i);
+    this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_MAX_LEVEL, grid.rangeMipmaps.length);
+    let level = 0;
+    for (const {mipmap, stride: [x, y, z]} of grid.rangeMipmaps) {
+      console.log("uploading range mipmap", level)
       this.gl.texImage3D(
           this.gl.TEXTURE_3D,
-          i + 1,
+          level + 1,
           this.gl.RG16F,
           x, y, z,
           0,
           this.gl.RG,
           this.gl.HALF_FLOAT,
-          grid.range_mipmap(i)
+          mipmap
       )
+      level++;
     }
 
     // upload atlas buffer
+    const [atlasX, atlasY, atlasZ] = grid.atlasSize;
     this.gl.activeTexture(this.gl.TEXTURE0 + 3)
     this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, grid.atlas_x(), grid.atlas_y(), grid.atlas_z(), 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
+    this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, atlasX, atlasY, atlasZ, 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
 
-    this.histogram.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max())
+    this.histogram.renderHistogram(grid.histogram, grid.histogramGradient, grid.histogramGradientRange[1])
   }
 
   private changeTransferFunc(data: Float32Array | null, length: number) {
@@ -495,10 +559,20 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
   }
 
-  private async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
+  private restartRendering<T>(action: () => T): T {
     this.classList.add("restarting");
     this.suspend = true;
-    const result = await action();
+    const result = action();
+    if (result instanceof Promise) {
+      // @ts-expect-error ts doesn't understand this
+      return result.then(x => {
+        this.resolutionFactor = 0.33;
+        this.resizeFramebuffersToCanvas();
+        this.frameIndex = 0;
+        this.suspend = false;
+        return x;
+      })
+    }
     this.resolutionFactor = 0.33;
     this.resizeFramebuffersToCanvas();
     this.frameIndex = 0;
@@ -602,7 +676,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     this.gl.uniform1ui(this.getUniformLocation("u_frame_index"), this.frameIndex);
 
     this.gl.uniform2i(this.getUniformLocation("u_res"), this.canvas.width, this.canvas.height)
-    this.gl.uniform1i(this.getUniformLocation("u_debugHits"), 0);
+    this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.debugHits ? 1 : 0);
 
     this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < this.lowResolutionDuration ? 0 : (this.frameIndex - this.lowResolutionDuration) / (this.frameIndex - this.lowResolutionDuration + 1));
   }

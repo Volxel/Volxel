@@ -1,5 +1,3 @@
-import * as wasm from "@volxel/dicom_preprocessor"
-
 export const dicomBasePaths: {
     url: `${string}#${string}`,
     from: number,
@@ -29,18 +27,12 @@ export const dicomBasePaths: {
     {url: "/Volxel/Dicom/DeutschesMuseum/chiffredevice/2017-402#.dcm", from: 0, to: 783, replaceLength: 3}
 ]
 
-export async function loadGrid(index: number = 0): Promise<wasm.BrickGrid> {
+export function gridUrls(index: number = 0): string[] {
     const {url, from, to, replaceLength} = dicomBasePaths[index];
     const urls = new Array(to - from).fill(0).map((_, i) => {
         return url.replace("#", `${from + i}`.padStart(replaceLength, "0"))
     })
-    const allBytes = await Promise.all(urls.map(async (url) => (await fetch(url)).bytes()));
-    return wasm.read_dicoms_to_grid(allBytes);
-}
-
-export async function loadGridFromFiles(files: FileList | File[]): Promise<wasm.BrickGrid> {
-    const data = await Promise.all([...files].toSorted((a, b) => a.name.localeCompare(b.name)).map(file => file.arrayBuffer()));
-    return wasm.read_dicoms_to_grid(data.map(buffer => new Uint8Array(buffer)));
+    return urls;
 }
 
 async function parseTransferFunction(text: string): Promise<number[][]> {

@@ -287,6 +287,10 @@ export const volxelTemplate: string =  html`
             Max Samples
             <input type="range" name="samples" id="samples" min="1" max="3000" step="1">
         </label>
+        <label>
+            Debug Hit Positions
+            <input type="checkbox" name="debugHits" id="debugHits" >
+        </label>
     </div>
     <label class="menuButton">
         <span class="label">Menü</span>

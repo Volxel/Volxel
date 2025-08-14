@@ -5,6 +5,17 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import glslIncludePlugin from "../vite-plugin-glsl-include";
 
 export default defineConfig({
+    worker: {
+        plugins: () => [
+            wasm()
+        ],
+        format: "es",
+        rollupOptions: {
+            output: {
+                file: "./dicom_wasm_worker.mjs",
+            },
+        }
+    },
     plugins: [
         dtsPlugin({
             insertTypesEntry: true,
@@ -14,7 +25,6 @@ export default defineConfig({
         }),
         glslIncludePlugin(),
         tsconfigPaths(),
-        wasm()
     ],
     optimizeDeps: {
         exclude: ["dicom_preprocessor"]
@@ -24,6 +34,9 @@ export default defineConfig({
             entry: "src/index",
             formats: ["es"],
             fileName: "index"
+        },
+        rollupOptions: {
+            external: ["./worker.mjs"]
         }
-    }
+    },
 })

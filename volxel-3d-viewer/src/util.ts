@@ -21,7 +21,7 @@ export function html(strings: TemplateStringsArray, ...props: any[]) {
 }
 
 
-export function setupPanningListeners(element: HTMLElement, onPan: (by: Vector2) => void, onZoom: (by: number) => void = () => {}, onMove: (by: Vector2) => void = () => {}) {
+export function setupPanningListeners(element: HTMLElement, onPan: (by: Vector2) => void, onZoom: (by: number) => boolean = () => false, onMove: (by: Vector2) => void = () => {}) {
     let isDragging = false;
     let isZooming = false;
     let isMoving = false;
@@ -110,6 +110,8 @@ export function setupPanningListeners(element: HTMLElement, onPan: (by: Vector2)
         let by = 1;
         if (e.deltaY < 0) by = 0.9
         if (e.deltaY > 0) by = 1.1
-        onZoom(by)
+        if (onZoom(by)) {
+            e.preventDefault();
+        }
     })
 }

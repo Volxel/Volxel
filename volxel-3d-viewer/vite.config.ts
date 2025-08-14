@@ -5,6 +5,18 @@ import dtsPlugin from "vite-plugin-dts";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
+    worker: {
+        plugins: () => [
+            wasm()
+        ],
+        format: "es",
+        rollupOptions: {
+            output: {
+                file: "dicom_wasm_worker.mjs",
+            },
+            external: ["@volxel/dicom_preprocessor"]
+        }
+    },
     plugins: [
         dtsPlugin({
             insertTypesEntry: true,
@@ -14,7 +26,6 @@ export default defineConfig({
         }),
         tsconfigPaths(),
         glslIncludePlugin(),
-        wasm()
     ],
     optimizeDeps: {
         exclude: ["dicom_preprocessor"]
@@ -26,9 +37,6 @@ export default defineConfig({
             fileName: "index"
         },
         rollupOptions: {
-            output: {
-                preserveModules: true
-            },
             external: [
                 "@volxel/dicom_preprocessor",
                 "math.gl"
