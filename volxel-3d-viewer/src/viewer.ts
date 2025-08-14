@@ -72,6 +72,8 @@ let initialized: boolean = false;
 let template: HTMLTemplateElement | null = null;
 
 export class Volxel3DDicomRenderer extends HTMLElement {
+  public static readonly observedAttributes = ["data-urls"]
+
   private canvas: HTMLCanvasElement;
   private gl: WebGL2RenderingContext;
   private program: WebGLProgram;
@@ -88,7 +90,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private indirection: WebGLTexture;
   private range: WebGLTexture;
   private atlas: WebGLTexture;
-  // @ts-ignore happens in util function
   private transfer: WebGLTexture;
 
   // inputs
@@ -350,6 +351,27 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     requestAnimationFrame(this.render)
   }
 
+  public async connectedCallback() {
+    await this.restartFromAttributes()
+  }
+  public async attributesChangedCallback(name: string) {
+    if (name === "data-urls") {
+      await this.restartFromAttributes()
+    }
+  }
+
+  private async restartFromAttributes() {
+    const urls = this.getAttribute("data-urls")
+    if (urls) {
+      try {
+        const parsed = JSON.parse(urls);
+        if (Array.isArray(parsed) && parsed.every(url => typeof url === "string")) await this.restartFromURLs(parsed);
+      } catch {
+        // JSON parse error can be ignored
+      }
+    }
+  }
+
   private resizeFramebuffersToCanvas() {
     const gl = this.gl;
 
@@ -385,7 +407,26 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     return loc;
   }
 
-  public setupFromGrid(grid: wasm.BrickGrid) {
+  public async restartFromFiles(files: File[] | FileList) {
+    await this.restartRendering(async () => {
+      const bytes = await Promise.all([...files].map(file => file.bytes()))
+      const grid = wasm.read_dicoms_to_grid(bytes);
+      this.setupFromGrid(grid);
+    })
+  }
+  public async restartFromURLs(urls: string[]) {
+    await this.restartRendering(async () => {
+      const bytes = await Promise.all(urls.map(url => fetch(url).then(res => res.bytes())))
+      const grid = wasm.read_dicoms_to_grid(bytes);
+      this.setupFromGrid(grid);
+    })
+  }
+  public async restartFromGrid(grid: wasm.BrickGrid) {
+    await this.restartRendering(async () => {
+      this.setupFromGrid(grid);
+    })
+  }
+  private setupFromGrid(grid: wasm.BrickGrid) {
     this.volume?.free();
     this.densityScale = 1.0;
 
@@ -447,14 +488,14 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     this.histogram.renderHistogram(grid.histogram(), grid.histogram_gradient(), grid.histogram_gradient_max())
   }
 
-  changeTransferFunc(data: Float32Array | null, length: number) {
+  private changeTransferFunc(data: Float32Array | null, length: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
     this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
   }
 
-  async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
+  private async restartRendering<T>(action: () => T): Promise<Awaited<T>> {
     this.classList.add("restarting");
     this.suspend = true;
     const result = await action();
@@ -465,7 +506,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     return result;
   }
 
-  render = () => {
+  private render = () => {
     if (this.frameIndex >= this.lowResolutionDuration && this.resolutionFactor !== 1.0) {
       this.resolutionFactor = 1.0;
       this.resizeFramebuffersToCanvas();
@@ -513,7 +554,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     requestAnimationFrame(this.render);
   }
 
-  bindUniforms(framebuffer: number) {
+  private bindUniforms(framebuffer: number) {
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.getUniformLocation("u_transfer"), 0);

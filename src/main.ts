@@ -1,6 +1,6 @@
 import "./index.css";
 
-import {Volxel3DDicomRenderer, dicomBasePaths, loadGrid, loadGridFromFiles} from "@volxel/3d-viewer";
+import {dicomBasePaths, loadGrid, Volxel3DDicomRenderer} from "@volxel/3d-viewer";
 
 const renderer = document.getElementById("renderer") as Volxel3DDicomRenderer;
 
@@ -14,22 +14,16 @@ for (let i = 0; i < dicomBasePaths.length; i++) {
 }
 modelSelect.value = "";
 modelSelect.addEventListener("change", async () => {
-    await renderer.restartRendering(async () => {
-        const grid = await loadGrid(Number.parseInt(modelSelect.value.replace("dicom_", "")))
-        renderer.setupFromGrid(grid);
-    })
+    const grid = await loadGrid(Number.parseInt(modelSelect.value.replace("dicom_", "")))
+    renderer.restartFromGrid(grid);
 });
 
 const dicomFileSelect = document.getElementById("dicom") as HTMLInputElement;
 dicomFileSelect.addEventListener("change", async () => {
-    await renderer.restartRendering(async () => {
-        const files = dicomFileSelect.files;
-        if (!files) {
-            alert("no files selected");
-            return;
-        }
-
-        const grid = await loadGridFromFiles(files);
-        renderer.setupFromGrid(grid);
-    })
+    const files = dicomFileSelect.files;
+    if (!files) {
+        alert("no files selected");
+        return;
+    }
+    renderer.restartFromFiles(files);
 })
