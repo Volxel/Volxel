@@ -19,6 +19,8 @@ import {
   WasmWorkerMessageUrls
 } from "./common";
 
+import DicomWorker from "./worker?worker&inline"
+
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
 function createShader(gl: WebGL2RenderingContext, type: GLenum, source: string): WebGLShader {
@@ -80,7 +82,7 @@ let template: HTMLTemplateElement | null = null;
 export class Volxel3DDicomRenderer extends HTMLElement {
   public static readonly observedAttributes = ["data-urls"]
 
-  private worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
+  private worker = new DicomWorker()
   private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
     resolve();
   }))
