@@ -88,9 +88,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }))
 
   private canvas: HTMLCanvasElement;
-  private gl: WebGL2RenderingContext;
-  private program: WebGLProgram;
-  private blit: WebGLProgram;
+  private gl: WebGL2RenderingContext | undefined;
+  private program: WebGLProgram | undefined;
+  private blit: WebGLProgram | undefined;
 
   private framebuffers: Framebuffer[] = [];
   private framebufferPingPong: number = 0;
@@ -100,10 +100,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private resolutionFactor: number = 1;
   private lowResolutionDuration: number = 5;
 
-  private indirection: WebGLTexture;
-  private range: WebGLTexture;
-  private atlas: WebGLTexture;
-  private transfer: WebGLTexture;
+  private indirection: WebGLTexture | undefined;
+  private range: WebGLTexture | undefined;
+  private atlas: WebGLTexture | undefined;
+  private transfer: WebGLTexture | undefined;
 
   // inputs
   private densityMultiplier = 1;
@@ -111,10 +111,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private debugHits = false;
 
   // input elements
-  private histogram: HistogramViewer;
+  private histogram: HistogramViewer | undefined;
 
-
-  private camera: Camera;
+  private camera: Camera | undefined;
   private sampleRange: [number, number] = [0, 2 ** 16 - 1];
 
   // light
@@ -143,233 +142,243 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     // Get canvas to render to
     this.canvas = this.shadowRoot!.getElementById("app") as HTMLCanvasElement;
 
-    // set up GL context
-    const gl = this.canvas.getContext("webgl2");
-    if (!gl) throw new Error("WebGL 2 not supported on this Browser");
-    this.gl = gl;
+    try {
+      // set up GL context
+      const gl = this.canvas.getContext("webgl2");
+      if (!gl) throw new Error("WebGL 2 not supported on this Browser");
+      this.gl = gl;
 
-    // check for float render target extension
-    const floatExtension = gl.getExtension("EXT_color_buffer_float");
-    if (!floatExtension) throw new Error("EXT_color_buffer_float extension not available, can't render to float target");
+      // check for float render target extension
+      const floatExtension = gl.getExtension("EXT_color_buffer_float");
+      if (!floatExtension) throw new Error("EXT_color_buffer_float extension not available, can't render to float target");
 
-    // Set up main shaders
-    const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
-    const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
-    this.program = createProgram(gl, vertex, fragment);
+      // Set up main shaders
+      const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
+      const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
+      this.program = createProgram(gl, vertex, fragment);
 
-    // Set up blit shaders
-    const blit = createShader(gl, gl.FRAGMENT_SHADER, blitShader);
-    this.blit = createProgram(gl, vertex, blit);
+      // Set up blit shaders
+      const blit = createShader(gl, gl.FRAGMENT_SHADER, blitShader);
+      this.blit = createProgram(gl, vertex, blit);
 
-    // Prepare framebuffers for ping pong rendering
-    for (let i = 0; i < 2; i++) {
-      const renderTargetTexture = gl.createTexture();
-      gl.activeTexture(gl.TEXTURE0 + 2 + i);
-      gl.bindTexture(gl.TEXTURE_2D, renderTargetTexture);
-      gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA32F,
-          this.canvas.width,
-          this.canvas.height,
-          0,
-          gl.RGBA,
-          gl.FLOAT,
-          null
-      );
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      // Prepare framebuffers for ping pong rendering
+      for (let i = 0; i < 2; i++) {
+        const renderTargetTexture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + 2 + i);
+        gl.bindTexture(gl.TEXTURE_2D, renderTargetTexture);
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA32F,
+            this.canvas.width,
+            this.canvas.height,
+            0,
+            gl.RGBA,
+            gl.FLOAT,
+            null
+        );
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-      const fbo = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderTargetTexture, 0);
+        const fbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderTargetTexture, 0);
 
-      checkFbo(gl);
+        checkFbo(gl);
 
-      this.framebuffers.push({fbo, target: renderTargetTexture});
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
+        this.framebuffers.push({fbo, target: renderTargetTexture});
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
 
-    // Prepare data for drawing
-    // -- Fetch Attribute location from Program
-    const positionAttribute = gl.getAttribLocation(this.program, "a_position");
-    if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in vertex shader");
-    // -- Create and prepare Data in Buffer
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, -1,]), gl.STATIC_DRAW);
-    // -- Create and configure Vertex Array Object
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    gl.enableVertexAttribArray(positionAttribute);
-    gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
+      // Prepare data for drawing
+      // -- Fetch Attribute location from Program
+      const positionAttribute = gl.getAttribLocation(this.program, "a_position");
+      if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in vertex shader");
+      // -- Create and prepare Data in Buffer
+      const positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, -1,]), gl.STATIC_DRAW);
+      // -- Create and configure Vertex Array Object
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      gl.enableVertexAttribArray(positionAttribute);
+      gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
 
-    // Setup transfer function
-    this.transfer = this.gl.createTexture();
-    const { data, length } = generateTransferFunction([{
-      color: [1, 1, 1, 0],
-      stop: 0
-    }, {
-      color: [1, 1, 1, 1],
-      stop: 1
-    }])
-    this.changeTransferFunc(data, length);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+      // Setup transfer function
+      this.transfer = this.gl.createTexture();
+      const { data, length } = generateTransferFunction([{
+        color: [1, 1, 1, 0],
+        stop: 0
+      }, {
+        color: [1, 1, 1, 1],
+        stop: 1
+      }])
+      this.changeTransferFunc(data, length);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
-    // Prepare Lookup Textures
-    const setupImage = () => {
-      // set the filtering so we don't need mips
-      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-    }
-    this.indirection = gl.createTexture();
-    this.gl.activeTexture(this.gl.TEXTURE0 + 1);
-    this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
-    setupImage();
-    this.range = gl.createTexture();
-    this.gl.activeTexture(this.gl.TEXTURE0 + 2);
-    this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
-    setupImage();
-    this.atlas = gl.createTexture();
-    this.gl.activeTexture(this.gl.TEXTURE0 + 3);
-    this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
-    setupImage();
-    // TODO: Initial data somehow?
+      // Prepare Lookup Textures
+      const setupImage = () => {
+        // set the filtering so we don't need mips
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+      }
+      this.indirection = gl.createTexture();
+      this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+      this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
+      setupImage();
+      this.range = gl.createTexture();
+      this.gl.activeTexture(this.gl.TEXTURE0 + 2);
+      this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
+      setupImage();
+      this.atlas = gl.createTexture();
+      this.gl.activeTexture(this.gl.TEXTURE0 + 3);
+      this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
+      setupImage();
+      // TODO: Initial data somehow?
 
-    // Setup camera
-    this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
+      // Setup camera
+      this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
 
-    // Prepare automatic resizing of canvas
-    const resizeObserver = new ResizeObserver((entries) => {
-      this.restartRendering(() => {
-        for (const entry of entries) if (entry.target === this.canvas) {
-          const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
-          const ratio = window.devicePixelRatio || 1;
-          const width = Math.max(
-              1,
-              entry.contentBoxSize[0].inlineSize
-          ) * ratio;
-          const height = Math.max(
-              1,
-              entry.contentBoxSize[0].blockSize
-          ) * ratio;
+      // Prepare automatic resizing of canvas
+      const resizeObserver = new ResizeObserver((entries) => {
+        this.restartRendering(() => {
+          for (const entry of entries) if (entry.target === this.canvas) {
+            const c: HTMLCanvasElement = entry.target as HTMLCanvasElement;
+            const ratio = window.devicePixelRatio || 1;
+            const width = Math.max(
+                1,
+                entry.contentBoxSize[0].inlineSize
+            ) * ratio;
+            const height = Math.max(
+                1,
+                entry.contentBoxSize[0].blockSize
+            ) * ratio;
 
-          c.width = width;
-          c.height = height;
-        }
-      })
-    });
-    resizeObserver.observe(this.canvas);
-
-    // Prepare inputs
-    setupPanningListeners(this.canvas, (by) => {
-      this.restartRendering(() => {
-        this.camera.rotateAroundView(by);
-      })
-    }, (by) => {
-      return this.restartRendering(() => {
-        return this.camera.zoom(by);
-      })
-    }, (by) => {
-      this.restartRendering(() => {
-        this.camera.translateOnPlane(by);
-      })
-    });
-
-    const samplesRangeInput = this.shadowRoot!.getElementById("samples") as HTMLInputElement;
-    samplesRangeInput.valueAsNumber = this.maxSamples;
-    samplesRangeInput.addEventListener("change", async () => {
-      await this.restartRendering(async () => {
-        this.maxSamples = samplesRangeInput.valueAsNumber;
-      })
-    })
-
-    const generatedTransfer = this.shadowRoot!.getElementById("generated_transfer") as HTMLInputElement;
-    generatedTransfer.checked = false;
-    generatedTransfer.addEventListener("change", async () => {
-      await this.restartRendering(() => {
-        if (generatedTransfer.checked) {
-          const { data, length } = generateTransferFunction(colorRamp.colors);
-          this.changeTransferFunc(data, length);
-        } else {
-          const { data, length } = generateTransferFunction([{
-            color: [1, 1, 1, 0],
-            stop: 0
-          }, {
-            color: [1, 1, 1, 1],
-            stop: 1
-          }])
-          this.changeTransferFunc(data, length);
-        }
-      })
-    })
-
-    const transferFileSelect = this.shadowRoot!.getElementById("transfer_file") as HTMLInputElement;
-    transferFileSelect.addEventListener("change", async () => {
-      await this.restartRendering(async () => {
-        const file = transferFileSelect.files;
-        if (!file) {
-          alert("no files selected");
-          return;
-        }
-        if (file.length != 1) throw new Error("Multiple files selected");
-        const {data, length} = await loadTransferFunction(file.item(0)!);
-        this.changeTransferFunc(data, length);
-        generatedTransfer.checked = false;
-      })
-    });
-
-    const colorRamp = this.shadowRoot!.getElementById("color-ramp") as ColorRampComponent;
-    colorRamp.addEventListener("change", async (event: Event) => {
-      await this.restartRendering(() => {
-        if (!generatedTransfer.checked) return;
-        const {data, length} = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
-        this.changeTransferFunc(data, length)
+            c.width = width;
+            c.height = height;
+          }
+        })
       });
-    })
+      resizeObserver.observe(this.canvas);
 
-    this.histogram = this.shadowRoot!.getElementById("histogram") as HistogramViewer;
-    this.histogram.addEventListener("change", async (event: Event) => {
-      await this.restartRendering(async () => {
-        this.sampleRange = (event as CustomEvent<[min: number, max: number]>).detail;
+      // Prepare inputs
+      setupPanningListeners(this.canvas, (by) => {
+        this.restartRendering(() => {
+          this.camera?.rotateAroundView(by);
+        })
+      }, (by) => {
+        return this.restartRendering(() => {
+          return this.camera?.zoom(by);
+        }) ?? false
+      }, (by) => {
+        this.restartRendering(() => {
+          this.camera?.translateOnPlane(by);
+        })
+      });
+
+      const samplesRangeInput = this.shadowRoot!.getElementById("samples") as HTMLInputElement;
+      samplesRangeInput.valueAsNumber = this.maxSamples;
+      samplesRangeInput.addEventListener("change", async () => {
+        await this.restartRendering(async () => {
+          this.maxSamples = samplesRangeInput.valueAsNumber;
+        })
       })
-    })
 
-    const densityMultiplierInput = this.shadowRoot!.getElementById("density_multiplier") as HTMLInputElement;
-    densityMultiplierInput.valueAsNumber = this.densityMultiplier;
-    densityMultiplierInput.addEventListener("change", async () => {
-      await this.restartRendering(async () => {
-        this.densityMultiplier = densityMultiplierInput.valueAsNumber;
+      const generatedTransfer = this.shadowRoot!.getElementById("generated_transfer") as HTMLInputElement;
+      generatedTransfer.checked = false;
+      generatedTransfer.addEventListener("change", async () => {
+        this.restartRendering(() => {
+          if (generatedTransfer.checked) {
+            const { data, length } = generateTransferFunction(colorRamp.colors);
+            this.changeTransferFunc(data, length);
+          } else {
+            const { data, length } = generateTransferFunction([{
+              color: [1, 1, 1, 0],
+              stop: 0
+            }, {
+              color: [1, 1, 1, 1],
+              stop: 1
+            }])
+            this.changeTransferFunc(data, length);
+          }
+        })
       })
-    })
 
-    const cubeDirection = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
-    cubeDirection.addEventListener("direction", async (event) => {
-      const { detail: {x, y, z }} = event as CustomEvent<{x: number, y: number, z: number}>;
-      await this.restartRendering(() => {
-        this.lightDir = new Vector3(x, y, z);
+      const transferFileSelect = this.shadowRoot!.getElementById("transfer_file") as HTMLInputElement;
+      transferFileSelect.addEventListener("change", async () => {
+        await this.restartRendering(async () => {
+          const file = transferFileSelect.files;
+          if (!file) {
+            alert("no files selected");
+            return;
+          }
+          if (file.length != 1) throw new Error("Multiple files selected");
+          const {data, length} = await loadTransferFunction(file.item(0)!);
+          this.changeTransferFunc(data, length);
+          generatedTransfer.checked = false;
+        })
+      });
+
+      const colorRamp = this.shadowRoot!.getElementById("color-ramp") as ColorRampComponent;
+      colorRamp.addEventListener("change", async (event: Event) => {
+        this.restartRendering(() => {
+          if (!generatedTransfer.checked) return;
+          const {data, length} = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
+          this.changeTransferFunc(data, length)
+        });
       })
-    })
-    cubeDirection.direction = this.lightDir;
 
-    const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
-    debugHits.checked = this.debugHits
-    debugHits.addEventListener("change", async () => {
-      await this.restartRendering(async () => {
-        this.debugHits = debugHits.checked;
+      this.histogram = this.shadowRoot!.getElementById("histogram") as HistogramViewer;
+      this.histogram.addEventListener("change", async (event: Event) => {
+        await this.restartRendering(async () => {
+          this.sampleRange = (event as CustomEvent<[min: number, max: number]>).detail;
+        })
       })
-    })
 
-    // initial call to the render function
-    requestAnimationFrame(this.render)
+      const densityMultiplierInput = this.shadowRoot!.getElementById("density_multiplier") as HTMLInputElement;
+      densityMultiplierInput.valueAsNumber = this.densityMultiplier;
+      densityMultiplierInput.addEventListener("change", async () => {
+        await this.restartRendering(async () => {
+          this.densityMultiplier = densityMultiplierInput.valueAsNumber;
+        })
+      })
+
+      const cubeDirection = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
+      cubeDirection.addEventListener("direction", async (event) => {
+        const { detail: {x, y, z }} = event as CustomEvent<{x: number, y: number, z: number}>;
+        this.restartRendering(() => {
+          this.lightDir = new Vector3(x, y, z);
+        })
+      })
+      cubeDirection.direction = this.lightDir;
+
+      const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
+      debugHits.checked = this.debugHits
+      debugHits.addEventListener("change", async () => {
+        await this.restartRendering(async () => {
+          this.debugHits = debugHits.checked;
+        })
+      })
+
+      // initial call to the render function
+      requestAnimationFrame(this.render)
+    } catch (e) {
+      console.error(this, "encountered error during startup", e);
+      this.handleError(e);
+    }
+  }
+
+  private handleError(e: unknown) {
+    this.classList.add("errored")
+    this.shadowRoot!.getElementById("error")!.innerText = e instanceof Error ? e.message : `${e}`;
   }
 
   public async connectedCallback() {
@@ -390,13 +399,16 @@ export class Volxel3DDicomRenderer extends HTMLElement {
           await this.restartFromURLs(parsed);
         }
       } catch (e) {
-        console.error(e)
+        console.error(this, "encountered error during startup from URLs", e)
+        this.classList.add("errored")
+        this.shadowRoot!.getElementById("error")!.innerText = e instanceof Error ? e.message : `${e}`;
       }
     }
   }
 
   private resizeFramebuffersToCanvas() {
     const gl = this.gl;
+    if (!gl) throw new Error("Resizing method called without GL context being set up")
 
     const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor)
     const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor)
@@ -421,7 +433,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }
 
   private alreadyWarned: Set<string> = new Set<string>();
-  private getUniformLocation(name: string, program: WebGLProgram = this.program) {
+  private getUniformLocation(name: string, program: WebGLProgram | undefined = this.program) {
+    if (!this.gl || !program) return null;
     const loc = this.gl.getUniformLocation(program, name);
     if (!loc && !this.alreadyWarned.has(name)) {
       console.warn("Failed to get uniform location of '" + name + "'");
@@ -481,6 +494,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }
 
   private setupFromGrid(grid: WasmWorkerMessageReturn) {
+    if (!this.gl || !this.indirection || !this.range || !this.atlas) throw new Error("Trying to setup from grid without GL context being initialized")
     this.densityScale = 1.0;
 
     this.volume = Volume.fromWasm(grid);
@@ -541,10 +555,11 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
     this.gl.texImage3D(this.gl.TEXTURE_3D, 0, this.gl.R8, atlasX, atlasY, atlasZ, 0, this.gl.RED, this.gl.UNSIGNED_BYTE, atlas)
 
-    this.histogram.renderHistogram(grid.histogram, grid.histogramGradient, grid.histogramGradientRange[1])
+    this.histogram?.renderHistogram(grid.histogram, grid.histogramGradient, grid.histogramGradientRange[1])
   }
 
   private changeTransferFunc(data: Float32Array | null, length: number) {
+    if (!this.gl || !this.transfer) throw new Error("Trying to change transfer function without GL context being initialized.")
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
@@ -573,6 +588,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }
 
   private render = () => {
+    if (!this.gl || !this.program || !this.blit || !this.camera) throw new Error("Trying to render without GL context initialized.")
     if (this.frameIndex >= this.lowResolutionDuration && this.resolutionFactor !== 1.0) {
       this.resolutionFactor = 1.0;
       this.resizeFramebuffersToCanvas();
@@ -621,6 +637,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }
 
   private bindUniforms(framebuffer: number) {
+    if (!this.gl || !this.transfer || !this.indirection || !this.range || !this.atlas) throw new Error("Trying to bind uniforms to uninitialized GL context.")
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
     this.gl.uniform1i(this.getUniformLocation("u_transfer"), 0);

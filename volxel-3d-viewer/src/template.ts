@@ -21,6 +21,7 @@ export const volxelStyles = css`
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         overflow: hidden;
+        background: var(--volxel-color-background, black);
     }
 
     canvas#app {
@@ -202,7 +203,7 @@ export const volxelStyles = css`
         }
     }
 
-    div.loadingIndicator {
+    div.loadingIndicator, div.errorIndicator {
         position: absolute;
         inset: 0;
         background: #00000055;
@@ -217,7 +218,8 @@ export const volxelStyles = css`
         align-items: center;
         gap: 10px;
         transition-delay: 0s;
-
+    }
+    div.loadingIndicator {
         &:before {
             content: "";
             display: block;
@@ -230,8 +232,16 @@ export const volxelStyles = css`
             animation: spin 2s linear infinite;
         }
     }
+    div.errorIndicator {
+        color: red;
+    }
 
     :host(.restarting) div.loadingIndicator {
+        opacity: 1;
+        pointer-events: all;
+        transition-delay: .2s;
+    }
+    :host(.errored) div.errorIndicator {
         opacity: 1;
         pointer-events: all;
         transition-delay: .2s;
@@ -304,6 +314,10 @@ export const volxelTemplate: string =  html`
     </label>
 </div>
 <div class="loadingIndicator">
-    Volumetrische Daten werden geladen...
+    Loading and preparing volumetric data ...
+</div>
+<div class="errorIndicator">
+    An error occurred:
+    <span id="error"></span>
 </div>
 `
