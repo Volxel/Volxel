@@ -1,3 +1,9 @@
+#define M_PI float(3.14159265358979323846)
+#define inv_PI (1.f / M_PI)
+#define inv_2PI (1.f / (2 * M_PI))
+#define inv_4PI (1.f / (4 * M_PI))
+#define FLT_MAX float(3.402823466e+38)
+
 vec3 boxNormal(vec3 p, vec3 bmin, vec3 bmax) {
     vec3 amin = abs(p - bmin);
     vec3 amax = abs(p - bmax);

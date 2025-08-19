@@ -41,9 +41,8 @@ uniform ivec2 u_res;
 uniform float u_stepsize;
 
 // Camera Info
-uniform vec3 camera_pos;
-uniform vec3 camera_view;
-const vec3 camera_up = vec3(0, 1, 0);
+uniform mat4 camera_view;
+uniform mat4 camera_proj;
 
 // Shows ray intersection with AABB instead of volume
 uniform bool u_debugHits;
@@ -63,6 +62,27 @@ struct Ray {
 #include "utils.glsl"
 #include "random.glsl"
 
+// camera utils TODO: Uniforms and matrices could be optimized
+
+vec3 cameraWorldPos() {
+    mat4 invView = inverse(camera_view);
+    vec4 camWorld = invView * vec4(0, 0, 0, 1);
+    return camWorld.xyz / camWorld.w;
+}
+vec3 cameraWorldDir(vec2 ndcXY) {
+    mat4 invProj = inverse(camera_proj);
+    vec4 clipPos = vec4(ndcXY, -1.0, 1.0);
+
+    vec4 viewPosH = invProj * clipPos;
+    vec3 viewPos = viewPosH.xyz / viewPosH.w;
+
+    mat4 invView = inverse(camera_view);
+    vec4 worldPosH = invView * vec4(viewPos, 1.0);
+    vec3 worldPos = worldPosH.xyz / worldPosH.w;
+
+    return normalize(worldPos - cameraWorldPos());
+}
+
 Ray setup_world_ray(vec2 ss_position, int i) {
     float aspect = float(u_res.x) / float(u_res.y);
 
@@ -70,12 +90,7 @@ Ray setup_world_ray(vec2 ss_position, int i) {
     float y_offset = (halton(i, 3u) * 2.0 - 1.0) * (1.0 / float(u_res.y));
     ss_position += vec2(x_offset, y_offset);
 
-    vec3 forward = normalize(camera_view);
-    vec3 right = normalize(cross(forward, camera_up));
-    vec3 up = normalize(cross(right, forward));
-
-    vec3 dir = normalize(ss_position.x * aspect * right + ss_position.y * up + forward);
-    return Ray(camera_pos, dir);
+    return Ray(cameraWorldPos(), cameraWorldDir(ss_position));
 }
 
 bool ray_box_intersection(Ray ray, vec3 aabb[2], out vec2 near_far) {

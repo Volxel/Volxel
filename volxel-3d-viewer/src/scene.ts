@@ -1,4 +1,4 @@
-import {Quaternion, Vector2, Vector3} from "math.gl";
+import {Matrix4, Quaternion, Vector2, Vector3} from "math.gl";
 
 export class Camera {
   pos: Vector3;
@@ -8,8 +8,8 @@ export class Camera {
   static up: Vector3 = new Vector3(0, 1, 0);
 
   constructor(distance: number,
-              private posLoc: WebGLUniformLocation | null,
-              private viewLoc: WebGLUniformLocation | null) {
+              private viewMatrixLoc: WebGLUniformLocation | null,
+              private projMatrixLoc: WebGLUniformLocation | null) {
     this.view = new Vector3();
     this.pos = new Vector3(0, 0, distance);
   }
@@ -53,8 +53,19 @@ export class Camera {
   }
 
   bindAsUniforms(gl: WebGL2RenderingContext) {
-    gl.uniform3f(this.posLoc, this.pos.x, this.pos.y, this.pos.z);
-    const viewDir = this.view.clone().subtract(this.pos);
-    gl.uniform3f(this.viewLoc, viewDir.x, viewDir.y, viewDir.z);
+    const view = new Matrix4().lookAt({
+      eye: this.pos,
+      center: this.view,
+      up: Camera.up
+    })
+    const proj = new Matrix4().perspective({
+      fovy: Math.PI / 2,
+      far: 1000,
+      near: 0.1,
+      aspect: gl.canvas.width / gl.canvas.height
+    })
+
+    gl.uniformMatrix4fv(this.viewMatrixLoc,  false, view)
+    gl.uniformMatrix4fv(this.projMatrixLoc, false, proj)
   }
 }

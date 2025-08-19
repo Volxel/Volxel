@@ -247,7 +247,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       // TODO: Initial data somehow?
 
       // Setup camera
-      this.camera = new Camera(1, this.getUniformLocation("camera_pos"), this.getUniformLocation("camera_view"))
+      this.camera = new Camera(1, this.getUniformLocation("camera_view"), this.getUniformLocation("camera_proj"))
 
       // Prepare automatic resizing of canvas
       const resizeObserver = new ResizeObserver((entries) => {
