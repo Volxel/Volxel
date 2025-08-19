@@ -9,7 +9,7 @@ export class Camera {
 
   constructor(distance: number) {
     this.view = new Vector3();
-    this.pos = new Vector3(0, 0, distance);
+    this.pos = new Vector3(0, 0, -distance);
   }
 
   rotateAroundView(by: Vector2) {
@@ -51,19 +51,23 @@ export class Camera {
   }
 
   bindAsUniforms(gl: WebGL2RenderingContext, program: WebGLProgram) {
-    const view = new Matrix4().lookAt({
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, "camera_view"),  false, this.viewMatrix())
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, "camera_proj"), false, this.projMatrix(gl.canvas.width / gl.canvas.height))
+  }
+
+  viewMatrix(): Matrix4 {
+    return new Matrix4().lookAt({
       eye: this.pos,
       center: this.view,
       up: Camera.up
-    })
-    const proj = new Matrix4().perspective({
-      fovy: Math.PI / 2,
+    });
+  }
+  projMatrix(aspect: number, fov: number = Math.PI / 3): Matrix4 {
+    return new Matrix4().perspective({
+      fovy: fov,
       far: 1000,
       near: 0.1,
-      aspect: gl.canvas.width / gl.canvas.height
+      aspect: aspect
     })
-
-    gl.uniformMatrix4fv(gl.getUniformLocation(program, "camera_view"),  false, view)
-    gl.uniformMatrix4fv(gl.getUniformLocation(program, "camera_proj"), false, proj)
   }
 }

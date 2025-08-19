@@ -114,6 +114,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private debugHits = false;
   private volumeClipMin = new Vector3(0, 0, 0);
   private volumeClipMax = new Vector3(1, 1, 1);
+  // used for clipping controls
+  private mousePos: [number, number] = [0, 0];
 
   // input elements
   private histogram: HistogramViewer | undefined;
@@ -150,6 +152,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     // Get canvas to render to
     this.canvas = this.shadowRoot!.getElementById("app") as HTMLCanvasElement;
+    // TODO: somehow touch controls for clipping
+    this.canvas.addEventListener("mousemove", (e) => {
+      const bound = this.canvas.getBoundingClientRect();
+      const relativeX = e.clientX - bound.x;
+      const relativeY = e.clientY - bound.y;
+      this.mousePos = [relativeX / bound.width * 2 - 1, relativeY / bound.height * (-2) + 1];
+    })
 
     try {
       // set up GL context
@@ -664,13 +673,16 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       this.gl.enable(this.gl.BLEND);
       this.gl.enable(this.gl.DEPTH_TEST);
       this.gl.enable(this.gl.CULL_FACE)
+      //this.gl.cullFace(this.gl.FRONT); // whoopsie my cube vertices are the wrong winding order... oh well
       this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
       this.gl.blendEquation(this.gl.FUNC_ADD);
       this.gl.bindVertexArray(this.clippingCube);
       this.gl.useProgram(this.clipping);
       this.camera.bindAsUniforms(this.gl, this.clipping);
+      this.gl.uniform2f(this.getUniformLocation("u_mouse_pos", this.clipping), ...this.mousePos);
       if (this.volume) {
-        this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMin).flat()));
+        const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
+        this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(aabb.flat()));
       }
       this.gl.drawArrays(this.gl.TRIANGLES, 0, cubeVertices.length / 3);
       this.gl.disable(this.gl.CULL_FACE);
@@ -708,7 +720,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     // bind volume
     if (this.volume) {
       const [min, maj] = this.volume.minMaj();
-      this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax).flat()));
+      const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
+      this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(aabb.flat()));
       this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.densityMultiplier);
       this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.densityMultiplier);
       this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.densityMultiplier))

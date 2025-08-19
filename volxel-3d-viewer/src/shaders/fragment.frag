@@ -40,10 +40,6 @@ uniform ivec2 u_res;
 
 uniform float u_stepsize;
 
-// Camera Info
-uniform mat4 camera_view;
-uniform mat4 camera_proj;
-
 // Shows ray intersection with AABB instead of volume
 uniform bool u_debugHits;
 uniform float u_sample_weight;
@@ -53,35 +49,8 @@ uniform vec3 u_light_dir;
 const vec3 light_col = vec3(2);
 const vec3 light_amb = vec3(0.6);
 
-
-struct Ray {
-    vec3 origin;
-    vec3 direction;
-};
-
 #include "utils.glsl"
 #include "random.glsl"
-
-// camera utils TODO: Uniforms and matrices could be optimized
-
-vec3 cameraWorldPos() {
-    mat4 invView = inverse(camera_view);
-    vec4 camWorld = invView * vec4(0, 0, 0, 1);
-    return camWorld.xyz / camWorld.w;
-}
-vec3 cameraWorldDir(vec2 ndcXY) {
-    mat4 invProj = inverse(camera_proj);
-    vec4 clipPos = vec4(ndcXY, -1.0, 1.0);
-
-    vec4 viewPosH = invProj * clipPos;
-    vec3 viewPos = viewPosH.xyz / viewPosH.w;
-
-    mat4 invView = inverse(camera_view);
-    vec4 worldPosH = invView * vec4(viewPos, 1.0);
-    vec3 worldPos = worldPosH.xyz / worldPosH.w;
-
-    return normalize(worldPos - cameraWorldPos());
-}
 
 Ray setup_world_ray(vec2 ss_position, int i) {
     float aspect = float(u_res.x) / float(u_res.y);
@@ -91,37 +60,6 @@ Ray setup_world_ray(vec2 ss_position, int i) {
     ss_position += vec2(x_offset, y_offset);
 
     return Ray(cameraWorldPos(), cameraWorldDir(ss_position));
-}
-
-bool ray_box_intersection(Ray ray, vec3 aabb[2], out vec2 near_far) {
-    vec3 inv_dir = 1.f / ray.direction;
-    vec3 lo = (aabb[0] - ray.origin) * inv_dir;
-    vec3 hi = (aabb[1] - ray.origin) * inv_dir;
-    vec3 tmin = min(lo, hi), tmax = max(lo, hi);
-    near_far.x = max(0.f, max(tmin.x, max(tmin.y, tmin.z)));
-    near_far.y = min(tmax.x, min(tmax.y, tmax.z));
-    return near_far.x <= near_far.y;
-}
-bool ray_box_intersection_positions(Ray ray, vec3 aabb[2], out vec3 hit_min, out vec3 hit_max) {
-    vec2 near_far;
-    if (!ray_box_intersection(ray, aabb, near_far)) return false;
-
-    // If ray starts inside the box
-    if (near_far.x < 0.0) {
-        hit_min = ray.origin;
-        hit_max = ray.origin + ray.direction * near_far.y;
-    } else {
-        hit_min = ray.origin + ray.direction * near_far.x;
-        hit_max = ray.origin + ray.direction * near_far.y;
-    }
-
-    return true;
-}
-
-// Converts from world space positions to interpolated positions inside AABB,
-// used to sample 3D volumetric data
-vec3 world_to_aabb(vec3 world, vec3 aabb[2]) {
-    return (world - aabb[0]) / (aabb[1] - aabb[0]);
 }
 
 float map_to_range(float x, vec2 range) {
@@ -273,7 +211,7 @@ float transmittanceDDA(Ray ray, inout uint seed) {
 // DDA-based volume sampling
 bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout uint seed) {
     vec2 near_far;
-    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) false;
+    if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return false;
 
     // in index space
     vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1.0));

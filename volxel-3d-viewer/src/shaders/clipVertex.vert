@@ -4,16 +4,20 @@ precision highp float;
 
 in vec4 a_position;
 
-// Camera Info
-uniform mat4 camera_view;
-uniform mat4 camera_proj;
+#include "utils.glsl"
 
 // AABB info
 uniform vec3 u_volume_aabb[2];
 
+out float cursorDistance;
+out vec3 worldPos;
+out vec4 debugFragment;
+
 void main() {
+    vec3 aabb[2] = u_volume_aabb;
     // TODO: this is all a bit whack
-    vec4 relativePos = a_position - 1.0;
-    vec3 inAabbPos = u_volume_aabb[0] + relativePos.xyz * u_volume_aabb[1];
-    gl_Position = camera_proj * camera_view * vec4(inAabbPos, 1);
+    vec4 relativePos = a_position * 0.5 + 0.5;
+    worldPos = relativePos.xyz * (aabb[1] - aabb[0]) + aabb[0];
+    vec4 viewPos = camera_view * vec4(worldPos, 1);
+    gl_Position = camera_proj * viewPos;
 }
