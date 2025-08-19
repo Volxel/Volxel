@@ -3,10 +3,7 @@ import * as wasm from "@volxel/dicom_preprocessor";
 
 export {}
 
-console.log("before wasm.init()")
 wasm.init()
-console.log("after wasm.init()")
-
 function buildFromBytesAndReturn(bytes: Uint8Array[]) {
     const grid = wasm.read_dicoms_to_grid(bytes);
     const indirection = grid.indirection_data();

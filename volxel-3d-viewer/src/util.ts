@@ -1,4 +1,5 @@
-import {Vector2} from "math.gl";
+import {Vector2, Vector3, Vector4} from "math.gl";
+import {Camera} from "./scene";
 
 export function css(strings: TemplateStringsArray, ...props: any[]) {
     let string = "";
@@ -79,6 +80,7 @@ export function setupPanningListeners(element: HTMLElement, onPan: (by: Vector2)
     }
 
     element.addEventListener("mousedown", e => {
+        if (e.button !== 0) return;
         e.preventDefault()
         document.addEventListener("mousemove", mouseMoveListener);
         document.addEventListener("mouseup", stop);
@@ -114,4 +116,55 @@ export function setupPanningListeners(element: HTMLElement, onPan: (by: Vector2)
             e.preventDefault();
         }
     })
+}
+
+export type Ray = {
+    origin: Vector3,
+    direction: Vector3
+}
+// ray box for cpu side world mouse pos
+export function rayBoxIntersection(ray: Ray, aabb: [Vector3, Vector3], nearFar: Vector2): boolean {
+    const invDir = new Vector3(1, 1, 1).divide(ray.direction)
+    const lo = aabb[0].clone().subtract(ray.origin).multiply(invDir);
+    const hi = aabb[1].clone().subtract(ray.origin).multiply(invDir);
+    const tmin = lo.clone().min(hi);
+    const tmax = lo.clone().max(hi);
+    nearFar.x = Math.max(0, Math.max(tmin.x, Math.max(tmin.y, tmin.z)));
+    nearFar.y = Math.min(tmax.x, Math.min(tmax.y, tmax.z));
+    return nearFar.x <= nearFar.y;
+}
+export function rayBoxIntersectionPositions(ray: Ray, aabb: [Vector3, Vector3]): [hitMin: Vector3, hitMax: Vector3] | null {
+    const nearFar = new Vector2();
+    if (!rayBoxIntersection(ray, aabb, nearFar)) return null;
+
+    const hitMin = new Vector3();
+    const hitMax = new Vector3();
+
+    if (nearFar.x < 0) {
+        hitMin.copy(ray.origin);
+        hitMax.copy(ray.origin.clone().add(ray.direction.clone().multiplyByScalar(nearFar.y)))
+    } else {
+        hitMin.copy(ray.origin.clone().add(ray.direction.clone().multiplyByScalar(nearFar.x)))
+        hitMax.copy(ray.origin.clone().add(ray.direction.clone().multiplyByScalar(nearFar.y)))
+    }
+
+    return [hitMin, hitMax];
+}
+export function worldRay(gl: WebGLRenderingContext, camera: Camera, [x, y]: [number, number]): Ray {
+    const invProj = camera.projMatrix(gl.canvas.width / gl.canvas.height).invert();
+    const clipPos = new Vector4(x, y, 0, 1);
+
+    const viewPosH = clipPos.transform(invProj);
+    const viewPos = new Vector3(viewPosH.x, viewPosH.y, viewPosH.z).multiplyByScalar(1/viewPosH.w);
+
+    const invView = camera.viewMatrix().invert();
+    const worldPosH = new Vector4(viewPos.x, viewPos.y, viewPos.z, 1.0).transform(invView);
+    const worldPos = new Vector3(worldPosH.x, worldPosH.y, worldPosH.z).multiplyByScalar(1/worldPosH.w);
+
+    const dir = worldPos.subtract(camera.pos).normalize();
+
+    return {
+        origin: camera.pos,
+        direction: dir
+    }
 }

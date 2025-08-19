@@ -10,7 +10,7 @@ import {ColorRampComponent} from "./elements/colorramp";
 import {HistogramViewer} from "./elements/histogramViewer";
 import {Volume} from "./representation/volume";
 import {Matrix4, Vector3} from "math.gl";
-import {setupPanningListeners} from "./util";
+import {rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
 import {UnitCubeDisplay} from "./elements/cubeDirection";
 import {volxelStyles, volxelTemplate} from "./template";
 import {
@@ -633,40 +633,50 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       this.resolutionFactor = 1.0;
       this.resizeFramebuffersToCanvas();
     }
-    if (!this.suspend && this.frameIndex < this.maxSamples) {
+    if (!this.suspend) {
+      let current_pong = this.framebufferPingPong;
       // bind Quad VAO for raytracing shaders
       this.gl.bindVertexArray(this.quad);
+      if (this.frameIndex < this.maxSamples) {
+        this.gl.disable(this.gl.DEPTH_TEST);
+        const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
+        // -- Render into Framebuffer --
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
+        this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
+        // Set up viewport size, since canvas size can change
+        this.gl.viewport(0, 0, this.resolutionFactor * this.gl.canvas.width, this.resolutionFactor * this.gl.canvas.height);
 
-      this.gl.disable(this.gl.DEPTH_TEST);
-      const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
-      // -- Render into Framebuffer --
-      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
-      this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
-      // Set up viewport size, since canvas size can change
-      this.gl.viewport(0, 0, this.resolutionFactor * this.gl.canvas.width, this.resolutionFactor * this.gl.canvas.height);
+        // Clear stuff
+        this.gl.clearColor(1, 0, 0, 1);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
-      // Clear stuff
-      this.gl.clearColor(1, 0, 0, 1);
-      this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        // Execute this.program
+        this.gl.useProgram(this.program);
+        this.bindUniforms(previous_pong);
+        this.camera.bindAsUniforms(this.gl, this.program);
+        this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+        this.gl.finish()
 
-      // Execute this.program
-      this.gl.useProgram(this.program);
-      this.bindUniforms(previous_pong);
-      this.camera.bindAsUniforms(this.gl, this.program);
-      this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+        // -- Render to canvas --
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
-      // -- Render to canvas --
-      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+        // ping pong
+        current_pong = this.framebufferPingPong;
+        this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
+        this.frameIndex++;
+
+        this.classList.remove("restarting");
+      }
       this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
       // Clear stuff
-      this.gl.clearColor(0, 0, 0, 0);
+      this.gl.clearColor(0, 0, 1, 1);
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
       this.gl.useProgram(this.blit);
-      this.gl.activeTexture(this.gl.TEXTURE0 + 2 + this.framebufferPingPong);
-      this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[this.framebufferPingPong].target);
-      this.gl.uniform1i(this.getUniformLocation("u_result", this.blit), 2 + this.framebufferPingPong);
+      this.gl.activeTexture(this.gl.TEXTURE0 + 2 + current_pong);
+      this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[current_pong].target);
+      this.gl.uniform1i(this.getUniformLocation("u_result", this.blit), 2 + current_pong);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
       // render clipping controls
@@ -679,19 +689,16 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       this.gl.bindVertexArray(this.clippingCube);
       this.gl.useProgram(this.clipping);
       this.camera.bindAsUniforms(this.gl, this.clipping);
-      this.gl.uniform2f(this.getUniformLocation("u_mouse_pos", this.clipping), ...this.mousePos);
       if (this.volume) {
         const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
+        const [hitMin] = rayBoxIntersectionPositions(worldRay(this.gl, this.camera, this.mousePos), aabb) ?? [Vector3.ZERO];
+        this.gl.uniform3f(this.getUniformLocation("u_mouse_pos_world", this.clipping), hitMin.x, hitMin.y, hitMin.z);
         this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(aabb.flat()));
       }
       this.gl.drawArrays(this.gl.TRIANGLES, 0, cubeVertices.length / 3);
       this.gl.disable(this.gl.CULL_FACE);
-
-      // ping pong
-      this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
-      this.frameIndex++;
-
-      this.classList.remove("restarting");
+      this.gl.disable(this.gl.DEPTH_TEST)
+      this.gl.finish()
     }
 
     requestAnimationFrame(this.render);
