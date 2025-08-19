@@ -109,6 +109,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private densityMultiplier = 1;
   private maxSamples = 1000;
   private debugHits = false;
+  private volumeClipMin = new Vector3(0, 0, 0);
+  private volumeClipMax = new Vector3(1, 1, 1);
 
   // input elements
   private histogram: HistogramViewer | undefined;
@@ -659,8 +661,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     // bind volume
     if (this.volume) {
       const [min, maj] = this.volume.minMaj();
-      const aabb = this.volume.aabb();
-      this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(aabb.flat()));
+      const [aabbMin, aabbMax] = this.volume.aabb();
+      const aabbClippedMin = aabbMin.clone().add(new Vector3().set(aabbMax.x, aabbMax.y, aabbMax.z).subtract(aabbMin).multiply(this.volumeClipMin))
+      const aabbClippedMax = aabbMin.clone().add(new Vector3().set(aabbMax.x, aabbMax.y, aabbMax.z).subtract(aabbMin).multiply(this.volumeClipMax))
+      this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array([aabbClippedMin, aabbClippedMax].flat()));
       this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.densityMultiplier);
       this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.densityMultiplier);
       this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.densityMultiplier))
