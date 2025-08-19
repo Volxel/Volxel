@@ -1,9 +1,11 @@
 import vertexShader from "./shaders/vertex.vert"
 import fragmentShader from "./shaders/fragment.frag"
 import blitShader from "./shaders/blit.frag"
+import clipVertexShader from "./shaders/clipVertex.vert";
+import clipFragmentShader from "./shaders/clipFragment.frag";
 import {Camera} from "./scene";
 
-import {ColorStop, generateTransferFunction, loadTransferFunction} from "./data";
+import {ColorStop, cubeVertices, generateTransferFunction, loadTransferFunction} from "./data";
 import {ColorRampComponent} from "./elements/colorramp";
 import {HistogramViewer} from "./elements/histogramViewer";
 import {Volume} from "./representation/volume";
@@ -91,6 +93,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private gl: WebGL2RenderingContext | undefined;
   private program: WebGLProgram | undefined;
   private blit: WebGLProgram | undefined;
+  private clipping: WebGLProgram | undefined;
 
   private framebuffers: Framebuffer[] = [];
   private framebufferPingPong: number = 0;
@@ -125,6 +128,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private densityScale: number = 1;
   private volume: Volume | null = null;
 
+  // meshes
+  private quad: WebGLVertexArrayObject | undefined
+  private clippingCube: WebGLVertexArrayObject | undefined
+
   public constructor() {
     // static initialization
     if (!initialized) {
@@ -154,6 +161,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       const floatExtension = gl.getExtension("EXT_color_buffer_float");
       if (!floatExtension) throw new Error("EXT_color_buffer_float extension not available, can't render to float target");
 
+      // check for blending extension
+      const blendingExtension = gl.getExtension("EXT_float_blend");
+      if (!blendingExtension) throw new Error("EXT_float_blend extension not available, can't render clipping controls")
+
       // Set up main shaders
       const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
       const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
@@ -162,6 +173,11 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       // Set up blit shaders
       const blit = createShader(gl, gl.FRAGMENT_SHADER, blitShader);
       this.blit = createProgram(gl, vertex, blit);
+
+      // Set up clipping controls shader
+      const clipVertex = createShader(gl, gl.VERTEX_SHADER, clipVertexShader);
+      const clipFragment = createShader(gl, gl.FRAGMENT_SHADER, clipFragmentShader);
+      this.clipping = createProgram(gl, clipVertex, clipFragment);
 
       // Prepare framebuffers for ping pong rendering
       for (let i = 0; i < 2; i++) {
@@ -194,19 +210,32 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       }
 
-      // Prepare data for drawing
+      // Prepare data for drawing step 1: Quad
       // -- Fetch Attribute location from Program
-      const positionAttribute = gl.getAttribLocation(this.program, "a_position");
+      let positionAttribute = gl.getAttribLocation(this.program, "a_position");
       if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in vertex shader");
       // -- Create and prepare Data in Buffer
-      const positionBuffer = gl.createBuffer();
+      let positionBuffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, -1, 1, 1, -1, 1, 1, -1,]), gl.STATIC_DRAW);
       // -- Create and configure Vertex Array Object
-      const vao = gl.createVertexArray();
-      gl.bindVertexArray(vao);
+      this.quad = gl.createVertexArray();
+      gl.bindVertexArray(this.quad);
       gl.enableVertexAttribArray(positionAttribute);
       gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
+      // Prepare data for drawing step 2: Cube
+      // -- Fetch Attribute location from Program
+      positionAttribute = gl.getAttribLocation(this.clipping, "a_position");
+      if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in clipping vertex shader");
+      // -- Create and prepare Data in Buffer
+      positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
+      // -- Create and configure Vertex Array Object
+      this.clippingCube = gl.createVertexArray();
+      gl.bindVertexArray(this.clippingCube);
+      gl.enableVertexAttribArray(positionAttribute);
+      gl.vertexAttribPointer(positionAttribute, 3, gl.FLOAT, false, 0, 0);
 
       // Setup transfer function
       this.transfer = this.gl.createTexture();
@@ -247,7 +276,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       // TODO: Initial data somehow?
 
       // Setup camera
-      this.camera = new Camera(1, this.getUniformLocation("camera_view"), this.getUniformLocation("camera_proj"))
+      this.camera = new Camera(1)
 
       // Prepare automatic resizing of canvas
       const resizeObserver = new ResizeObserver((entries) => {
@@ -590,12 +619,15 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   }
 
   private render = () => {
-    if (!this.gl || !this.program || !this.blit || !this.camera) throw new Error("Trying to render without GL context initialized.")
+    if (!this.gl || !this.program || !this.blit || !this.clipping || !this.camera || !this.quad || !this.clippingCube) throw new Error("Trying to render without GL context initialized.")
     if (this.frameIndex >= this.lowResolutionDuration && this.resolutionFactor !== 1.0) {
       this.resolutionFactor = 1.0;
       this.resizeFramebuffersToCanvas();
     }
     if (!this.suspend && this.frameIndex < this.maxSamples) {
+      // bind Quad VAO for raytracing shaders
+      this.gl.bindVertexArray(this.quad);
+
       this.gl.disable(this.gl.DEPTH_TEST);
       const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
       // -- Render into Framebuffer --
@@ -611,7 +643,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       // Execute this.program
       this.gl.useProgram(this.program);
       this.bindUniforms(previous_pong);
-      this.camera.bindAsUniforms(this.gl);
+      this.camera.bindAsUniforms(this.gl, this.program);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
       // -- Render to canvas --
@@ -627,6 +659,21 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[this.framebufferPingPong].target);
       this.gl.uniform1i(this.getUniformLocation("u_result", this.blit), 2 + this.framebufferPingPong);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+
+      // render clipping controls
+      this.gl.enable(this.gl.BLEND);
+      this.gl.enable(this.gl.DEPTH_TEST);
+      this.gl.enable(this.gl.CULL_FACE)
+      this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+      this.gl.blendEquation(this.gl.FUNC_ADD);
+      this.gl.bindVertexArray(this.clippingCube);
+      this.gl.useProgram(this.clipping);
+      this.camera.bindAsUniforms(this.gl, this.clipping);
+      if (this.volume) {
+        this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMin).flat()));
+      }
+      this.gl.drawArrays(this.gl.TRIANGLES, 0, cubeVertices.length / 3);
+      this.gl.disable(this.gl.CULL_FACE);
 
       // ping pong
       this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
@@ -661,10 +708,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     // bind volume
     if (this.volume) {
       const [min, maj] = this.volume.minMaj();
-      const [aabbMin, aabbMax] = this.volume.aabb();
-      const aabbClippedMin = aabbMin.clone().add(new Vector3().set(aabbMax.x, aabbMax.y, aabbMax.z).subtract(aabbMin).multiply(this.volumeClipMin))
-      const aabbClippedMax = aabbMin.clone().add(new Vector3().set(aabbMax.x, aabbMax.y, aabbMax.z).subtract(aabbMin).multiply(this.volumeClipMax))
-      this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array([aabbClippedMin, aabbClippedMax].flat()));
+      this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax).flat()));
       this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.densityMultiplier);
       this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.densityMultiplier);
       this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.densityMultiplier))

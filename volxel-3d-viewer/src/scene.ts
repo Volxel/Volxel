@@ -7,9 +7,7 @@ export class Camera {
   pitch: number = 0;
   static up: Vector3 = new Vector3(0, 1, 0);
 
-  constructor(distance: number,
-              private viewMatrixLoc: WebGLUniformLocation | null,
-              private projMatrixLoc: WebGLUniformLocation | null) {
+  constructor(distance: number) {
     this.view = new Vector3();
     this.pos = new Vector3(0, 0, distance);
   }
@@ -52,7 +50,7 @@ export class Camera {
     this.view = this.view.add(by);
   }
 
-  bindAsUniforms(gl: WebGL2RenderingContext) {
+  bindAsUniforms(gl: WebGL2RenderingContext, program: WebGLProgram) {
     const view = new Matrix4().lookAt({
       eye: this.pos,
       center: this.view,
@@ -65,7 +63,7 @@ export class Camera {
       aspect: gl.canvas.width / gl.canvas.height
     })
 
-    gl.uniformMatrix4fv(this.viewMatrixLoc,  false, view)
-    gl.uniformMatrix4fv(this.projMatrixLoc, false, proj)
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, "camera_view"),  false, view)
+    gl.uniformMatrix4fv(gl.getUniformLocation(program, "camera_proj"), false, proj)
   }
 }

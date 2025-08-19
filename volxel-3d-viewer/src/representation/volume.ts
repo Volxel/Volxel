@@ -29,6 +29,12 @@ export class Volume {
         const wbb_max = this.toWorld(toTransform);
         return [new Vector3(wbb_min.x, wbb_min.y, wbb_min.z), new Vector3(wbb_max.x, wbb_max.y, wbb_max.z)];
     }
+    aabbClipped(min: Vector3, max: Vector3): [Vector3, Vector3] {
+        const [aabbMin, aabbMax] = this.aabb();
+        const aabbClippedMin = aabbMin.clone().add(new Vector3().set(aabbMax.x, aabbMax.y, aabbMax.z).subtract(aabbMin).multiply(min))
+        const aabbClippedMax = aabbMin.clone().add(new Vector3().set(aabbMax.x, aabbMax.y, aabbMax.z).subtract(aabbMin).multiply(max))
+        return [aabbClippedMin, aabbClippedMax]
+    }
     minMaj() {
         return this.grid.minMaj();
     }
