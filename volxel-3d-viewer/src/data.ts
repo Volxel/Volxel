@@ -151,3 +151,28 @@ export const cubeVertices = new Float32Array([
     -0.5, -0.5,  0.5,
 ].map(it => it * 2));
 export const cubeSideIndices = new Int32Array(new Array(cubeVertices.length / 3).fill(0).map((_, i) => Math.floor((i / (cubeVertices.length / 3)) * 6)))
+export const cubeBarycentrics = new Float32Array([
+    // --- Front (+Z) ---
+    1,0,0,  0,1,0,  0,0,1,
+    1,0,0,  0,1,0,  0,0,1,
+
+    // --- Back (-Z) ---
+    1,0,0,  0,1,0,  0,0,1,
+    1,0,0,  0,1,0,  0,0,1,
+
+    // --- Left (-X) ---
+    1,0,0,  0,1,0,  0,0,1,
+    1,0,0,  0,1,0,  0,0,1,
+
+    // --- Right (+X) ---
+    1,0,0,  0,1,0,  0,0,1,
+    1,0,0,  0,1,0,  0,0,1,
+
+    // --- Top (+Y) ---
+    1,0,0,  0,1,0,  0,0,1,
+    1,0,0,  0,1,0,  0,0,1,
+
+    // --- Bottom (-Y) ---
+    1,0,0,  0,1,0,  0,0,1,
+    1,0,0,  0,1,0,  0,0,1,
+])

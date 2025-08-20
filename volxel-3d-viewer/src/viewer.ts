@@ -5,7 +5,14 @@ import clipVertexShader from "./shaders/clipVertex.vert";
 import clipFragmentShader from "./shaders/clipFragment.frag";
 import {Camera} from "./scene";
 
-import {ColorStop, cubeSideIndices, cubeVertices, generateTransferFunction, loadTransferFunction} from "./data";
+import {
+    ColorStop,
+    cubeBarycentrics,
+    cubeSideIndices,
+    cubeVertices,
+    generateTransferFunction,
+    loadTransferFunction
+} from "./data";
 import {ColorRampComponent} from "./elements/colorramp";
 import {HistogramViewer} from "./elements/histogramViewer";
 import {Volume} from "./representation/volume";
@@ -263,6 +270,15 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             if (sideIndexAttribute < 0) throw new Error("Failed to find `sideIndex` attribute in clipping vertex shader");
             gl.enableVertexAttribArray(sideIndexAttribute);
             gl.vertexAttribIPointer(sideIndexAttribute, 1, gl.INT, 0, 0);
+            // -- Create and prepare barycentrics data for cube
+            const baryBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, baryBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, cubeBarycentrics, gl.STATIC_DRAW)
+            // -- bind barycentrics data
+            const barycentricsAttribute = gl.getAttribLocation(this.clipping, "a_barycentrics");
+            if (barycentricsAttribute < 0) throw new Error("Failed to find `a_barycentrics` attribute in clipping vertex shader");
+            gl.enableVertexAttribArray(barycentricsAttribute);
+            gl.vertexAttribPointer(barycentricsAttribute, 3, gl.FLOAT, false, 0, 0);
 
             // Setup transfer function
             this.transfer = this.gl.createTexture();

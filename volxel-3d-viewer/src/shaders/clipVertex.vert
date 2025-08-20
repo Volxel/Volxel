@@ -3,6 +3,7 @@
 precision highp float;
 
 in vec4 a_position;
+in vec4 a_barycentrics;
 in int a_sideIndex;
 
 #include "utils.glsl"
@@ -11,15 +12,15 @@ in int a_sideIndex;
 uniform vec3 u_volume_aabb[2];
 uniform int u_selected_face;
 
-out float cursorDistance;
-out vec3 worldPos;
 out vec4 debugFragment;
+out vec3 barycentrics;
 flat out int selection;
 
 void main() {
+    barycentrics = a_barycentrics.xyz;
     vec3 aabb[2] = u_volume_aabb;
     vec4 relativePos = a_position * 0.5 + 0.5;
-    worldPos = relativePos.xyz * (aabb[1] - aabb[0]) + aabb[0];
+    vec3 worldPos = relativePos.xyz * (aabb[1] - aabb[0]) + aabb[0];
     vec4 viewPos = camera_view * vec4(worldPos, 1);
     gl_Position = camera_proj * viewPos;
 
