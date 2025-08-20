@@ -121,7 +121,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private volumeClipMin = new Vector3(0, 0, 0);
     private volumeClipMax = new Vector3(1, 1, 1);
     // used for clipping controls
-    private mousePos: [number, number] = [0, 0];
+    private mousePos: [number, number] | null = null;
     private adjustingClipping: boolean = false;
 
     // input elements
@@ -166,6 +166,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             const relativeY = e.clientY - bound.y;
             this.mousePos = [relativeX / bound.width * 2 - 1, relativeY / bound.height * (-2) + 1];
         })
+        this.canvas.addEventListener("mouseleave", () => this.mousePos = null)
 
         try {
             // set up GL context
@@ -793,6 +794,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     private currentCubeFace(aabb = this.volume!.aabbClipped(this.volumeClipMin, this.volumeClipMax)) {
         if (this.adjustingClipping) return this.lastCurrentCubeFace;
+        if (!this.mousePos) return null;
         const [hitMin] = rayBoxIntersectionPositions(worldRay(this.gl!, this.camera!, this.mousePos), aabb) ?? [null];
         this.lastWorldPos = hitMin;
         return this.lastCurrentCubeFace = cubeFace(aabb, hitMin);
@@ -819,7 +821,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     private getNewClosestToCubeFaceLine(): Vector3 | null {
         const cubeLine = this.currentCubeFaceLine();
-        if (!cubeLine) return null;
+        if (!cubeLine || !this.mousePos) return null;
         const cameraLine = worldRay(this.gl!, this.camera!, this.mousePos);
 
         const [pOnCubeLine] = closestPoints(cubeLine, cameraLine) ?? [null]
