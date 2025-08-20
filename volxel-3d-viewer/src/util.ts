@@ -227,7 +227,7 @@ export function cubeFace([min, max]: [Vector3, Vector3], pos: Vector3 | undefine
     if (nearlyEqual(clamped.y, max.y)) candidates.push(4); // top
     if (nearlyEqual(clamped.y, min.y)) candidates.push(5); // bottom
 
-    if (candidates.length < 1) throw new Error("World pos was not on cube")
+    if (candidates.length < 1) return null;
     // pick the candidate face with smallest perpendicular distance
     let bestIndex = candidates[0];
     for (let i = 1; i < candidates.length; i++) {
@@ -235,4 +235,24 @@ export function cubeFace([min, max]: [Vector3, Vector3], pos: Vector3 | undefine
         if (dists[idx] < dists[bestIndex]) bestIndex = idx;
     }
     return bestIndex;
+}
+export function closestPoints(l1: Ray, l2: Ray): [pOn1: Vector3, pOn2: Vector3] | null {
+    const r = l1.origin.clone().subtract(l2.origin);
+    const a = l1.direction.dot(l1.direction);
+    const b = l1.direction.dot(l2.direction);
+    const c = l2.direction.dot(l2.direction);
+    const d = l1.direction.dot(r);
+    const e = l2.direction.dot(r);
+
+    const denom = a * c - b * b;
+    let t: number, u: number;
+
+    if (Math.abs(denom) > 1e-8) {
+        t = (b * e - c * d) / denom;
+        u = (a * e - b * d) / denom;
+    } else return null;
+
+    const pOn1 = l1.origin.clone().add(l1.direction.clone().multiplyByScalar(t))
+    const pOn2 = l2.origin.clone().add(l2.direction.clone().multiplyByScalar(u))
+    return [pOn1, pOn2];
 }
