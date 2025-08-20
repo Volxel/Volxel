@@ -5,12 +5,12 @@ import clipVertexShader from "./shaders/clipVertex.vert";
 import clipFragmentShader from "./shaders/clipFragment.frag";
 import {Camera} from "./scene";
 
-import {ColorStop, cubeVertices, generateTransferFunction, loadTransferFunction} from "./data";
+import {ColorStop, cubeSideIndices, cubeVertices, generateTransferFunction, loadTransferFunction} from "./data";
 import {ColorRampComponent} from "./elements/colorramp";
 import {HistogramViewer} from "./elements/histogramViewer";
 import {Volume} from "./representation/volume";
 import {Matrix4, Vector3} from "math.gl";
-import {rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
+import {cubeFace, rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
 import {UnitCubeDisplay} from "./elements/cubeDirection";
 import {volxelStyles, volxelTemplate} from "./template";
 import {
@@ -116,6 +116,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
   private volumeClipMax = new Vector3(1, 1, 1);
   // used for clipping controls
   private mousePos: [number, number] = [0, 0];
+  private adjustingClipping: boolean = false;
 
   // input elements
   private histogram: HistogramViewer | undefined;
@@ -232,19 +233,29 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       gl.bindVertexArray(this.quad);
       gl.enableVertexAttribArray(positionAttribute);
       gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
+
       // Prepare data for drawing step 2: Cube
-      // -- Fetch Attribute location from Program
-      positionAttribute = gl.getAttribLocation(this.clipping, "a_position");
-      if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in clipping vertex shader");
-      // -- Create and prepare Data in Buffer
-      positionBuffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
       // -- Create and configure Vertex Array Object
       this.clippingCube = gl.createVertexArray();
       gl.bindVertexArray(this.clippingCube);
+      // -- Create and prepare cube face position Data in Buffer
+      positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
+      // -- Bind position data
+      positionAttribute = gl.getAttribLocation(this.clipping, "a_position");
+      if (positionAttribute < 0) throw new Error("Failed to find `a_position` attribute in clipping vertex shader");
       gl.enableVertexAttribArray(positionAttribute);
       gl.vertexAttribPointer(positionAttribute, 3, gl.FLOAT, false, 0, 0);
+      // -- Create and prepare side index data for cube
+      const sideIndexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, sideIndexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, cubeSideIndices, gl.STATIC_DRAW);
+      // -- Bind side index data
+      const sideIndexAttribute = gl.getAttribLocation(this.clipping, "a_sideIndex");
+      if (sideIndexAttribute < 0) throw new Error("Failed to find `sideIndex` attribute in clipping vertex shader");
+      gl.enableVertexAttribArray(sideIndexAttribute);
+      gl.vertexAttribIPointer(sideIndexAttribute, 1, gl.INT, 0, 0);
 
       // Setup transfer function
       this.transfer = this.gl.createTexture();
@@ -310,9 +321,11 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       resizeObserver.observe(this.canvas);
 
       // Prepare inputs
-      setupPanningListeners(this.canvas, (by) => {
+      setupPanningListeners(this.canvas, (by, right) => {
         this.restartRendering(() => {
-          this.camera?.rotateAroundView(by);
+          if (!right) {
+            this.camera?.rotateAroundView(by);
+          }
         })
       }, (by) => {
         return this.restartRendering(() => {
@@ -322,6 +335,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.restartRendering(() => {
           this.camera?.translateOnPlane(by);
         })
+      }, (right) => {
+        if (right) this.adjustingClipping = true;
+      }, (right) => {
+        if (right) this.adjustingClipping = false;
       });
 
       const samplesRangeInput = this.shadowRoot!.getElementById("samples") as HTMLInputElement;
@@ -691,9 +708,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
       this.camera.bindAsUniforms(this.gl, this.clipping);
       if (this.volume) {
         const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
-        const [hitMin] = rayBoxIntersectionPositions(worldRay(this.gl, this.camera, this.mousePos), aabb) ?? [Vector3.ZERO];
-        this.gl.uniform3f(this.getUniformLocation("u_mouse_pos_world", this.clipping), hitMin.x, hitMin.y, hitMin.z);
+        const face = this.currentCubeFace(aabb);
         this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(aabb.flat()));
+        this.gl.uniform1i(this.getUniformLocation("u_selected_face", this.clipping), (typeof face === "number" ? face + 1 : 0) * (this.adjustingClipping ? -1 : 1))
       }
       this.gl.drawArrays(this.gl.TRIANGLES, 0, cubeVertices.length / 3);
       this.gl.disable(this.gl.CULL_FACE);
@@ -756,6 +773,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.debugHits ? 1 : 0);
 
     this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < this.lowResolutionDuration ? 0 : (this.frameIndex - this.lowResolutionDuration) / (this.frameIndex - this.lowResolutionDuration + 1));
+  }
+
+  private lastCurrentCubeFace: number | null = null;
+  private currentCubeFace(aabb = this.volume!.aabbClipped(this.volumeClipMin, this.volumeClipMax)) {
+    if (this.adjustingClipping) return this.lastCurrentCubeFace;
+    const [hitMin] = rayBoxIntersectionPositions(worldRay(this.gl!, this.camera!, this.mousePos), aabb) ?? [];
+    return this.lastCurrentCubeFace = cubeFace(aabb, hitMin);
   }
 }
 

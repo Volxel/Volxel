@@ -7,6 +7,7 @@ out vec4 out_color;
 in float cursorDistance;
 in vec4 debugFragment;
 in vec3 worldPos;
+flat in int selection;
 
 uniform vec3 u_volume_aabb[2];
 uniform vec3 u_mouse_pos_world;
@@ -14,16 +15,10 @@ uniform vec3 u_mouse_pos_world;
 #include "utils.glsl"
 
 void main() {
-    vec3 worldDir = normalize(worldPos - cameraWorldPos());
+    if (selection == 0) discard;
+    else if (selection == 1) out_color = vec4(0.8, 0.8, 0.2, 0.5);
+    else if (selection == -1) out_color = vec4(0.8, 0.8, 0.2, 0.8);
+    else out_color = vec4(1, 1, 0, 1);
 
-    Ray cursorRay = Ray(cameraWorldPos(), worldDir);
-    vec3 viewHit, tmp;
-    float d;
-    if (
-        ray_box_intersection_positions(cursorRay, u_volume_aabb, viewHit, tmp) &&
-        length(u_mouse_pos_world) > 0.0 &&
-        (d = distance(viewHit, u_mouse_pos_world)) < 0.1
-    ) {
-        out_color = vec4(pow(1.0 - d / 0.1, 0.5));
-    }
+    if (length(debugFragment) > 0.0) out_color = debugFragment;
 }
