@@ -2,7 +2,14 @@
 An open source volumetric renderer for the Browser. Also my bachelor's thesis.
 
 ## Status
-Currently, it shows a volumetric sinusoid in white, in front of a blue background.
+
+The basic User Interface and functionality is implemented. You can head over to https://volxel.github.io/Volxel
+and upload your own folder containing DICOM images.
+
+You can also clip the volume to look at specific parts of it.
+
+The UI is still rough around the edges and load times may be very long (in excess of 2 minutes).
+
 ## Development
 
 1. Install PNPM (https://pnpm.io)
