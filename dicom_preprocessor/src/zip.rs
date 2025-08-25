@@ -1,6 +1,5 @@
-use crate::utils::log_to_console;
 use js_sys::Uint8Array;
-use std::io::{BufRead, BufReader, Cursor, Read};
+use std::io::{Cursor, Read};
 use std::path::PathBuf;
 use wasm_bindgen::prelude::wasm_bindgen;
 
