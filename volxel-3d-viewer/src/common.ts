@@ -2,6 +2,7 @@ export enum WasmWorkerMessageType {
     LOAD_FROM_URLS = "urls",
     LOAD_FROM_FILES = "files",
     LOAD_FROM_ZIP = "zip",
+    LOAD_FROM_ZIP_URL = "zip_url",
     LOAD_FROM_BYTES = "bytes",
     RETURN = "return",
     ERROR = "error",
@@ -20,6 +21,10 @@ export type WasmWorkerMessageFiles = {
 export type WasmWorkerMessageZip = {
     type: WasmWorkerMessageType.LOAD_FROM_ZIP;
     zip: File
+}
+export type WasmWorkerMessageZipUrl = {
+    type: WasmWorkerMessageType.LOAD_FROM_ZIP_URL;
+    zipUrl: string
 }
 
 export type WasmWorkerMessageBytes = {
@@ -56,4 +61,4 @@ export type WasmWorkerMessageInit = {
     type: WasmWorkerMessageType.INIT;
 }
 
-export type WasmWorkerMessage = WasmWorkerMessageUrls | WasmWorkerMessageFiles | WasmWorkerMessageZip | WasmWorkerMessageBytes | WasmWorkerMessageReturn | WasmWorkerMessageError | WasmWorkerMessageInit;
+export type WasmWorkerMessage = WasmWorkerMessageUrls | WasmWorkerMessageFiles | WasmWorkerMessageZip | WasmWorkerMessageZipUrl | WasmWorkerMessageBytes | WasmWorkerMessageReturn | WasmWorkerMessageError | WasmWorkerMessageInit;

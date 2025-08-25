@@ -45,6 +45,36 @@ function buildFromBytesAndReturn(bytes: Uint8Array[]) {
         transfer: [indirection.buffer, atlas.buffer, transform.buffer, histogram.buffer, histogramGradient.buffer, ...rangeMipmaps.map(range => range.mipmap.buffer), range.buffer]
     })
 }
+function buildFromZipBytesAndReturn(zipBytes: Uint8Array) {
+    let zipResult: wasm.ZipReadResult;
+    try {
+        zipResult = wasm.read_zip_to_bytes(zipBytes);
+    } catch (e) {
+        const error = e as wasm.ZipReadError;
+        const type = error.error_type();
+        let typeMessage: string;
+        switch (type) {
+            case wasm.ZipReadErrorType.ExtractFailed: {
+                typeMessage = "Extraction failed"
+                break;
+            }
+            case wasm.ZipReadErrorType.NoFiles: {
+                typeMessage = "ZIP file empty"
+                break;
+            }
+            case wasm.ZipReadErrorType.MoreThanOneFolder: {
+                typeMessage = "More than one folder in ZIP file";
+                break;
+            }
+            default: {
+                typeMessage = "Unknown error occurred during ZIP extraction"
+            }
+        }
+        const message = error.message();
+        throw new Error(`${typeMessage}${message ? ": " + message : ""}`);
+    }
+    buildFromBytesAndReturn(zipResult.bytes())
+}
 
 self.onmessage = async (ev: MessageEvent<WasmWorkerMessage>) => {
     try {
@@ -65,34 +95,12 @@ self.onmessage = async (ev: MessageEvent<WasmWorkerMessage>) => {
             }
             case WasmWorkerMessageType.LOAD_FROM_ZIP: {
                 const zipBytes = new Uint8Array(await ev.data.zip.arrayBuffer());
-                let zipResult: wasm.ZipReadResult;
-                try {
-                    zipResult = wasm.read_zip_to_bytes(zipBytes);
-                } catch (e) {
-                    const error = e as wasm.ZipReadError;
-                    const type = error.error_type();
-                    let typeMessage: string;
-                    switch (type) {
-                        case wasm.ZipReadErrorType.ExtractFailed: {
-                            typeMessage = "Extraction failed"
-                            break;
-                        }
-                        case wasm.ZipReadErrorType.NoFiles: {
-                            typeMessage = "ZIP file empty"
-                            break;
-                        }
-                        case wasm.ZipReadErrorType.MoreThanOneFolder: {
-                            typeMessage = "More than one folder in ZIP file";
-                            break;
-                        }
-                        default: {
-                            typeMessage = "Unknown error occurred during ZIP extraction"
-                        }
-                    }
-                    const message = error.message();
-                    throw new Error(`${typeMessage}${message ? ": " + message : ""}`);
-                }
-                buildFromBytesAndReturn(zipResult.bytes())
+                buildFromZipBytesAndReturn(zipBytes)
+                break;
+            }
+            case WasmWorkerMessageType.LOAD_FROM_ZIP_URL: {
+                const zipBytes = await (await fetch(ev.data.zipUrl)).bytes()
+                buildFromZipBytesAndReturn(zipBytes)
                 break;
             }
             case WasmWorkerMessageType.LOAD_FROM_URLS: {

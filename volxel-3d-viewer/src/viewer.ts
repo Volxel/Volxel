@@ -25,7 +25,7 @@ import {
     WasmWorkerMessageFiles,
     WasmWorkerMessageReturn,
     WasmWorkerMessageType,
-    WasmWorkerMessageUrls, WasmWorkerMessageZip
+    WasmWorkerMessageUrls, WasmWorkerMessageZip, WasmWorkerMessageZipUrl
 } from "./common";
 
 import DicomWorker from "./worker?worker&inline"
@@ -95,7 +95,7 @@ let initialized: boolean = false;
 let template: HTMLTemplateElement | null = null;
 
 export class Volxel3DDicomRenderer extends HTMLElement {
-    public static readonly observedAttributes = ["data-urls"]
+    public static readonly observedAttributes = ["data-urls", "data-zip-url"]
 
     private worker = new DicomWorker()
     private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
@@ -472,24 +472,26 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     public async attributesChangedCallback(name: string) {
-        if (name === "data-urls") {
+        if (name === "data-urls" || name === "data-zip-url") {
             await this.restartFromAttributes()
         }
     }
 
     private async restartFromAttributes() {
         const urls = this.getAttribute("data-urls")
-        if (urls) {
-            try {
+        const zipUrl = this.getAttribute("data-zip-url")
+        try {
+            if (zipUrl) {
+                await this.restartFromZipUrl(zipUrl);
+            } else if (urls) {
                 const parsed = JSON.parse(urls);
                 if (Array.isArray(parsed) && parsed.every(url => typeof url === "string")) {
                     await this.restartFromURLs(parsed);
                 }
-            } catch (e) {
-                console.error(this, "encountered error during startup from URLs", e)
-                this.classList.add("errored")
-                this.shadowRoot!.getElementById("error")!.innerText = e instanceof Error ? e.message : `${e}`;
             }
+        } catch (e) {
+            console.error(this, "encountered error during startup from URLs", e)
+            this.handleError(e);
         }
     }
 
@@ -551,6 +553,20 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 const message: WasmWorkerMessageZip = {
                     type: WasmWorkerMessageType.LOAD_FROM_ZIP,
                     zip
+                }
+                this.worker.postMessage(message)
+                this.setupWorkerListener(resolve)
+            })
+        })
+    }
+
+    public async restartFromZipUrl(url: string) {
+        await this.workerInitialized;
+        await this.restartRendering(async () => {
+            await new Promise<void>(resolve => {
+                const message: WasmWorkerMessageZipUrl = {
+                    type: WasmWorkerMessageType.LOAD_FROM_ZIP_URL,
+                    zipUrl: url
                 }
                 this.worker.postMessage(message)
                 this.setupWorkerListener(resolve)
