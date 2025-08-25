@@ -3,6 +3,7 @@ mod brick;
 mod buf3d;
 mod dicom;
 mod grid;
+mod zip;
 
 use dicom_core::Tag;
 use wasm_bindgen::prelude::*;

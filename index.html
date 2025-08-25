@@ -22,7 +22,7 @@
         list of file <abbr title="Uniform Resource Locator">URL</abbr>s via an attribute that the component will then
         use to fetch and display, which will be used from a Drupal module to load DICOM and display a collection of
         medical samples.</p>
-    <p>You can try this demo by selecting a folder containing Dicom images in the file select below.</p>
+    <p>You can try this demo by selecting a folder containing Dicom images in the file select below or by uploading a zip file containing DICOM images to the zip file select below.</p>
     <h2>Demo</h2>
     <div class="controls">
         <label>
@@ -33,6 +33,10 @@
         <label>
             Select DICOM Files
             <input type="file" name="dicom" id="dicom" webkitdirectory>
+        </label>
+        <label>
+            Select Zip File
+            <input type="file" name="dicom" id="dicom_zip" accept="application/zip, application/x-zip-compressed">
         </label>
     </div>
     <volxel-3d-viewer id="renderer"></volxel-3d-viewer>

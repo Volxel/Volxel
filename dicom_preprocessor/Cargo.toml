@@ -27,6 +27,8 @@ js-sys = "0.3.77"
 glam = "0.30.5"
 bytemuck = "1.23.2"
 half = "2.6.0" # TODO: Remove this once f16 is stable in Rust
+getrandom = { version = "0.3", features = ["wasm_js"] }
+zip = "4.5.0"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

@@ -26,3 +26,16 @@ dicomFileSelect.addEventListener("change", async () => {
     }
     renderer.restartFromFiles(files);
 })
+const dicomZipSelect = document.getElementById("dicom_zip") as HTMLInputElement;
+dicomZipSelect.addEventListener("change", async () => {
+    const files = dicomZipSelect.files;
+    if (!files) {
+        alert("no files selected");
+        return;
+    }
+    if (files.length !== 1) {
+        alert("more than one file selected")
+        return;
+    }
+    renderer.restartFromZip(files[0])
+})

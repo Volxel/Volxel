@@ -25,7 +25,7 @@ import {
     WasmWorkerMessageFiles,
     WasmWorkerMessageReturn,
     WasmWorkerMessageType,
-    WasmWorkerMessageUrls
+    WasmWorkerMessageUrls, WasmWorkerMessageZip
 } from "./common";
 
 import DicomWorker from "./worker?worker&inline"
@@ -462,6 +462,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.classList.add("errored")
         this.shadowRoot!.getElementById("error")!.innerText = e instanceof Error ? e.message : `${e}`;
     }
+    private clearError() {
+        this.classList.remove("errored");
+        this.shadowRoot!.getElementById("error")!.innerText = "";
+    }
 
     public async connectedCallback() {
         await this.restartFromAttributes()
@@ -540,6 +544,19 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             })
         })
     }
+    public async restartFromZip(zip: File) {
+        await this.workerInitialized;
+        await this.restartRendering(async () => {
+            await new Promise<void>(resolve => {
+                const message: WasmWorkerMessageZip = {
+                    type: WasmWorkerMessageType.LOAD_FROM_ZIP,
+                    zip
+                }
+                this.worker.postMessage(message)
+                this.setupWorkerListener(resolve)
+            })
+        })
+    }
 
     public async restartFromURLs(urls: string[]) {
         await this.workerInitialized;
@@ -565,7 +582,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 case WasmWorkerMessageType.ERROR: {
                     this.worker.removeEventListener("message", handler);
                     resolve()
-                    // TODO: display error somehow
+                    this.handleError(event.data.error)
                     break;
                 }
                 case WasmWorkerMessageType.RETURN: {
@@ -655,6 +672,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     private restartRendering<T>(action: () => T): T {
         this.classList.add("restarting");
+        this.clearError();
         this.suspend = true;
         const result = action();
         if (result instanceof Promise) {
