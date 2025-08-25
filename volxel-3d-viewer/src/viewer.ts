@@ -28,7 +28,11 @@ import {
     WasmWorkerMessageUrls, WasmWorkerMessageZip, WasmWorkerMessageZipUrl
 } from "./common";
 
-import DicomWorker from "./worker?worker&inline"
+declare global {
+    interface Window {
+        createDicomWorker(): Worker
+    }
+}
 
 // Most of this code is straight from https://webgl2fundamentals.org, except the resize observer
 
@@ -94,10 +98,14 @@ type Framebuffer = {
 let initialized: boolean = false;
 let template: HTMLTemplateElement | null = null;
 
+console.log("window create", window.createDicomWorker)
+
+let workerFactory: (() => Worker) | undefined = undefined;
+
 export class Volxel3DDicomRenderer extends HTMLElement {
     public static readonly observedAttributes = ["data-urls", "data-zip-url"]
 
-    private worker = new DicomWorker()
+    private worker = workerFactory!!()
     private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
         resolve();
     }))
@@ -922,7 +930,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 }
 
-customElements.define("color-ramp-component", ColorRampComponent);
-customElements.define("volxel-histogram-viewer", HistogramViewer);
-customElements.define("volxel-cube-direction", UnitCubeDisplay);
-customElements.define("volxel-3d-viewer", Volxel3DDicomRenderer);
+export function registerVolxelComponents(worker: () => Worker) {
+    workerFactory = worker;
+    customElements.define("color-ramp-component", ColorRampComponent);
+    customElements.define("volxel-histogram-viewer", HistogramViewer);
+    customElements.define("volxel-cube-direction", UnitCubeDisplay);
+    customElements.define("volxel-3d-viewer", Volxel3DDicomRenderer);
+}

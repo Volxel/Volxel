@@ -28,5 +28,8 @@ export default defineConfig({
             find: "@volxel/3d-viewer",
             replacement: resolve(__dirname, "./volxel-3d-viewer/src")
         }]
+    },
+    build: {
+        outDir: "Volxel"
     }
 })

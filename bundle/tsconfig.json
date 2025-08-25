@@ -13,7 +13,7 @@
   },
   "references": [
     {
-      "path": "../volxel-3d-viewer/tsconfig.json"
+      "path": "../volxel-3d-viewer"
     }
   ]
 }

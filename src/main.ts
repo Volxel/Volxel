@@ -1,6 +1,10 @@
 import "./index.css";
 
-import {dicomBasePaths, gridUrls, Volxel3DDicomRenderer} from "@volxel/3d-viewer";
+import ImportedWorker from "@volxel/3d-viewer/worker?worker"
+
+import {dicomBasePaths, gridUrls, registerVolxelComponents, Volxel3DDicomRenderer} from "@volxel/3d-viewer";
+
+registerVolxelComponents(() => new ImportedWorker())
 
 const renderer = document.getElementById("renderer") as Volxel3DDicomRenderer;
 

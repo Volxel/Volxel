@@ -26,3 +26,6 @@ public/Dicom
 
 # TS
 **/*.tsbuildinfo
+
+# Dist
+/Volxel
