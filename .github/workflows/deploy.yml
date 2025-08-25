@@ -46,6 +46,8 @@ jobs:
           cache-workspaces: "./dicom_preprocessor -> target"
       - name: Setup WASM Pack
         run: pnpm i -g wasm-pack
+      - name: Show Cargo dependencies
+        run: cd dicom_preprocessor && cargo tree -e features && cd ..
       - name: Build WASM binary
         run: wasm-pack build ./dicom_preprocessor
       - name: Install dependencies
