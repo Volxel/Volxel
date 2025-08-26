@@ -38,20 +38,29 @@ export class ColorRampComponent extends HTMLElement {
             }
             
             button.stopControl {
-                left: calc(3px + var(--temp-offset, var(--offset)) * (100% - 2 * 3px));
-                top: 1px;
-                bottom: 1px;
+                --width: 10px;
+                left: calc(6px + var(--temp-offset, var(--offset)) * (100% - 3px) - 0.5 * var(--width));
+                top: -2px;
+                bottom: -2px;
                 position: absolute;
                 appearance: none;
                 padding: 0;
                 margin: 0;
                 
                 box-sizing: border-box;
-                width: 4px;
+                width: var(--width);
                 transform: translateX(-50%);
-                border: 1px solid var(--inv);
-                background: none;
+                border: 2px solid white;
+                background: var(--color);
                 cursor: pointer;
+                box-shadow: 0 0 5px black;
+                
+                &:hover, &:focus-visible, &:active {
+                    top: -3px;
+                    bottom: -3px;
+                    outline: 1px solid var(--inv);
+                    box-shadow: 0 0 8px black;
+                }
             }
         `)
 
