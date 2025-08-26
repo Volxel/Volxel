@@ -66,7 +66,30 @@ export class ColorRampComponent extends HTMLElement {
 
         this.displayedColorDiv = document.createElement("div");
         this.displayedColorDiv.classList.toggle("displayedColor", true);
+        this.displayedColorDiv.addEventListener("click", (e) => {
+            const bounds = this.displayedColorDiv.getBoundingClientRect();
+            const relative = (e.clientX - bounds.left) / (bounds.width);
 
+            let stopBefore: ColorStop | undefined;
+            let stopAfter: ColorStop | undefined;
+            for (const stop of this.colors) {
+                if (stop.stop < relative) stopBefore = stop;
+                if (stop.stop > relative) stopAfter = stop;
+            }
+
+            const mappedRelativeProgress = (relative - (stopBefore?.stop ?? 0)) / ((stopAfter?.stop ?? 1) - (stopBefore?.stop ?? 0))
+
+            if (!stopBefore && !stopAfter) throw new Error("Initial stop placing not yet supported")
+            const fromColor = stopBefore?.color ?? stopAfter!.color;
+            const toColor = stopAfter?.color ?? stopBefore!.color;
+
+            const mixedColor: ColorStop["color"] = fromColor.map((c, i) => (1 - mappedRelativeProgress) * c + mappedRelativeProgress * toColor[i]) as ColorStop["color"];
+
+            this.colors = [...this.colors, {
+                color: mixedColor,
+                stop: relative
+            }]
+        })
         this.shadowRoot!.appendChild(this.displayedColorDiv);
 
         this.colorInput = document.createElement("input");
@@ -148,10 +171,15 @@ export class ColorRampComponent extends HTMLElement {
                 this.colorInput.addEventListener("input", onInput);
                 this.colorInput.click();
             });
+            stopControl.addEventListener("contextmenu", (e: MouseEvent) => {
+                e.preventDefault();
+                if (this.colors.length < 2) alert("Cannot delete last color stop")
+                else this.colors = this.colors.filter(it => it !== stop)
+            })
             stopControl.classList.toggle("stopControl", true);
 
-            const color = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3] * 255)})`;
-            const reducedAlpha = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3] * 0.5) + 0.5})`;
+            const color = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3])})`;
+            const reducedAlpha = `rgb(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)})`;
             const inv = `rgb(${255-Math.round(stop.color[0] * 255)}, ${255-Math.round(stop.color[1] * 255)}, ${255-Math.round(stop.color[2] * 255)})`;
             stopControl.style.setProperty("--color", color);
             stopControl.style.setProperty("--inv", inv);
