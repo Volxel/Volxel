@@ -69,8 +69,13 @@ export class ColorRampComponent extends HTMLElement {
     }
     public set colors(colors: ColorStop[]) {
         this._colors = colors;
+        this.sortColors();
         this.rerenderColors();
         this.dispatchEvent(new CustomEvent("change", { detail: this.colors }))
+    }
+
+    private sortColors() {
+        this.colors.sort((a, b) => a.stop - b.stop);
     }
 
     private rerenderColors() {
@@ -100,6 +105,7 @@ export class ColorRampComponent extends HTMLElement {
                     if (dragging) {
                         const relativeOffset = (e.clientX - startX) / this.displayedColorDiv.clientWidth;
                         stop.stop = Math.min(1.0, Math.max(0.0, stop.stop + relativeOffset));
+                        this.sortColors();
                         this.rerenderColors();
                         this.dispatchEvent(new CustomEvent("change", { detail: this.colors }))
                     }
