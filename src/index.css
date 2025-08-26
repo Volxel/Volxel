@@ -5,6 +5,12 @@ body {
     margin-inline: auto;
 }
 
+details summary h2 {
+    display: inline;
+    margin: 0;
+    text-decoration: underline;
+}
+
 div.controls {
     display: flex;
     flex-direction: column;
