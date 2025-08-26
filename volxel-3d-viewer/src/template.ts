@@ -285,7 +285,7 @@ export const volxelTemplate: string =  html`
             Use generated transfer function
             <input type="checkbox" name="generated_transfer" id="generated_transfer">
         </label>
-        <color-ramp-component id="color-ramp"></color-ramp-component>
+        <volxel-colorramp id="color-ramp"></volxel-colorramp>
         <label>
             Density Multiplier
             <input type="range" name="density_multiplier" id="density_multiplier" min="0.01" max="2" step="0.01">

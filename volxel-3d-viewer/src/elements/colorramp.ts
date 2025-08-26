@@ -23,6 +23,12 @@ export class ColorRampComponent extends HTMLElement {
             :host {
                 display: flex;
                 position: relative;
+                background-image: repeating-conic-gradient(#222 0% 25%, #444 0% 50%);
+                background-position: 0 0, 32px 32px;
+                background-size: 64px 64px;
+                background-color: #444;
+                padding: 3px;
+                border: 1px solid white;
             }
             
             .displayedColor {
@@ -32,9 +38,9 @@ export class ColorRampComponent extends HTMLElement {
             }
             
             button.stopControl {
-                left: calc(var(--temp-offset, var(--offset)) * 100%);
-                top: -1px;
-                bottom: -1px;
+                left: calc(3px + var(--temp-offset, var(--offset)) * (100% - 2 * 3px));
+                top: 1px;
+                bottom: 1px;
                 position: absolute;
                 appearance: none;
                 padding: 0;
@@ -136,11 +142,12 @@ export class ColorRampComponent extends HTMLElement {
             stopControl.classList.toggle("stopControl", true);
 
             const color = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3] * 255)})`;
+            const reducedAlpha = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3] * 0.5) + 0.5})`;
             const inv = `rgb(${255-Math.round(stop.color[0] * 255)}, ${255-Math.round(stop.color[1] * 255)}, ${255-Math.round(stop.color[2] * 255)})`;
             stopControl.style.setProperty("--color", color);
             stopControl.style.setProperty("--inv", inv);
             stopControl.style.setProperty("--offset", stop.stop + "")
-            gradientSteps.push(`${color} ${Math.round(stop.stop * 100)}%`)
+            gradientSteps.push(`${reducedAlpha} ${Math.round(stop.stop * 100)}%`)
 
             this.controlsDiv.appendChild(stopControl);
         }

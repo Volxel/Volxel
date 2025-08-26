@@ -932,7 +932,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
 export function registerVolxelComponents(worker: () => Worker) {
     workerFactory = worker;
-    customElements.define("color-ramp-component", ColorRampComponent);
+    customElements.define("volxel-colorramp", ColorRampComponent);
     customElements.define("volxel-histogram-viewer", HistogramViewer);
     customElements.define("volxel-cube-direction", UnitCubeDisplay);
     customElements.define("volxel-3d-viewer", Volxel3DDicomRenderer);
