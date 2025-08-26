@@ -253,7 +253,7 @@ export const volxelStyles = css`
     }
 `;
 
-export const volxelTemplate: string =  html`
+export const volxelTemplate: HTMLTemplateElement =  html`
 <canvas id="app"></canvas>
 <div class="controls">
     <div class="tabbar">

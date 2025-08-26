@@ -95,9 +95,6 @@ type Framebuffer = {
     target: WebGLTexture,
 }
 
-let initialized: boolean = false;
-let template: HTMLTemplateElement | null = null;
-
 console.log("window create", window.createDicomWorker)
 
 let workerFactory: (() => Worker) | undefined = undefined;
@@ -157,19 +154,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private clippingCube: WebGLVertexArrayObject | undefined
 
     public constructor() {
-        // static initialization
-        if (!initialized) {
-            initialized = true;
-            template = document.createElement("template");
-            template.innerHTML = volxelTemplate;
-        }
         super()
 
         this.attachShadow({mode: "open"});
         this.shadowRoot!.adoptedStyleSheets.push(volxelStyles)
 
         // setup template
-        const instantiated = template!.content.cloneNode(true);
+        const instantiated = volxelTemplate!.content.cloneNode(true);
         this.shadowRoot!.appendChild(instantiated);
 
         // Get canvas to render to

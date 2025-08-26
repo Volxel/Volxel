@@ -1,5 +1,5 @@
 import {ColorStop} from "../data";
-import {css} from "../util";
+import {css, html} from "../util";
 
 function buildHeightsSVG(stops: ColorStop[]): SVGSVGElement {
     const NS = "http://www.w3.org/2000/svg";
@@ -44,6 +44,20 @@ function buildHeightsSVG(stops: ColorStop[]): SVGSVGElement {
 
 const colorRegexp = /[0-9]*[,)]/g;
 
+const dialogTemplate = html`
+    <form method="dialog" id="form">
+        <label>
+            Set color
+            <input type="color" id="color" name="color">
+        </label>
+        <label>
+            Set density
+            <input type="range" name="density" id="density" min="0" max="1" step="0.001">
+        </label>
+        <button type="submit" value="save">Save</button>
+    </form>
+`
+
 export class ColorRampComponent extends HTMLElement {
     private _colors: ColorStop[] = [{
         color: [1, 0, 0, 0],
@@ -55,7 +69,6 @@ export class ColorRampComponent extends HTMLElement {
 
     private displayedColorDiv: HTMLDivElement;
     private controlsDiv: HTMLDivElement;
-    private colorInput: HTMLInputElement;
 
     constructor() {
         super();
@@ -73,7 +86,7 @@ export class ColorRampComponent extends HTMLElement {
             }
             
             .displayedColor {
-                height: 50px;
+                height: 58px;
                 flex: 1;
                 cursor: text;
                 
@@ -141,11 +154,6 @@ export class ColorRampComponent extends HTMLElement {
         })
         this.shadowRoot!.appendChild(this.displayedColorDiv);
 
-        this.colorInput = document.createElement("input");
-        this.colorInput.type = "color";
-        this.colorInput.hidden = true;
-        this.shadowRoot!.appendChild(this.colorInput);
-
         this.controlsDiv = document.createElement("div");
         this.shadowRoot!.appendChild(this.controlsDiv);
         this.rerenderColors();
@@ -169,7 +177,44 @@ export class ColorRampComponent extends HTMLElement {
         this.controlsDiv.innerHTML = "";
         const gradientSteps: string[] = [];
         for (const stop of this.colors) {
+            const hex = `#${Math.round(stop.color[0] * 255).toString(16).padStart(2, "0")}${Math.round(stop.color[1] * 255).toString(16).padStart(2, "0")}${Math.round(stop.color[2] * 255).toString(16).padStart(2, "0")}`
+            const withoutAlpha = `rgb(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)})`;
+            const inv = `rgb(${255-Math.round(stop.color[0] * 255)}, ${255-Math.round(stop.color[1] * 255)}, ${255-Math.round(stop.color[2] * 255)})`;
+
+            const wrapper = document.createElement("div");
             const stopControl = document.createElement("button");
+            const dialog = document.createElement("dialog");
+
+            const contents = dialogTemplate.content.cloneNode(true);
+            dialog.appendChild(contents);
+            const colorInput = dialog.querySelector("#color") as HTMLInputElement;
+            const densityInput = dialog.querySelector("#density") as HTMLInputElement;
+            colorInput.value = hex;
+            densityInput.valueAsNumber = stop.color[3]
+
+            const onInput = (_event: Event) => {
+            }
+            colorInput.addEventListener("change", onInput)
+            wrapper.appendChild(dialog);
+            wrapper.appendChild(stopControl);
+            dialog.addEventListener("close", () => {
+                if (dialog.returnValue !== "save") return;
+                colorInput.style.setProperty("color", colorInput.value);
+                const computedColor = getComputedStyle(colorInput).color;
+                const parsedColor = ([...computedColor.matchAll(colorRegexp)]
+                        .map(match => match[0].substring(0, match[0].length - 1))
+                        .map(number => Number.parseInt(number) / 255)
+                );
+                stop.color = (parsedColor.length === 4 ? parsedColor : [...parsedColor, densityInput.valueAsNumber]) as [number, number, number, number]
+                this.sortColors();
+                this.rerenderColors();
+                this.dispatchEvent(new CustomEvent("change", { detail: this.colors }))
+            })
+
+            stopControl.addEventListener("click", () => {
+                dialog.showModal();
+            })
+
             let dragging = false;
             let startX = 0;
 
@@ -202,24 +247,6 @@ export class ColorRampComponent extends HTMLElement {
                 document.addEventListener("mouseup", onMouseUp);
             })
 
-            // Click listener to change
-            stopControl.addEventListener("click", () => {
-                if (dragging) return;
-                const onInput = (_event: Event) => {
-                    this.colorInput.style.setProperty("color", this.colorInput.value);
-                    const computedColor = getComputedStyle(this.colorInput).color;
-                    const parsedColor = ([...computedColor.matchAll(colorRegexp)]
-                        .map(match => match[0].substring(0, match[0].length - 1))
-                        .map(number => Number.parseInt(number) / 255)
-                    );
-                    stop.color = (parsedColor.length === 4 ? parsedColor : [...parsedColor, stop.color[3]]) as [number, number, number, number]
-                    this.colorInput.removeEventListener("input", onInput);
-                    this.rerenderColors();
-                    this.dispatchEvent(new CustomEvent("change", { detail: this.colors }))
-                }
-                this.colorInput.addEventListener("input", onInput);
-                this.colorInput.click();
-            });
             stopControl.addEventListener("contextmenu", (e: MouseEvent) => {
                 e.preventDefault();
                 if (this.colors.length < 2) alert("Cannot delete last color stop")
@@ -227,15 +254,12 @@ export class ColorRampComponent extends HTMLElement {
             })
             stopControl.classList.toggle("stopControl", true);
 
-            const color = `rgba(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)}, ${Math.round(stop.color[3])})`;
-            const reducedAlpha = `rgb(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)})`;
-            const inv = `rgb(${255-Math.round(stop.color[0] * 255)}, ${255-Math.round(stop.color[1] * 255)}, ${255-Math.round(stop.color[2] * 255)})`;
-            stopControl.style.setProperty("--color", color);
+            stopControl.style.setProperty("--color", withoutAlpha);
             stopControl.style.setProperty("--inv", inv);
             stopControl.style.setProperty("--offset", stop.stop + "")
-            gradientSteps.push(`${reducedAlpha} ${Math.round(stop.stop * 100)}%`)
+            gradientSteps.push(`${withoutAlpha} ${Math.round(stop.stop * 100)}%`)
 
-            this.controlsDiv.appendChild(stopControl);
+            this.controlsDiv.appendChild(wrapper);
         }
         this.displayedColorDiv.style.setProperty("--gradient", `linear-gradient(to right, ${gradientSteps.join(", ")})`);
         this.displayedColorDiv.innerHTML = "";

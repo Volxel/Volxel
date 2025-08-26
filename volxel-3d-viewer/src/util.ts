@@ -12,13 +12,18 @@ export function css(strings: TemplateStringsArray, ...props: any[]) {
     return stylesheet;
 }
 
+const templates = new Map<string, HTMLTemplateElement>()
 export function html(strings: TemplateStringsArray, ...props: any[]) {
     let string = "";
     for (let i = 0; i < strings.length; i++) {
         string += strings[i];
         if (i < props.length) string += props[i];
     }
-    return string;
+    if (templates.has(string)) return templates.get(string)!;
+    const template = document.createElement("template");
+    template.innerHTML = string;
+    templates.set(string, template);
+    return template;
 }
 
 
