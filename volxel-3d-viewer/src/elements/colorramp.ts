@@ -1,6 +1,47 @@
 import {ColorStop} from "../data";
 import {css} from "../util";
 
+function buildHeightsSVG(stops: ColorStop[]): SVGSVGElement {
+    const NS = "http://www.w3.org/2000/svg";
+
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 1 1")
+    svg.setAttribute("preserveAspectRatio", "none")
+
+    const defs = document.createElementNS(NS, "defs");
+    const g = document.createElementNS(NS, "linearGradient");
+    g.setAttribute("id", "gradient");
+    g.setAttribute("x1", "0");
+    g.setAttribute("y1", "0");
+    g.setAttribute("x2", "1");
+    g.setAttribute("y2", "0");
+
+    for (const stop of stops) {
+        const stopEl = document.createElementNS(NS, "stop");
+        stopEl.setAttribute("offset", "" + stop.stop);
+        stopEl.setAttribute("stop-color", `rgb(${Math.round(stop.color[0] * 255)}, ${Math.round(stop.color[1] * 255)}, ${Math.round(stop.color[2] * 255)})`);
+
+        g.appendChild(stopEl);
+    }
+
+    defs.appendChild(g);
+    svg.appendChild(defs);
+
+    const poly = document.createElementNS(NS, "polygon");
+    const points = [
+        [0, 1 - stops[0].color[3]],
+        ...stops.map(stop => [stop.stop, 1 - stop.color[3]]),
+        [1, 1 - stops[stops.length - 1].color[3]],
+        [1, 1]
+    ]
+    poly.setAttribute("points", points.map(([x, y]) => `${x},${y}`).join(" "));
+    poly.id = "height-polygon"
+    poly.setAttribute("fill", "url(#gradient)")
+
+    svg.appendChild(poly);
+    return svg;
+}
+
 const colorRegexp = /[0-9]*[,)]/g;
 
 export class ColorRampComponent extends HTMLElement {
@@ -32,10 +73,14 @@ export class ColorRampComponent extends HTMLElement {
             }
             
             .displayedColor {
-                height: 20px;
+                height: 50px;
                 flex: 1;
-                background: var(--gradient);
                 cursor: text;
+                
+                svg {
+                    height: 100%;
+                    width: 100%;
+                }
             }
             
             button.stopControl {
@@ -193,5 +238,7 @@ export class ColorRampComponent extends HTMLElement {
             this.controlsDiv.appendChild(stopControl);
         }
         this.displayedColorDiv.style.setProperty("--gradient", `linear-gradient(to right, ${gradientSteps.join(", ")})`);
+        this.displayedColorDiv.innerHTML = "";
+        this.displayedColorDiv.appendChild(buildHeightsSVG(this.colors))
     }
 }
