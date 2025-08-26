@@ -35,6 +35,7 @@ export class ColorRampComponent extends HTMLElement {
                 height: 20px;
                 flex: 1;
                 background: var(--gradient);
+                cursor: text;
             }
             
             button.stopControl {
@@ -52,14 +53,17 @@ export class ColorRampComponent extends HTMLElement {
                 transform: translateX(-50%);
                 border: 2px solid white;
                 background: var(--color);
-                cursor: pointer;
-                box-shadow: 0 0 5px black;
+                cursor: grab;
+                box-shadow: 0 0 2px black, inset 0 0 2px black;
                 
                 &:hover, &:focus-visible, &:active {
                     top: -3px;
                     bottom: -3px;
                     outline: 1px solid var(--inv);
-                    box-shadow: 0 0 8px black;
+                    box-shadow: 0 0 5px black, inset 0 0 1px black;
+                }
+                &:active {
+                    cursor: grabbing;
                 }
             }
         `)
