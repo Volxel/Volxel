@@ -878,6 +878,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     private rescaleAABBFromClippingInput() {
+        if (!this.volume) return;
         const aabb = this.volume!.aabb()
         const cubeLine = this.currentCubeFaceLine();
         if (cubeLine === null) return;
