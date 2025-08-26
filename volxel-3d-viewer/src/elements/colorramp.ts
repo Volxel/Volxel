@@ -32,7 +32,8 @@ function buildHeightsSVG(stops: ColorStop[]): SVGSVGElement {
         [0, 1 - stops[0].color[3]],
         ...stops.map(stop => [stop.stop, 1 - stop.color[3]]),
         [1, 1 - stops[stops.length - 1].color[3]],
-        [1, 1]
+        [1, 1],
+        [0, 1],
     ]
     poly.setAttribute("points", points.map(([x, y]) => `${x},${y}`).join(" "));
     poly.id = "height-polygon"
@@ -74,6 +75,11 @@ export class ColorRampComponent extends HTMLElement {
         super();
         this.attachShadow({ mode: 'open' });
         this.shadowRoot!.adoptedStyleSheets.push(css`
+            * {
+                box-sizing: border-box;
+                font-family: system-ui, -apple-system;
+            }
+            
             :host {
                 display: flex;
                 position: relative;
@@ -122,6 +128,36 @@ export class ColorRampComponent extends HTMLElement {
                 }
                 &:active {
                     cursor: grabbing;
+                }
+            }
+            
+            dialog {
+                padding: 5px;
+                border: 1px solid #444;
+                box-shadow: 0 3px 6px #0003;
+                background: #0008;
+                color: white;
+                backdrop-filter: blur(8px);
+                
+                form {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 5px;
+                    width: 300px;
+                    
+                    label {
+                        display: flex;
+                        flex-direction: column;
+                        flex: 1;
+                        
+                        input {
+                            width: 100%;
+                        }
+                    }
+                    
+                    button {
+                        width: 100%;
+                    }
                 }
             }
         `)
