@@ -188,7 +188,8 @@ export class ColorRampComponent extends HTMLElement {
                         flex: 1;
                         appearance: none;
                         border: 1px solid #777;
-                        background: none;
+                        background: #0005;
+                        backdrop-filter: blur(8px);
                         cursor: pointer;
                         font: inherit;
                         color: inherit;

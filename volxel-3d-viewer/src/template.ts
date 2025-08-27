@@ -10,6 +10,35 @@ export const rangeInputStyles = css`
         padding: 0;
         position: relative;
         min-height: 1.8em;
+        
+        input[type=range] {
+            width: 100%;
+            height: 100%;
+            appearance: none;
+            -webkit-appearance: none;
+            border: none;
+            background: none;
+            position: relative;
+            display: block;
+            margin: 0;
+            padding: 0;
+            cursor: grab;
+
+            &:active {
+                cursor: grabbing;
+            }
+        }
+
+        input[type=range]::-webkit-slider-runnable-track, input[type=range]::-moz-range-track {
+            background: white;
+            height: 1px;
+            opacity: 0.8;
+        }
+
+        input[type=range]::-moz-range-thumb, input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            opacity: 0;
+        }
     }
     div.thumb {
         position: absolute;
@@ -37,34 +66,7 @@ export const rangeInputStyles = css`
     div.rangeWrapper:has(input:is(:hover, :focus-visible)) .thumb {
         border-color: currentColor;
     }
-    input[type=range] {
-        width: 100%;
-        height: 100%;
-        appearance: none;
-        -webkit-appearance: none;
-        border: none;
-        background: none;
-        position: relative;
-        display: block;
-        margin: 0;
-        padding: 0;
-        cursor: grab;
-
-        &:active {
-            cursor: grabbing;
-        }
-    }
-
-    input[type=range]::-webkit-slider-runnable-track, input[type=range]::-moz-range-track {
-        background: white;
-        height: 1px;
-        opacity: 0.8;
-    }
-
-    input[type=range]::-moz-range-thumb, input[type=range]::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        opacity: 0;
-    }
+    
 `
 
 export const volxelStyles = css`
