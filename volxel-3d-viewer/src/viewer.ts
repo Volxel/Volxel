@@ -19,7 +19,7 @@ import {Volume} from "./representation/volume";
 import {Matrix4, Vector3} from "math.gl";
 import {closestPoints, cubeFace, Ray, rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
 import {UnitCubeDisplay} from "./elements/cubeDirection";
-import {volxelStyles, volxelTemplate} from "./template";
+import {rangeInputStyles, volxelStyles, volxelTemplate} from "./template";
 import {
     WasmWorkerMessage,
     WasmWorkerMessageFiles,
@@ -157,7 +157,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         super()
 
         this.attachShadow({mode: "open"});
-        this.shadowRoot!.adoptedStyleSheets.push(volxelStyles)
+        this.shadowRoot!.adoptedStyleSheets.push(volxelStyles, rangeInputStyles)
 
         // setup template
         const instantiated = volxelTemplate!.content.cloneNode(true);
@@ -426,11 +426,18 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
             const densityMultiplierInput = this.shadowRoot!.getElementById("density_multiplier") as HTMLInputElement;
             densityMultiplierInput.valueAsNumber = this.densityMultiplier;
-            densityMultiplierInput.addEventListener("change", async () => {
+            const setupSliderInfo = () => {
+                const progress = (this.densityMultiplier - Number.parseFloat(densityMultiplierInput.min)) / (Number.parseFloat(densityMultiplierInput.max) - Number.parseFloat(densityMultiplierInput.min));
+                densityMultiplierInput.parentElement!.style.setProperty("--value", progress.toFixed(2))
+                densityMultiplierInput.parentElement!.style.setProperty("--absolute-value", `"${this.densityMultiplier.toFixed(2)}"`)
+            }
+            densityMultiplierInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
                     this.densityMultiplier = densityMultiplierInput.valueAsNumber;
+                    setupSliderInfo()
                 })
             })
+            setupSliderInfo()
 
             const cubeDirection = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
             cubeDirection.addEventListener("direction", async (event) => {

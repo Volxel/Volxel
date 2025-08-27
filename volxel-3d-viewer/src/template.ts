@@ -1,5 +1,72 @@
 import {css, html} from "./util";
 
+export const rangeInputStyles = css`
+
+    div.rangeWrapper {
+        display: flex;
+        flex: 1;
+        align-self: stretch;
+        margin: 0;
+        padding: 0;
+        position: relative;
+        min-height: 1.8em;
+    }
+    div.thumb {
+        position: absolute;
+        pointer-events: none;
+        top: -1px;
+        bottom: -1px;
+        background: #0005;
+        backdrop-filter: blur(8px);
+        border: 1px solid #777;
+        left: calc(var(--value, 0) * (100% - 4ch));
+        padding-inline: 3px;
+        box-shadow: 0 0 2px black;
+        //transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 4ch;
+
+        &:after {
+            position: relative;
+            content: var(--absolute-value, "0");
+            display: inline;
+        }
+    }
+    div.rangeWrapper:has(input:is(:hover, :focus-visible)) .thumb {
+        border-color: currentColor;
+    }
+    input[type=range] {
+        width: 100%;
+        height: 100%;
+        appearance: none;
+        -webkit-appearance: none;
+        border: none;
+        background: none;
+        position: relative;
+        display: block;
+        margin: 0;
+        padding: 0;
+        cursor: grab;
+
+        &:active {
+            cursor: grabbing;
+        }
+    }
+
+    input[type=range]::-webkit-slider-runnable-track, input[type=range]::-moz-range-track {
+        background: white;
+        height: 1px;
+        opacity: 0.8;
+    }
+
+    input[type=range]::-moz-range-thumb, input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        opacity: 0;
+    }
+`
+
 export const volxelStyles = css`
     * {
         box-sizing: border-box;
@@ -288,7 +355,10 @@ export const volxelTemplate: HTMLTemplateElement =  html`
         <volxel-colorramp id="color-ramp"></volxel-colorramp>
         <label>
             Density Multiplier
-            <input type="range" name="density_multiplier" id="density_multiplier" min="0.01" max="2" step="0.01">
+            <div class="rangeWrapper">
+                <input type="range" name="density_multiplier" id="density_multiplier" min="0.01" max="2" step="0.01">
+                <div class="thumb"></div>
+            </div>
         </label>
         <volxel-histogram-viewer id="histogram"></volxel-histogram-viewer>
     </div>

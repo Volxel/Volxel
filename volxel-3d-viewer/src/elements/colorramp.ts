@@ -1,5 +1,6 @@
 import {ColorStop} from "../data";
 import {css, html} from "../util";
+import {rangeInputStyles} from "../template";
 
 function buildHeightsSVG(stops: ColorStop[]): SVGSVGElement {
     const NS = "http://www.w3.org/2000/svg";
@@ -53,9 +54,15 @@ const dialogTemplate = html`
         </label>
         <label>
             Set density
-            <input type="range" name="density" id="density" min="0" max="1" step="0.001">
+            <div class="rangeWrapper">
+                <input type="range" name="density" id="density" min="0" max="1" step="0.001">
+                <div class="thumb"></div>
+            </div>
         </label>
-        <button type="submit" value="save">Save</button>
+        <div class="buttons">
+            <button type="submit" value="cancel">Cancel</button>
+            <button type="submit" value="save">Save</button>
+        </div>
     </form>
 `
 
@@ -74,7 +81,7 @@ export class ColorRampComponent extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
-        this.shadowRoot!.adoptedStyleSheets.push(css`
+        this.shadowRoot!.adoptedStyleSheets.push(rangeInputStyles, css`
             * {
                 box-sizing: border-box;
                 font-family: system-ui, -apple-system;
@@ -132,7 +139,7 @@ export class ColorRampComponent extends HTMLElement {
             }
             
             dialog {
-                padding: 5px;
+                padding: 20px;
                 border: 1px solid #444;
                 box-shadow: 0 3px 6px #0003;
                 background: #0008;
@@ -142,7 +149,7 @@ export class ColorRampComponent extends HTMLElement {
                 form {
                     display: flex;
                     flex-wrap: wrap;
-                    gap: 5px;
+                    gap: 20px;
                     width: 300px;
                     
                     label {
@@ -153,10 +160,42 @@ export class ColorRampComponent extends HTMLElement {
                         input {
                             width: 100%;
                         }
+                        
+                        input[type=color] {
+                            appearance: none;
+                            padding: 0;
+                            margin: 0;
+                            cursor: pointer;
+                            border: 1px solid #777;
+                            background: none;
+                            font: inherit;
+                            color: inherit;
+
+                            &:hover, &:focus-visible {
+                                border-color: currentColor;
+                            }
+                        }
                     }
                     
-                    button {
+                    .buttons {
                         width: 100%;
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 20px;
+                    }
+                    button {
+                        min-width: max-content;
+                        flex: 1;
+                        appearance: none;
+                        border: 1px solid #777;
+                        background: none;
+                        cursor: pointer;
+                        font: inherit;
+                        color: inherit;
+                        
+                        &:hover, &:focus-visible {
+                            border-color: currentColor;
+                        }
                     }
                 }
             }
@@ -228,9 +267,16 @@ export class ColorRampComponent extends HTMLElement {
             colorInput.value = hex;
             densityInput.valueAsNumber = stop.color[3]
 
-            const onInput = (_event: Event) => {
+            const setupSliderInfo = () => {
+                const progress = (densityInput.valueAsNumber - Number.parseFloat(densityInput.min)) / (Number.parseFloat(densityInput.max) - Number.parseFloat(densityInput.min));
+                densityInput.parentElement!.style.setProperty("--value", progress.toFixed(2))
+                densityInput.parentElement!.style.setProperty("--absolute-value", `"${densityInput.valueAsNumber.toFixed(2)}"`)
             }
-            colorInput.addEventListener("change", onInput)
+            densityInput.addEventListener("input", () => {
+                setupSliderInfo()
+            })
+            setupSliderInfo()
+
             wrapper.appendChild(dialog);
             wrapper.appendChild(stopControl);
             dialog.addEventListener("close", () => {
