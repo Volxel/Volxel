@@ -241,6 +241,7 @@ export class ColorRampComponent extends HTMLElement {
     public set colors(colors: ColorStop[]) {
         this._colors = colors;
         this.sortColors();
+        console.log("rerendering colors")
         this.rerenderColors();
         this.dispatchEvent(new CustomEvent("change", { detail: this.colors }))
     }

@@ -363,6 +363,11 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             </div>
         </label>
         <volxel-histogram-viewer id="histogram"></volxel-histogram-viewer>
+        <button type="button" id="export-transfer">Export Transfer Settings</button>
+        <label>
+            Import Transfer Settings
+            <input type="file" name="import-transfer" id="import-transfer">
+        </label>
     </div>
     <div class="tab" id="render-tab">
         <label>

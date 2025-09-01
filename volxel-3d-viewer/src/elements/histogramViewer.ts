@@ -128,6 +128,14 @@ export class HistogramViewer extends HTMLElement {
         if (!context) throw new Error("Failed to get 2d context for histogram viewer canvas");
     }
 
+    public setRange(min: number, max: number) {
+        this.selectedRange = [min, max];
+        const [button1, button2] = this.buttons;
+        for (const [i, button] of [[0, button1], [1, button2]] as [number, HTMLButtonElement][]) {
+            button.style.setProperty("--relative-position", `${this.selectedRange[i]}`)
+        }
+    }
+
     public renderHistogram(histogram: Uint32Array, gradient: Int32Array, gradientMax: number) {
         const max = histogram.reduce((acc, cur, i) => i > 0 ? (cur > acc ? cur : acc) : acc, 0);
         const logMax = Math.log10(max);

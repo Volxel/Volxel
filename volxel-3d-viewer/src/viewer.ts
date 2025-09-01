@@ -25,8 +25,16 @@ import {
     WasmWorkerMessageFiles,
     WasmWorkerMessageReturn,
     WasmWorkerMessageType,
-    WasmWorkerMessageUrls, WasmWorkerMessageZip, WasmWorkerMessageZipUrl
+    WasmWorkerMessageUrls,
+    WasmWorkerMessageZip,
+    WasmWorkerMessageZipUrl
 } from "./common";
+import {
+    loadTransferSettings,
+    saveTransferSettings,
+    TransferSettingsTransferType,
+    TransferSettingsVersion
+} from "./settings";
 
 declare global {
     interface Window {
@@ -95,8 +103,6 @@ type Framebuffer = {
     target: WebGLTexture,
 }
 
-console.log("window create", window.createDicomWorker)
-
 let workerFactory: (() => Worker) | undefined = undefined;
 
 export class Volxel3DDicomRenderer extends HTMLElement {
@@ -117,7 +123,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private framebufferPingPong: number = 0;
     private frameIndex: number = 0;
 
-    private suspend: boolean = true;
+    private suspend: boolean = false;
     private resolutionFactor: number = 1;
     private lowResolutionDuration: number = 5;
 
@@ -140,7 +146,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private histogram: HistogramViewer | undefined;
 
     private camera: Camera | undefined;
-    private sampleRange: [number, number] = [0, 2 ** 16 - 1];
+    private sampleRange: [number, number] = [0, 1];
 
     // light
     private lightDir: Vector3 = new Vector3(-1, -1, -1).normalize();
@@ -439,6 +445,54 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             })
             setupSliderInfo()
 
+            const exportTransferSettingsButton = this.shadowRoot!.getElementById("export-transfer") as HTMLButtonElement;
+            exportTransferSettingsButton.addEventListener("click", () => {
+                const useGenerated = generatedTransfer.checked;
+                const colors = colorRamp.colors;
+
+                saveTransferSettings({
+                    version: TransferSettingsVersion.V1,
+                    densityMultiplier: this.densityMultiplier,
+                    transfer: useGenerated ? {
+                        type: TransferSettingsTransferType.COLOR_STOPS,
+                        colors
+                    } : {
+                        type: TransferSettingsTransferType.FULL,
+                        colors: [] // TODO
+                    },
+                    histogramRange: this.sampleRange
+                })
+            })
+
+            const importTransferInput = this.shadowRoot!.getElementById("import-transfer") as HTMLInputElement;
+            importTransferInput.value = "";
+            importTransferInput.addEventListener("change", async () => {
+                const files = importTransferInput.files;
+                if (files?.length !== 1) return;
+                await this.restartRendering(async () => {
+                    const settings = await loadTransferSettings(files[0])
+
+                    // restore histogram settings
+                    this.histogram?.setRange(...settings.histogramRange);
+                    this.sampleRange = settings.histogramRange;
+
+                    // restore density multiplier settings
+                    this.densityMultiplier = settings.densityMultiplier;
+                    densityMultiplierInput.valueAsNumber = settings.densityMultiplier;
+                    setupSliderInfo();
+
+                    // restore color settings
+                    if (settings.transfer.type === TransferSettingsTransferType.COLOR_STOPS) {
+                        colorRamp.colors = settings.transfer.colors;
+                        generatedTransfer.checked = true;
+                        const {data, length} = generateTransferFunction(colorRamp.colors);
+                        this.changeTransferFunc(data, length);
+                    } else {
+                        // TODO
+                    }
+                })
+            })
+
             const cubeDirection = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
             cubeDirection.addEventListener("direction", async (event) => {
                 const {detail: {x, y, z}} = event as CustomEvent<{ x: number, y: number, z: number }>;
@@ -695,6 +749,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private restartRendering<T>(action: () => T): T {
         this.classList.add("restarting");
         this.clearError();
+        // JS runs on a single main thread, this should never be interrupted
+        const previousSuspend = this.suspend;
         this.suspend = true;
         const result = action();
         if (result instanceof Promise) {
@@ -710,7 +766,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.resolutionFactor = 0.33;
         this.resizeFramebuffersToCanvas();
         this.frameIndex = 0;
-        this.suspend = false;
+        this.suspend = previousSuspend;
         return result;
     }
 
