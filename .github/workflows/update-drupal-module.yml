@@ -1,0 +1,19 @@
+name: Update drupal module
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ['main']
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  cross-repository-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: update-bundle
+          repository: Volxel/Drupal-Module
+          token: ${{ secrets.PAT }}
