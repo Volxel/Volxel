@@ -1,14 +1,20 @@
 # Volxel
+
 An open source volumetric renderer for the Browser. Also my bachelor's thesis.
 
 ## Status
 
 The basic User Interface and functionality is implemented. You can head over to https://volxel.github.io/Volxel
-and upload your own folder containing DICOM images.
+and upload your own folder or zip file containing DICOM images.
 
 You can also clip the volume to look at specific parts of it.
 
 The UI is still rough around the edges and load times may be very long (in excess of 2 minutes).
+
+## Drupal Usage
+
+There is a separate repository containing a Drupal module for easy use in Drupal based
+websites: [Volxel-Drupal](https://github.com/Volxel/Volxel-Drupal)
 
 ## Development
 
