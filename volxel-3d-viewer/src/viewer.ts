@@ -31,7 +31,7 @@ import {
 } from "./common";
 import {
     loadTransferSettings,
-    saveTransferSettings,
+    saveTransferSettings, TransferSettings,
     TransferSettingsTransferType,
     TransferSettingsVersion
 } from "./settings";
@@ -106,7 +106,7 @@ type Framebuffer = {
 let workerFactory: (() => Worker) | undefined = undefined;
 
 export class Volxel3DDicomRenderer extends HTMLElement {
-    public static readonly observedAttributes = ["data-urls", "data-zip-url"]
+    public static readonly observedAttributes = ["data-urls", "data-zip-url", "data-transfer-settings-url"]
 
     private worker = workerFactory!!()
     private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
@@ -161,6 +161,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     // for export
     private lastRawTransferImport: [r: number, g: number, b: number, density: number][] | undefined;
+    private restoreTransferSettings: (settings: TransferSettings) => void = () => undefined
 
     public constructor() {
         super()
@@ -473,6 +474,29 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 })
             })
 
+            this.restoreTransferSettings = (settings) => {
+                // restore histogram settings
+                this.histogram?.setRange(...settings.histogramRange);
+                this.sampleRange = settings.histogramRange;
+
+                // restore density multiplier settings
+                this.densityMultiplier = settings.densityMultiplier;
+                densityMultiplierInput.valueAsNumber = settings.densityMultiplier;
+                setupSliderInfo();
+
+                // restore color settings
+                if (settings.transfer.type === TransferSettingsTransferType.COLOR_STOPS) {
+                    colorRamp.colors = settings.transfer.colors;
+                    generatedTransfer.checked = true;
+                    const {data, length} = generateTransferFunction(colorRamp.colors);
+                    this.changeTransferFunc(data, length);
+                } else {
+                    generatedTransfer.checked = false;
+                    const data = new Float32Array(settings.transfer.colors.flat())
+                    this.changeTransferFunc(data, settings.transfer.colors.length);
+                }
+            }
+
             const importTransferInput = this.shadowRoot!.getElementById("import-transfer") as HTMLInputElement;
             importTransferInput.value = "";
             importTransferInput.addEventListener("change", async () => {
@@ -480,27 +504,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 if (files?.length !== 1) return;
                 await this.restartRendering(async () => {
                     const settings = await loadTransferSettings(files[0])
-
-                    // restore histogram settings
-                    this.histogram?.setRange(...settings.histogramRange);
-                    this.sampleRange = settings.histogramRange;
-
-                    // restore density multiplier settings
-                    this.densityMultiplier = settings.densityMultiplier;
-                    densityMultiplierInput.valueAsNumber = settings.densityMultiplier;
-                    setupSliderInfo();
-
-                    // restore color settings
-                    if (settings.transfer.type === TransferSettingsTransferType.COLOR_STOPS) {
-                        colorRamp.colors = settings.transfer.colors;
-                        generatedTransfer.checked = true;
-                        const {data, length} = generateTransferFunction(colorRamp.colors);
-                        this.changeTransferFunc(data, length);
-                    } else {
-                        generatedTransfer.checked = false;
-                        const data = new Float32Array(settings.transfer.colors.flat())
-                        this.changeTransferFunc(data, settings.transfer.colors.length);
-                    }
+                    this.restoreTransferSettings(settings);
                 })
             })
 
@@ -543,7 +547,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     public async attributesChangedCallback(name: string) {
-        if (name === "data-urls" || name === "data-zip-url") {
+        if (name === "data-urls" || name === "data-zip-url" || name === "data-transfer-settings-url") {
             await this.restartFromAttributes()
         }
     }
@@ -551,15 +555,27 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private async restartFromAttributes() {
         const urls = this.getAttribute("data-urls")
         const zipUrl = this.getAttribute("data-zip-url")
+        const transferSettingsUrl = this.getAttribute("data-transfer-settings-url")
         try {
-            if (zipUrl) {
-                await this.restartFromZipUrl(zipUrl);
-            } else if (urls) {
-                const parsed = JSON.parse(urls);
-                if (Array.isArray(parsed) && parsed.every(url => typeof url === "string")) {
-                    await this.restartFromURLs(parsed);
+            await this.restartRendering(async () => {
+                if (zipUrl) {
+                    await this.restartFromZipUrl(zipUrl);
+                } else if (urls) {
+                    const parsed = JSON.parse(urls);
+                    if (Array.isArray(parsed) && parsed.every(url => typeof url === "string")) {
+                        await this.restartFromURLs(parsed);
+                    }
                 }
-            }
+                if (transferSettingsUrl) {
+                    const response = await fetch(transferSettingsUrl);
+                    if (!response.ok) {
+                        throw new Error(`Transfer settings URL fetch failed: ${response.status} (${response.statusText})`);
+                    }
+                    const text = await response.text();
+                    const settings = await loadTransferSettings(text);
+                    this.restoreTransferSettings(settings);
+                }
+            })
         } catch (e) {
             console.error(this, "encountered error during startup from URLs", e)
             this.handleError(e);
