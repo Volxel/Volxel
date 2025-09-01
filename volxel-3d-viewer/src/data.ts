@@ -1,15 +1,16 @@
-async function parseTransferFunction(text: string): Promise<number[][]> {
-    return text.split("\n").map(line => line.split(" ").map(num => Number.parseFloat(num))).filter(line => line.length === 4)
+async function parseTransferFunction(text: string): Promise<[r: number, g: number, b: number, density: number][]> {
+    return text.split("\n").map(line => line.split(" ").map(num => Number.parseFloat(num))).filter(line => line.length === 4) as [r: number, g: number, b: number, density: number][]
 }
 
 export async function loadTransferFunction(transfer: File): Promise<{
     data: Float32Array,
-    length: number
+    length: number,
+    raw: [r: number, g: number, b: number, density: number][]
 }> {
-    const result: number[][] = await parseTransferFunction(await transfer.text());
+    const result: [r: number, g: number, b: number, density: number][] = await parseTransferFunction(await transfer.text());
     const length = result.length;
     const data = new Float32Array(result.flat());
-    return {data, length}
+    return {data, length, raw: result}
 }
 
 export type ColorStop = {

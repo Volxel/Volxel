@@ -159,6 +159,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private quad: WebGLVertexArrayObject | undefined
     private clippingCube: WebGLVertexArrayObject | undefined
 
+    // for export
+    private lastRawTransferImport: [r: number, g: number, b: number, density: number][] | undefined;
+
     public constructor() {
         super()
 
@@ -408,7 +411,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         return;
                     }
                     if (file.length != 1) throw new Error("Multiple files selected");
-                    const {data, length} = await loadTransferFunction(file.item(0)!);
+                    const {data, length, raw} = await loadTransferFunction(file.item(0)!);
+                    this.lastRawTransferImport = raw;
                     this.changeTransferFunc(data, length);
                     generatedTransfer.checked = false;
                 })
@@ -450,6 +454,11 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 const useGenerated = generatedTransfer.checked;
                 const colors = colorRamp.colors;
 
+                if (!useGenerated && !this.lastRawTransferImport) {
+                    alert("No transfer function selected")
+                    return;
+                }
+
                 saveTransferSettings({
                     version: TransferSettingsVersion.V1,
                     densityMultiplier: this.densityMultiplier,
@@ -458,7 +467,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         colors
                     } : {
                         type: TransferSettingsTransferType.FULL,
-                        colors: [] // TODO
+                        colors: this.lastRawTransferImport!
                     },
                     histogramRange: this.sampleRange
                 })
@@ -488,7 +497,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         const {data, length} = generateTransferFunction(colorRamp.colors);
                         this.changeTransferFunc(data, length);
                     } else {
-                        // TODO
+                        generatedTransfer.checked = false;
+                        const data = new Float32Array(settings.transfer.colors.flat())
+                        this.changeTransferFunc(data, settings.transfer.colors.length);
                     }
                 })
             })
