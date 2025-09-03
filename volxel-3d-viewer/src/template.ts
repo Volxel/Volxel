@@ -344,6 +344,10 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             Light direction
             <volxel-cube-direction id="direction"></volxel-cube-direction>
         </div>
+        <label>
+            <input type="checkbox" name="light_backlight" id="light_backlight">
+            Backlight
+        </label>
     </div>
     <div class="tab" id="transfer-tab">
         <label>
@@ -351,8 +355,8 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             <input type="file" name="transfer_file" id="transfer_file">
         </label>
         <label>
-            Use generated transfer function
             <input type="checkbox" name="generated_transfer" id="generated_transfer">
+            Use generated transfer function
         </label>
         <volxel-colorramp id="color-ramp"></volxel-colorramp>
         <label>
@@ -375,8 +379,8 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             <input type="range" name="samples" id="samples" min="1" max="3000" step="1">
         </label>
         <label>
-            Debug Hit Positions
             <input type="checkbox" name="debugHits" id="debugHits" >
+            Debug Hit Positions
         </label>
     </div>
     <label class="menuButton">

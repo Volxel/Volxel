@@ -150,6 +150,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     // light
     private lightDir: Vector3 = new Vector3(-1, -1, -1).normalize();
+    private syncLightDir = false;
+    private lightDirInput: UnitCubeDisplay | undefined;
 
     // volume settings
     private densityScale: number = 1;
@@ -357,6 +359,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.restartRendering(() => {
                     if (!right) {
                         this.camera?.rotateAroundView(by);
+                        this.maybeSyncLight();
                     } else {
                         this.rescaleAABBFromClippingInput();
                     }
@@ -508,14 +511,23 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 })
             })
 
-            const cubeDirection = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
-            cubeDirection.addEventListener("direction", async (event) => {
+            this.lightDirInput = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
+            this.lightDirInput.addEventListener("direction", async (event) => {
                 const {detail: {x, y, z}} = event as CustomEvent<{ x: number, y: number, z: number }>;
                 this.restartRendering(() => {
                     this.lightDir = new Vector3(x, y, z);
                 })
             })
-            cubeDirection.direction = this.lightDir;
+            this.lightDirInput.direction = this.lightDir;
+
+            const backlightToggle = this.shadowRoot!.querySelector("#light_backlight") as HTMLInputElement;
+            backlightToggle.checked = this.syncLightDir;
+            backlightToggle.addEventListener("change", () => {
+                this.restartRendering(() => {
+                    this.syncLightDir = backlightToggle.checked;
+                    this.maybeSyncLight();
+                })
+            })
 
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
             debugHits.checked = this.debugHits
@@ -530,6 +542,14 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         } catch (e) {
             console.error(this, "encountered error during startup", e);
             this.handleError(e);
+        }
+    }
+
+    private maybeSyncLight() {
+        if (this.syncLightDir) {
+            const diff = this.camera!.view.clone().subtract(this.camera!.pos);
+            this.lightDir.set(-diff.x, -diff.y, -diff.z);
+            this.lightDirInput!.direction = this.lightDir;
         }
     }
 
