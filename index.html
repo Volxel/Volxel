@@ -28,6 +28,42 @@
         <p>You can try this demo by selecting a folder containing Dicom images in the file select below or by uploading
             a zip file containing DICOM images to the zip file select below.</p>
     </details>
+    <details>
+        <summary>
+            <h2>How do I control this?</h2>
+        </summary>
+        <p>The main view can be panned by dragging with the left mouse button. To move the view around, you can hold
+            <kbd>Shift</kbd> while dragging. You can zoom in and out by scrolling.</p>
+        <p>The control panel is opened with the hamburger button on the bottom left. It contains three tabs for three
+            different types of settings:</p>
+        <ul>
+            <li>The <b>Lighting</b> tab lets you control the direction from which the light shines onto the displayed
+                volume. You can also tick the "Backlight" checkbox to have the light direction always come from behind
+                the volume.
+            </li>
+            <li>
+                <p>The <b>Transfer function</b> tab lets you control how the density data in the volume is interpreted.
+                    This means:</p>
+                <ul>
+                    <li>You can upload a transfer function specified in a text file with lines containing <code>r g b
+                        density</code> values in separate lines
+                    </li>
+                    <li>You can specify a density multiplier that gets applied to the data during rendering, which
+                        allows you to make certain low visibility elements of the volume more visible
+                    </li>
+                    <li>You can adjust the density range of the volume that will be displayed. The diagram in the
+                        background of this input shows a histogram of the density data. This means that the higher a
+                        vertical line, the more often the corresponding density was present in the data. Left is a
+                        density of 0, right a density of 1. The lines' heights scale logarithmically.
+                    </li>
+                </ul>
+                <p>Additionally, the button and file upload below these settings allow you to export and later re-import
+                    transfer settings. The transfer settings can also be loaded programmatically, by providing a <code>data-transfer-settings-url</code>
+                    via attribute.</p>
+            </li>
+            <li>The <b>Display</b> tab is less relevant for scientific users and more of interest to developers. You can adjust the maximum samples rendered for convergence, and you can enable showing the bounding box of the volume with the <abbr title="Axis Aligned Bounding Box">AABB</abbr> coordinates visualized as colors.</li>
+        </ul>
+    </details>
     <h2>Demo</h2>
     <div class="controls">
         <label>

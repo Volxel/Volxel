@@ -3,6 +3,24 @@ body {
     padding: 20px;
     max-width: 1000px;
     margin-inline: auto;
+    font-family: system-ui, -apple-system, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+details {
+    border: 1px solid #8883;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    padding: 4px;
+}
+
+details summary {
+    cursor: pointer;
+    padding: 4px;
+    margin: -4px;
+}
+
+details[open] summary {
+    border-bottom: 1px solid #8883;
 }
 
 details summary h2 {
@@ -30,5 +48,34 @@ div.controls {
             max-width: 100%;
             width: 200px;
         }
+    }
+}
+
+kbd {
+    border: 1px solid #8883;
+    padding: 3px;
+    border-radius: 3px;
+    background: #8882;
+    box-shadow: inset 0 -2px 0 #8883;
+}
+
+code {
+    background: #8882;
+    padding: 3px;
+    border-radius: 3px;
+}
+
+abbr {
+    cursor: help
+}
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #111;
+        color: #fff;
+    }
+
+    volxel-3d-viewer {
+        border: 1px solid #8886;
     }
 }
