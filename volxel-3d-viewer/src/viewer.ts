@@ -192,8 +192,24 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
         try {
             // set up GL context
-            const gl = this.canvas.getContext("webgl2");
+            let gl = this.canvas.getContext("webgl2");
             if (!gl) throw new Error("WebGL 2 not supported on this Browser");
+            gl = new Proxy(gl, {
+                get(target: WebGL2RenderingContext, p: keyof WebGL2RenderingContext): any {
+                    const prop = target[p]
+                    if (typeof prop === "function") return (...args: unknown[]) => {
+                        while (target.getError()) {
+                            // noop
+                        }
+                        const ret = (prop as (...args: unknown[]) => unknown).bind(target)(...args);
+                        for (let error; (error = target.getError()); ) {
+                            console.error(`Encountered WebGL error during call to ${p}:`, error);
+                        }
+                        return ret;
+                    }
+                    return prop;
+                }
+            })
             this.gl = gl;
 
             // check for float render target extension
