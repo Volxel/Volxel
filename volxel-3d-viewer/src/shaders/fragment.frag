@@ -3,6 +3,7 @@
 precision highp float;
 precision mediump sampler3D;
 precision mediump usampler3D;
+precision highp int;
 
 out vec4 outColor;
 
@@ -282,6 +283,7 @@ void main() {
     vec4 result = vec4(0);
     uint seed = 42u;
     seed = tea(seed * uint(pixel.y * u_res.x + pixel.x), u_frame_index, 32u);
+
     for (uint i = 0u; i < ray_count; ++i) {
         seed += i;
         Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i));
