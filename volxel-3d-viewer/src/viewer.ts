@@ -540,7 +540,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     this.debugHits = debugHits.checked;
                 })
             })
-            throw new Error("Test")
+
             // initial call to the render function
             requestAnimationFrame(this.render)
         } catch (e) {
