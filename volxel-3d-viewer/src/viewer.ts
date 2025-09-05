@@ -165,6 +165,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private lastRawTransferImport: [r: number, g: number, b: number, density: number][] | undefined;
     private restoreTransferSettings: (settings: TransferSettings) => void = () => undefined
 
+    // error handling
+    private errored: boolean = false;
+
     public constructor() {
         super()
 
@@ -174,6 +177,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         // setup template
         const instantiated = volxelTemplate!.content.cloneNode(true);
         this.shadowRoot!.appendChild(instantiated);
+        this.classList.add("errored");
 
         // Get canvas to render to
         this.canvas = this.shadowRoot!.getElementById("app") as HTMLCanvasElement;
@@ -536,11 +540,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     this.debugHits = debugHits.checked;
                 })
             })
-
+            throw new Error("Test")
             // initial call to the render function
             requestAnimationFrame(this.render)
         } catch (e) {
-            console.error(this, "encountered error during startup", e);
             this.handleError(e);
         }
     }
@@ -553,9 +556,25 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         }
     }
 
-    private handleError(e: unknown) {
+    private handleError = (e: unknown) => {
+        this.errored = true;
+        console.error("error encountered", e);
+        let message: string;
+        if (e instanceof Error) {
+            message = `${e.name}: ${e.message}`
+        } else if (e instanceof Response) {
+            message = `${e.status}: ${e.statusText}`
+        } else if (e instanceof XMLHttpRequest) {
+            message = `${e.status}: ${e.statusText}`
+        } else if (typeof e === "string") {
+            message = e;
+        } else {
+            message = JSON.stringify(e);
+        }
         this.classList.add("errored")
-        this.shadowRoot!.getElementById("error")!.innerText = e instanceof Error ? e.message : `${e}`;
+        this.suspend = true;
+        this.classList.remove("restarting")
+        this.shadowRoot!.getElementById("error")!.innerText = message;
     }
     private clearError() {
         this.classList.remove("errored");
@@ -597,7 +616,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 }
             })
         } catch (e) {
-            console.error(this, "encountered error during startup from URLs", e)
             this.handleError(e);
         }
     }
@@ -793,7 +811,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
     }
 
-    private restartRendering<T>(action: () => T): T {
+    private restartRendering<T>(action: () => T): T | undefined {
+        if (this.errored) return;
         this.classList.add("restarting");
         this.clearError();
         // JS runs on a single main thread, this should never be interrupted
