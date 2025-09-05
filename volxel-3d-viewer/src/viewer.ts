@@ -194,6 +194,15 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             // set up GL context
             let gl = this.canvas.getContext("webgl2");
             if (!gl) throw new Error("WebGL 2 not supported on this Browser");
+            const errors = {
+                NO_ERROR: gl.NO_ERROR,
+                INVALID_ENUM: gl.INVALID_ENUM,
+                INVALID_OPERATION: gl.INVALID_OPERATION,
+                INVALID_FRAMEBUFFER_OPERATION: gl.INVALID_FRAMEBUFFER_OPERATION,
+                OUT_OF_MEMORY: gl.OUT_OF_MEMORY,
+                CONTEXT_LOST_WEBGL: gl.CONTEXT_LOST_WEBGL
+            }
+            console.log("WebGL Error IDs:", errors)
             gl = new Proxy(gl, {
                 get(target: WebGL2RenderingContext, p: keyof WebGL2RenderingContext): any {
                     const prop = target[p]
@@ -202,8 +211,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                             // noop
                         }
                         const ret = (prop as (...args: unknown[]) => unknown).bind(target)(...args);
-                        for (let error; (error = target.getError()); ) {
-                            console.error(`Encountered WebGL error during call to ${p}:`, error);
+                        for (let error; (error = target.getError());) {
+                            console.error(`Encountered WebGL error during call to ${p}:`, Object.entries(errors).find(([_, id]) => error === id)?.[1] ?? error);
                         }
                         return ret;
                     }
@@ -592,6 +601,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.classList.remove("restarting")
         this.shadowRoot!.getElementById("error")!.innerText = message;
     }
+
     private clearError() {
         this.classList.remove("errored");
         this.shadowRoot!.getElementById("error")!.innerText = "";
@@ -687,6 +697,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             })
         })
     }
+
     public async restartFromZip(zip: File) {
         await this.workerInitialized;
         await this.restartRendering(async () => {
