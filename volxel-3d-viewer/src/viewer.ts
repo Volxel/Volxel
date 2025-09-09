@@ -3,7 +3,7 @@ import fragmentShader from "./shaders/fragment.frag"
 import blitShader from "./shaders/blit.frag"
 import clipVertexShader from "./shaders/clipVertex.vert";
 import clipFragmentShader from "./shaders/clipFragment.frag";
-import {Camera} from "./scene";
+import { Camera } from "./scene";
 
 import {
     ColorStop,
@@ -13,13 +13,13 @@ import {
     generateTransferFunction,
     loadTransferFunction
 } from "./data";
-import {ColorRampComponent} from "./elements/colorramp";
-import {HistogramViewer} from "./elements/histogramViewer";
-import {Volume} from "./representation/volume";
-import {Matrix4, Vector3} from "math.gl";
-import {closestPoints, cubeFace, Ray, rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
-import {UnitCubeDisplay} from "./elements/cubeDirection";
-import {rangeInputStyles, volxelStyles, volxelTemplate} from "./template";
+import { ColorRampComponent } from "./elements/colorramp";
+import { HistogramViewer } from "./elements/histogramViewer";
+import { Volume } from "./representation/volume";
+import { Matrix4, Vector3 } from "math.gl";
+import { closestPoints, cubeFace, Ray, rayBoxIntersectionPositions, setupPanningListeners, worldRay } from "./util";
+import { UnitCubeDisplay } from "./elements/cubeDirection";
+import { rangeInputStyles, volxelStyles, volxelTemplate } from "./template";
 import {
     WasmWorkerMessage,
     WasmWorkerMessageFiles,
@@ -141,6 +141,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     // used for clipping controls
     private mousePos: [number, number] | null = null;
     private adjustingClipping: boolean = false;
+    private showClipping: boolean = true;
 
     // input elements
     private histogram: HistogramViewer | undefined;
@@ -171,7 +172,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public constructor() {
         super()
 
-        this.attachShadow({mode: "open"});
+        this.attachShadow({ mode: "open" });
         this.shadowRoot!.adoptedStyleSheets.push(volxelStyles, rangeInputStyles)
 
         // setup template
@@ -227,7 +228,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
             // check for blending extension
             const blendingExtension = gl.getExtension("EXT_float_blend");
-            if (!blendingExtension) throw new Error("EXT_float_blend extension not available, can't render clipping controls")
+            if (!blendingExtension) {
+                console.warn("EXT_float_blend extension not available, can't render clipping controls");
+                this.showClipping = false;
+            }
 
             // Set up main shaders
             const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
@@ -270,7 +274,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
                 checkFbo(gl);
 
-                this.framebuffers.push({fbo, target: renderTargetTexture});
+                this.framebuffers.push({ fbo, target: renderTargetTexture });
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             }
 
@@ -322,7 +326,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
             // Setup transfer function
             this.transfer = this.gl.createTexture();
-            const {data, length} = generateTransferFunction([{
+            const { data, length } = generateTransferFunction([{
                 color: [1, 1, 1, 0],
                 stop: 0
             }, {
@@ -423,10 +427,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             generatedTransfer.addEventListener("change", async () => {
                 this.restartRendering(() => {
                     if (generatedTransfer.checked) {
-                        const {data, length} = generateTransferFunction(colorRamp.colors);
+                        const { data, length } = generateTransferFunction(colorRamp.colors);
                         this.changeTransferFunc(data, length);
                     } else {
-                        const {data, length} = generateTransferFunction([{
+                        const { data, length } = generateTransferFunction([{
                             color: [1, 1, 1, 0],
                             stop: 0
                         }, {
@@ -447,7 +451,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         return;
                     }
                     if (file.length != 1) throw new Error("Multiple files selected");
-                    const {data, length, raw} = await loadTransferFunction(file.item(0)!);
+                    const { data, length, raw } = await loadTransferFunction(file.item(0)!);
                     this.lastRawTransferImport = raw;
                     this.changeTransferFunc(data, length);
                     generatedTransfer.checked = false;
@@ -458,7 +462,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             colorRamp.addEventListener("change", async (event: Event) => {
                 this.restartRendering(() => {
                     if (!generatedTransfer.checked) return;
-                    const {data, length} = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
+                    const { data, length } = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
                     this.changeTransferFunc(data, length)
                 });
             })
@@ -523,7 +527,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 if (settings.transfer.type === TransferSettingsTransferType.COLOR_STOPS) {
                     colorRamp.colors = settings.transfer.colors;
                     generatedTransfer.checked = true;
-                    const {data, length} = generateTransferFunction(colorRamp.colors);
+                    const { data, length } = generateTransferFunction(colorRamp.colors);
                     this.changeTransferFunc(data, length);
                 } else {
                     generatedTransfer.checked = false;
@@ -545,7 +549,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
             this.lightDirInput = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
             this.lightDirInput.addEventListener("direction", async (event) => {
-                const {detail: {x, y, z}} = event as CustomEvent<{ x: number, y: number, z: number }>;
+                const { detail: { x, y, z } } = event as CustomEvent<{ x: number, y: number, z: number }>;
                 this.restartRendering(() => {
                     this.lightDir = new Vector3(x, y, z);
                 })
@@ -658,7 +662,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
         gl.viewport(0, 0, scaledWidth, scaledHeight);
         // resize framebuffer textures
-        for (const {target} of this.framebuffers) {
+        for (const { target } of this.framebuffers) {
             gl.bindTexture(gl.TEXTURE_2D, target);
             gl.texImage2D(
                 gl.TEXTURE_2D,
@@ -809,7 +813,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_BASE_LEVEL, 0);
         this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_MAX_LEVEL, grid.rangeMipmaps.length);
         let level = 0;
-        for (const {mipmap, stride: [x, y, z]} of grid.rangeMipmaps) {
+        for (const { mipmap, stride: [x, y, z] } of grid.rangeMipmaps) {
             this.gl.texImage3D(
                 this.gl.TEXTURE_3D,
                 level + 1,
@@ -918,25 +922,25 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             this.gl.uniform1i(this.getUniformLocation("u_result", this.blit), 2 + current_pong);
             this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
 
-            // render clipping controls
-            this.gl.enable(this.gl.BLEND);
-            this.gl.enable(this.gl.DEPTH_TEST);
-            this.gl.enable(this.gl.CULL_FACE)
-            //this.gl.cullFace(this.gl.FRONT); // whoopsie my cube vertices are the wrong winding order... oh well
-            this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
-            this.gl.blendEquation(this.gl.FUNC_ADD);
-            this.gl.bindVertexArray(this.clippingCube);
-            this.gl.useProgram(this.clipping);
-            this.camera.bindAsUniforms(this.gl, this.clipping);
-            if (this.volume) {
-                const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
-                const face = this.currentCubeFace(aabb);
-                this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(aabb.flat()));
-                this.gl.uniform1i(this.getUniformLocation("u_selected_face", this.clipping), (typeof face === "number" ? face + 1 : 0) * (this.adjustingClipping ? -1 : 1))
+            if (this.showClipping) {// render clipping controls
+                this.gl.enable(this.gl.BLEND);
+                this.gl.enable(this.gl.DEPTH_TEST);
+                this.gl.enable(this.gl.CULL_FACE)
+                this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+                this.gl.blendEquation(this.gl.FUNC_ADD);
+                this.gl.bindVertexArray(this.clippingCube);
+                this.gl.useProgram(this.clipping);
+                this.camera.bindAsUniforms(this.gl, this.clipping);
+                if (this.volume) {
+                    const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
+                    const face = this.currentCubeFace(aabb);
+                    this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(aabb.flat()));
+                    this.gl.uniform1i(this.getUniformLocation("u_selected_face", this.clipping), (typeof face === "number" ? face + 1 : 0) * (this.adjustingClipping ? -1 : 1))
+                }
+                this.gl.drawArrays(this.gl.TRIANGLES, 0, cubeVertices.length / 3);
+                this.gl.disable(this.gl.CULL_FACE);
+                this.gl.disable(this.gl.DEPTH_TEST)
             }
-            this.gl.drawArrays(this.gl.TRIANGLES, 0, cubeVertices.length / 3);
-            this.gl.disable(this.gl.CULL_FACE);
-            this.gl.disable(this.gl.DEPTH_TEST)
             this.gl.finish()
         }
 
