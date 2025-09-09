@@ -212,7 +212,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         }
                         const ret = (prop as (...args: unknown[]) => unknown).bind(target)(...args);
                         for (let error; (error = target.getError());) {
-                            console.error(`Encountered WebGL error during call to ${p}:`, Object.entries(errors).find(([_, id]) => error === id)?.[1] ?? error);
+                            console.error(`Encountered WebGL error during call to ${p}:`, Object.entries(errors).find(([_, id]) => error === id)?.[0] ?? error);
                         }
                         return ret;
                     }
@@ -351,7 +351,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             this.range = gl.createTexture();
             this.gl.activeTexture(this.gl.TEXTURE0 + 2);
             this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
-            setupImage();
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_NEAREST);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
             this.atlas = gl.createTexture();
             this.gl.activeTexture(this.gl.TEXTURE0 + 3);
             this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
