@@ -166,6 +166,8 @@ float stepDDA(vec3 pos, vec3 inv_dir, int mip) {
     return min(tmax.x, min(tmax.y, tmax.z));
 }
 
+const uint max_steps = 100u;
+
 // DDA-based transmittance
 float transmittanceDDA(Ray ray, inout uint seed) {
     vec2 near_far;
@@ -178,7 +180,8 @@ float transmittanceDDA(Ray ray, inout uint seed) {
     vec3 ri = 1.f / idir;
     // march brick grid
     float t = near_far.x + 1e-6f, Tr = 1.f, tau = -log(1.f - rng(seed)), mip = MIP_START;
-    while (t < near_far.y) {
+    uint step = 0u;
+    while (t < near_far.y && (step++ < max_steps)) {
         vec3 curr = ipos + t * idir;
 
         float majorant = u_volume_maj * lookup_transfer(lookup_majorant(curr, int(round(mip))) * u_volume_inv_maj).a;
@@ -221,7 +224,8 @@ bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout uint se
     // march brick grid
     t = near_far.x + 1e-6f;
     float tau = -log(1.f - rng(seed)), mip = MIP_START;
-    while (t < near_far.y) {
+    uint step = 0u;
+    while (t < near_far.y && (step++ < max_steps)) {
         vec3 curr = ipos + t * idir;
         float majorant = u_volume_maj * lookup_transfer(lookup_majorant(curr, int(round(mip))) * u_volume_inv_maj).a;
 
