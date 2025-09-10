@@ -4,6 +4,8 @@
 #define inv_4PI (1.f / (4 * M_PI))
 #define FLT_MAX float(3.402823466e+38)
 
+#include "random.glsl"
+
 struct Ray {
     vec3 origin;
     vec3 direction;
@@ -78,10 +80,30 @@ bool ray_box_intersection_positions(Ray ray, vec3 aabb[2], out vec3 hit_min, out
     return true;
 }
 
+// --------------------------------------------------------------
+// environment helper (input vectors assumed in world space!)
+
+const float env_strength = 1.0;
+uniform sampler2D u_envmap;
+
+vec3 lookup_environment(const vec3 dir) {
+    vec3 idir = dir;
+    float u = atan(idir.z, idir.x) / (2.0 * M_PI) + 0.5f;
+    float v = 1.f - acos(idir.y) / M_PI;
+    return env_strength * texture(u_envmap, vec2(u, v)).rgb;
+}
+
 vec3 get_background_color(Ray ray) {
+    return lookup_environment(-ray.direction);
     float angleHorizontal = dot(vec3(0, 0, 1), normalize(vec3(ray.direction.x, 0, ray.direction.z))) * 0.5 + 0.5;
     angleHorizontal = int(round(angleHorizontal * 8.0)) % 2 == 0 ? 1.0 : 0.0;
     float angleVertical = dot(normalize(ray.direction), normalize(vec3(ray.direction.x, 0, ray.direction.z)));
     angleVertical = int(round(angleVertical * 8.0)) % 2 == 0 ? 0.0 : 1.0;
     return vec3(abs(angleHorizontal - angleVertical) * 0.05); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
+}
+
+vec3 sample_environment(inout uint seed, out vec3 light_color) {
+    vec3 random_direction = normalize(rng3(seed) * 2.0 - 1.0);
+    light_color = lookup_environment(random_direction);
+    return random_direction;
 }

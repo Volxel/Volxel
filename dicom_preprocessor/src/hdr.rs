@@ -33,6 +33,7 @@ impl ExrImage {
             .largest_resolution_level()
             .rgba_channels(
                 |resolution, _channels| {
+                    // TODO: Possibly handle channels
                     ExrImage {
                         data: vec![0.0f32; resolution.0 * resolution.1 * 4],
                         width: resolution.0,

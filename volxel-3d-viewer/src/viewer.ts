@@ -36,6 +36,7 @@ import {
     TransferSettingsTransferType,
     TransferSettingsVersion
 } from "./settings";
+import {Environment} from "./representation/environment";
 
 declare global {
     interface Window {
@@ -154,6 +155,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private lightDir: Vector3 = new Vector3(-1, -1, -1).normalize();
     private syncLightDir = false;
     private lightDirInput: UnitCubeDisplay | undefined;
+    // environment
+    private environment: Environment | undefined;
 
     // volume settings
     private densityScale: number = 1;
@@ -325,6 +328,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             gl.enableVertexAttribArray(barycentricsAttribute);
             gl.vertexAttribPointer(barycentricsAttribute, 3, gl.FLOAT, false, 0, 0);
 
+            // setup default environment map
+            this.environment = Environment.default(gl);
+
             // Setup transfer function
             this.transfer = this.gl.createTexture();
             const { data, length } = generateTransferFunction([{
@@ -418,9 +424,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             const samplesRangeInput = this.shadowRoot!.getElementById("samples") as HTMLInputElement;
             samplesRangeInput.valueAsNumber = this.maxSamples;
             samplesRangeInput.addEventListener("change", async () => {
-                await this.restartRendering(async () => {
-                    this.maxSamples = samplesRangeInput.valueAsNumber;
-                })
+                this.maxSamples = samplesRangeInput.valueAsNumber;
             })
 
             const generatedTransfer = this.shadowRoot!.getElementById("generated_transfer") as HTMLInputElement;
@@ -564,6 +568,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     this.syncLightDir = backlightToggle.checked;
                     this.maybeSyncLight();
                 })
+            })
+
+            const envUpload = this.shadowRoot!.querySelector("#light_env") as HTMLInputElement;
+            envUpload.addEventListener("change", async () => {
+                const files = envUpload.files;
+                if (files?.length !== 1) return;
+                await this.loadEnv(await files[0].bytes())
             })
 
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
@@ -749,7 +760,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     public async loadEnv(bytes: Uint8Array) {
-        console.log(bytes);
         await this.workerInitialized;
         await this.restartRendering(async () => {
             await new Promise<void>((resolve, reject) => {
@@ -806,7 +816,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     private setupEnv(env: WasmWorkerMessageEnvReturn) {
+        if (!this.gl) throw new Error("Tried to load env into uninitialized gl context");
         console.log("loaded env", env);
+        this.environment = new Environment(this.gl, env);
     }
 
     private setupFromGrid(grid: WasmWorkerMessageDicomReturn) {
@@ -989,24 +1001,25 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     private bindUniforms(framebuffer: number) {
-        if (!this.gl || !this.transfer || !this.indirection || !this.range || !this.atlas) throw new Error("Trying to bind uniforms to uninitialized GL context.")
-        this.gl.activeTexture(this.gl.TEXTURE0 + 0);
+        if (!this.gl || !this.transfer || !this.indirection || !this.range || !this.atlas || !this.program) throw new Error("Trying to bind uniforms to uninitialized GL context.")
+        let textureOffset = 0;
+        this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.transfer);
-        this.gl.uniform1i(this.getUniformLocation("u_transfer"), 0);
+        this.gl.uniform1i(this.getUniformLocation("u_transfer"), textureOffset++);
 
         // light
         this.gl.uniform3f(this.getUniformLocation("u_light_dir"), this.lightDir.x, this.lightDir.y, this.lightDir.z)
 
         // brick lookup textures
-        this.gl.activeTexture(this.gl.TEXTURE0 + 1);
+        this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
         this.gl.bindTexture(this.gl.TEXTURE_3D, this.indirection);
-        this.gl.uniform1i(this.getUniformLocation("u_density_indirection"), 1);
-        this.gl.activeTexture(this.gl.TEXTURE0 + 2);
+        this.gl.uniform1i(this.getUniformLocation("u_density_indirection"), textureOffset++);
+        this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
         this.gl.bindTexture(this.gl.TEXTURE_3D, this.range);
-        this.gl.uniform1i(this.getUniformLocation("u_density_range"), 2);
-        this.gl.activeTexture(this.gl.TEXTURE0 + 3);
+        this.gl.uniform1i(this.getUniformLocation("u_density_range"), textureOffset++);
+        this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
         this.gl.bindTexture(this.gl.TEXTURE_3D, this.atlas);
-        this.gl.uniform1i(this.getUniformLocation("u_density_atlas"), 3);
+        this.gl.uniform1i(this.getUniformLocation("u_density_atlas"), textureOffset++);
 
         // bind volume
         if (this.volume) {
@@ -1026,13 +1039,19 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform_inv"), false, combinedMatrix.invert())
         }
 
+        // bind environment
+        if (this.environment) {
+            textureOffset = this.environment.bindUniforms(this.program, textureOffset)
+        }
+
         // bind sample range
         this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.sampleRange);
 
         // bind previous frame
-        this.gl.activeTexture(this.gl.TEXTURE0 + 4 + framebuffer);
+        this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset + framebuffer);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[framebuffer].target);
-        this.gl.uniform1i(this.getUniformLocation("u_previous_frame"), 4 + framebuffer);
+        this.gl.uniform1i(this.getUniformLocation("u_previous_frame"), textureOffset + framebuffer);
+        textureOffset += this.framebuffers.length;
 
         this.gl.uniform1ui(this.getUniformLocation("u_frame_index"), this.frameIndex);
 

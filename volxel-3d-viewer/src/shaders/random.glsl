@@ -1,3 +1,5 @@
+#ifndef RANDOM
+#define RANDOM
 // Source: Global Illumination Lecture, random.h
 /**
  * @brief Halton low discrepancy sequence (radical inverse)
@@ -62,3 +64,5 @@ vec3 rng3(inout uint previous) {
 vec4 rng4(inout uint previous) {
     return vec4(rng(previous), rng(previous), rng(previous), rng(previous));
 }
+
+#endif

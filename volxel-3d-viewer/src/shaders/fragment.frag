@@ -47,11 +47,10 @@ uniform float u_sample_weight;
 
 // Light
 uniform vec3 u_light_dir;
-const vec3 light_col = vec3(2);
-const vec3 light_amb = vec3(0.6);
+const vec3 light_amb = vec3(0);
 
-#include "utils.glsl"
 #include "random.glsl"
+#include "utils.glsl"
 
 Ray setup_world_ray(vec2 ss_position, int i) {
     float aspect = float(u_res.x) / float(u_res.y);
@@ -263,8 +262,10 @@ vec4 direct_render(Ray ray, inout uint seed) {
 
     // this is a simple direct rendering approach, no multiple paths traced
     vec3 sample_pos = ray.origin + t * ray.direction;
+    vec3 light_col;
+    vec3 light_dir = sample_environment(seed, light_col);
     // check light intensity
-    float light_att = transmittanceDDA(Ray(sample_pos, -u_light_dir), seed);
+    float light_att = transmittanceDDA(Ray(sample_pos, -light_dir), seed);
 
     // TODO: Phase function
     return vec4(throughput * (light_att * light_col + light_amb), 1);

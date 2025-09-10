@@ -340,6 +340,11 @@ export const volxelTemplate: HTMLTemplateElement =  html`
         </label>
     </div>
     <div class="tab" id="light-tab">
+        <p>Disclaimer: Lighting controls currently inactive in favor of HDR upload</p>
+        <label>
+            Upload Environment Map HDR
+            <input type="file" name="light_env" id="light_env" accept="image/aces">
+        </label>
         <div>
             Light direction
             <volxel-cube-direction id="direction"></volxel-cube-direction>
