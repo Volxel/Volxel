@@ -4,7 +4,9 @@ export enum WasmWorkerMessageType {
     LOAD_FROM_ZIP = "zip",
     LOAD_FROM_ZIP_URL = "zip_url",
     LOAD_FROM_BYTES = "bytes",
-    RETURN = "return",
+    RETURN_DICOM = "return_dicom",
+    LOAD_ENV = "load_env",
+    RETURN_ENV = "return_env",
     ERROR = "error",
     INIT = "init"
 }
@@ -32,8 +34,8 @@ export type WasmWorkerMessageBytes = {
     bytes: Uint8Array[]
 }
 
-export type WasmWorkerMessageReturn = {
-    type: WasmWorkerMessageType.RETURN;
+export type WasmWorkerMessageDicomReturn = {
+    type: WasmWorkerMessageType.RETURN_DICOM;
     indirectionSize: [x: number, y: number, z: number];
     rangeSize: [x: number, y: number, z: number];
     atlasSize: [x: number, y: number, z: number];
@@ -52,6 +54,18 @@ export type WasmWorkerMessageReturn = {
     atlas: Uint8Array
 }
 
+export type WasmWorkerMessageLoadEnv = {
+    type: WasmWorkerMessageType.LOAD_ENV,
+    bytes: Uint8Array
+}
+
+export type WasmWorkerMessageEnvReturn = {
+    type: WasmWorkerMessageType.RETURN_ENV,
+    width: number,
+    height: number,
+    floats: Float32Array
+}
+
 export type WasmWorkerMessageError = {
     type: WasmWorkerMessageType.ERROR;
     error: unknown
@@ -61,4 +75,14 @@ export type WasmWorkerMessageInit = {
     type: WasmWorkerMessageType.INIT;
 }
 
-export type WasmWorkerMessage = WasmWorkerMessageUrls | WasmWorkerMessageFiles | WasmWorkerMessageZip | WasmWorkerMessageZipUrl | WasmWorkerMessageBytes | WasmWorkerMessageReturn | WasmWorkerMessageError | WasmWorkerMessageInit;
+export type WasmWorkerMessage =
+    WasmWorkerMessageUrls
+    | WasmWorkerMessageFiles
+    | WasmWorkerMessageZip
+    | WasmWorkerMessageZipUrl
+    | WasmWorkerMessageBytes
+    | WasmWorkerMessageDicomReturn
+    | WasmWorkerMessageLoadEnv
+    | WasmWorkerMessageEnvReturn
+    | WasmWorkerMessageError
+    | WasmWorkerMessageInit;

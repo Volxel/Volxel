@@ -1,4 +1,4 @@
-import {ColorStop} from "./data";
+import {ColorStop} from "./utils/data";
 
 export enum TransferSettingsVersion {
     V1 = "v1"

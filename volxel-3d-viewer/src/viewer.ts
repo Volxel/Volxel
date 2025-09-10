@@ -3,7 +3,7 @@ import fragmentShader from "./shaders/fragment.frag"
 import blitShader from "./shaders/blit.frag"
 import clipVertexShader from "./shaders/clipVertex.vert";
 import clipFragmentShader from "./shaders/clipFragment.frag";
-import { Camera } from "./scene";
+import {Camera} from "./representation/scene";
 
 import {
     ColorStop,
@@ -12,18 +12,18 @@ import {
     cubeVertices,
     generateTransferFunction,
     loadTransferFunction
-} from "./data";
-import { ColorRampComponent } from "./elements/colorramp";
-import { HistogramViewer } from "./elements/histogramViewer";
-import { Volume } from "./representation/volume";
-import { Matrix4, Vector3 } from "math.gl";
-import { closestPoints, cubeFace, Ray, rayBoxIntersectionPositions, setupPanningListeners, worldRay } from "./util";
-import { UnitCubeDisplay } from "./elements/cubeDirection";
-import { rangeInputStyles, volxelStyles, volxelTemplate } from "./template";
+} from "./utils/data";
+import {ColorRampComponent} from "./elements/colorramp";
+import {HistogramViewer} from "./elements/histogramViewer";
+import {Volume} from "./representation/volume";
+import {Matrix4, Vector3} from "math.gl";
+import {closestPoints, cubeFace, Ray, rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
+import {UnitCubeDisplay} from "./elements/cubeDirection";
+import {rangeInputStyles, volxelStyles, volxelTemplate} from "./template";
 import {
     WasmWorkerMessage,
+    WasmWorkerMessageDicomReturn, WasmWorkerMessageEnvReturn,
     WasmWorkerMessageFiles,
-    WasmWorkerMessageReturn,
     WasmWorkerMessageType,
     WasmWorkerMessageUrls,
     WasmWorkerMessageZip,
@@ -31,7 +31,8 @@ import {
 } from "./common";
 import {
     loadTransferSettings,
-    saveTransferSettings, TransferSettings,
+    saveTransferSettings,
+    TransferSettings,
     TransferSettingsTransferType,
     TransferSettingsVersion
 } from "./settings";
@@ -694,13 +695,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public async restartFromFiles(files: File[] | FileList) {
         await this.workerInitialized;
         await this.restartRendering(async () => {
-            await new Promise<void>(resolve => {
+            await new Promise<void>((resolve, reject) => {
                 const message: WasmWorkerMessageFiles = {
                     type: WasmWorkerMessageType.LOAD_FROM_FILES,
                     files
                 }
                 this.worker.postMessage(message)
-                this.setupWorkerListener(resolve)
+                this.setupWorkerListener(resolve, reject)
             })
         })
     }
@@ -708,13 +709,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public async restartFromZip(zip: File) {
         await this.workerInitialized;
         await this.restartRendering(async () => {
-            await new Promise<void>(resolve => {
+            await new Promise<void>((resolve, reject) => {
                 const message: WasmWorkerMessageZip = {
                     type: WasmWorkerMessageType.LOAD_FROM_ZIP,
                     zip
                 }
                 this.worker.postMessage(message)
-                this.setupWorkerListener(resolve)
+                this.setupWorkerListener(resolve, reject)
             })
         })
     }
@@ -722,13 +723,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public async restartFromZipUrl(url: string) {
         await this.workerInitialized;
         await this.restartRendering(async () => {
-            await new Promise<void>(resolve => {
+            await new Promise<void>((resolve, reject) => {
                 const message: WasmWorkerMessageZipUrl = {
                     type: WasmWorkerMessageType.LOAD_FROM_ZIP_URL,
                     zipUrl: url
                 }
                 this.worker.postMessage(message)
-                this.setupWorkerListener(resolve)
+                this.setupWorkerListener(resolve, reject)
             })
         })
     }
@@ -736,41 +737,79 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public async restartFromURLs(urls: string[]) {
         await this.workerInitialized;
         await this.restartRendering(async () => {
-            await new Promise<void>(resolve => {
+            await new Promise<void>((resolve, reject) => {
                 const message: WasmWorkerMessageUrls = {
                     type: WasmWorkerMessageType.LOAD_FROM_URLS,
                     urls
                 }
                 this.worker.postMessage(message)
-                this.setupWorkerListener(resolve)
+                this.setupWorkerListener(resolve, reject)
             })
         })
     }
 
-    private setupWorkerListener(resolve: () => void) {
+    public async loadEnv(bytes: Uint8Array) {
+        console.log(bytes);
+        await this.workerInitialized;
+        await this.restartRendering(async () => {
+            await new Promise<void>((resolve, reject) => {
+                const message: WasmWorkerMessage = {
+                    type: WasmWorkerMessageType.LOAD_ENV,
+                    bytes
+                }
+                this.worker.postMessage(message, {
+                    transfer: [bytes.buffer]
+                })
+                this.setupWorkerListener(resolve, reject)
+            })
+        })
+    }
+
+    public async loadEnvFromUrl(url: string) {
+        const response = await fetch(url)
+        if (!response.ok) throw new Error("Env map fetch responded with error response");
+        const bytes = await response.bytes();
+        await this.workerInitialized;
+        await this.loadEnv(bytes);
+    }
+
+    private setupWorkerListener(resolve: () => void, reject: (e: unknown) => void) {
         const handler = (event: MessageEvent<WasmWorkerMessage>) => {
+            this.worker.removeEventListener("message", handler);
             switch (event.data.type) {
                 case WasmWorkerMessageType.LOAD_FROM_FILES:
                 case WasmWorkerMessageType.LOAD_FROM_URLS:
                 case WasmWorkerMessageType.LOAD_FROM_BYTES:
-                    throw new Error(`Invalid message type ${event.data.type} received from worker.`)
+                case WasmWorkerMessageType.LOAD_ENV:
+                    reject(new Error(`Invalid message type ${event.data.type} received from worker.`))
+                    break;
                 case WasmWorkerMessageType.ERROR: {
-                    this.worker.removeEventListener("message", handler);
-                    resolve()
-                    this.handleError(event.data.error)
+                    reject(event.data.error);
                     break;
                 }
-                case WasmWorkerMessageType.RETURN: {
+                case WasmWorkerMessageType.RETURN_DICOM: {
                     this.setupFromGrid(event.data);
-                    this.worker.removeEventListener("message", handler);
                     resolve()
+                    break;
+                }
+                case WasmWorkerMessageType.RETURN_ENV: {
+                    this.setupEnv(event.data);
+                    resolve();
+                    break;
+                }
+                default: {
+                    reject("Reached default case in Wasm Worker Message Handler")
                 }
             }
         };
         this.worker.addEventListener("message", handler)
     }
 
-    private setupFromGrid(grid: WasmWorkerMessageReturn) {
+    private setupEnv(env: WasmWorkerMessageEnvReturn) {
+        console.log("loaded env", env);
+    }
+
+    private setupFromGrid(grid: WasmWorkerMessageDicomReturn) {
         if (!this.gl || !this.indirection || !this.range || !this.atlas) throw new Error("Trying to setup from grid without GL context being initialized")
         this.densityScale = 1.0;
         this.volumeClipMax = new Vector3(1, 1, 1);
@@ -861,6 +900,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.frameIndex = 0;
                 this.suspend = false;
                 return x;
+            }).catch(e => {
+                this.handleError(e);
             })
         }
         this.resolutionFactor = 0.33;

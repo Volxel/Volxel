@@ -4,6 +4,7 @@ mod buf3d;
 mod dicom;
 mod grid;
 mod zip;
+mod hdr;
 
 use dicom_core::Tag;
 use wasm_bindgen::prelude::*;

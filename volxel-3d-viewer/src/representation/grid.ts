@@ -1,8 +1,8 @@
 import {Matrix4, Vector3} from "math.gl";
-import {WasmWorkerMessageReturn} from "../common";
+import {WasmWorkerMessageDicomReturn} from "../common";
 
 export class Grid {
-    constructor(private brickGrid: WasmWorkerMessageReturn) {
+    constructor(private brickGrid: WasmWorkerMessageDicomReturn) {
     }
 
     minMaj(): [number, number] {

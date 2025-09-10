@@ -1,13 +1,13 @@
 import {Matrix4, Vector3, Vector4} from "math.gl";
 import {Grid} from "./grid";
-import {WasmWorkerMessageReturn} from "../common";
+import {WasmWorkerMessageDicomReturn} from "../common";
 
 export class Volume {
     private transform: Matrix4 = new Matrix4().identity();
     constructor(private grid: Grid) {
 
     }
-    static fromWasm(wasm: WasmWorkerMessageReturn) {
+    static fromWasm(wasm: WasmWorkerMessageDicomReturn) {
         return new Volume(new Grid(wasm))
     }
 

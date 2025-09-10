@@ -1,5 +1,5 @@
 import {Vector2, Vector3, Vector4} from "math.gl";
-import {Camera} from "./scene";
+import {Camera} from "./representation/scene";
 
 export function css(strings: TemplateStringsArray, ...props: any[]) {
     let string = "";

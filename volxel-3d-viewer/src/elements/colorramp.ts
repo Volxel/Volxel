@@ -1,4 +1,4 @@
-import {ColorStop} from "../data";
+import {ColorStop} from "../utils/data";
 import {css, html} from "../util";
 import {rangeInputStyles} from "../template";
 

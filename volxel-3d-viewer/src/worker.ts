@@ -1,4 +1,10 @@
-import {WasmWorkerMessage, WasmWorkerMessageError, WasmWorkerMessageReturn, WasmWorkerMessageType} from "./common";
+import {
+    WasmWorkerMessage,
+    WasmWorkerMessageDicomReturn,
+    WasmWorkerMessageEnvReturn,
+    WasmWorkerMessageError,
+    WasmWorkerMessageType
+} from "./common";
 import * as wasm from "@volxel/dicom_preprocessor";
 
 export {}
@@ -11,7 +17,7 @@ function buildFromBytesAndReturn(bytes: Uint8Array[]) {
     const transform = grid.transform();
     const histogram = grid.histogram();
     const histogramGradient = grid.histogram_gradient();
-    const rangeMipmaps: WasmWorkerMessageReturn["rangeMipmaps"] = [];
+    const rangeMipmaps: WasmWorkerMessageDicomReturn["rangeMipmaps"] = [];
 
     const mipmaps = grid.range_mipmaps();
     for (let i = 0; i < mipmaps; ++i) {
@@ -24,8 +30,8 @@ function buildFromBytesAndReturn(bytes: Uint8Array[]) {
 
     const range = grid.range_data();
 
-    const returnMessage: WasmWorkerMessageReturn = {
-        type: WasmWorkerMessageType.RETURN,
+    const returnMessage: WasmWorkerMessageDicomReturn = {
+        type: WasmWorkerMessageType.RETURN_DICOM,
         indirectionSize: [grid.ind_x(), grid.ind_y(), grid.ind_z()],
         indirection,
         atlasSize: [grid.atlas_x(), grid.atlas_y(), grid.atlas_z()],
@@ -76,13 +82,28 @@ function buildFromZipBytesAndReturn(zipBytes: Uint8Array) {
     buildFromBytesAndReturn(zipResult.bytes())
 }
 
+function loadEnv(bytes: Uint8Array) {
+    const exrImage = wasm.ExrImage.decode_from_bytes(bytes);
+    const floats = new Float32Array(exrImage.data())
+    const width = exrImage.width, height = exrImage.height;
+    exrImage.free();
+    const message: WasmWorkerMessageEnvReturn = {
+        type: WasmWorkerMessageType.RETURN_ENV,
+        floats, width, height
+    }
+    self.postMessage(message, {
+        transfer: [floats.buffer]
+    })
+}
+
 self.onmessage = async (ev: MessageEvent<WasmWorkerMessage>) => {
     try {
         const {type} = ev.data;
         switch (type) {
-            case WasmWorkerMessageType.RETURN:
+            case WasmWorkerMessageType.RETURN_DICOM:
             case WasmWorkerMessageType.ERROR:
             case WasmWorkerMessageType.INIT:
+            case WasmWorkerMessageType.RETURN_ENV:
                 throw new Error(`Worker received ${type} message, this is invalid.`)
             case WasmWorkerMessageType.LOAD_FROM_BYTES: {
                 buildFromBytesAndReturn(ev.data.bytes);
@@ -106,6 +127,10 @@ self.onmessage = async (ev: MessageEvent<WasmWorkerMessage>) => {
             case WasmWorkerMessageType.LOAD_FROM_URLS: {
                 const bytes = await Promise.all(ev.data.urls.map(url => fetch(url).then(res => res.bytes())))
                 buildFromBytesAndReturn(bytes);
+                break;
+            }
+            case WasmWorkerMessageType.LOAD_ENV: {
+                loadEnv(ev.data.bytes);
                 break;
             }
             default:
