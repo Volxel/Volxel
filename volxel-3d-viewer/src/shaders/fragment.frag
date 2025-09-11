@@ -51,6 +51,7 @@ const vec3 light_amb = vec3(0);
 
 #include "random.glsl"
 #include "utils.glsl"
+#include "environment.glsl"
 
 Ray setup_world_ray(vec2 ss_position, int i) {
     float aspect = float(u_res.x) / float(u_res.y);
@@ -262,13 +263,14 @@ vec4 direct_render(Ray ray, inout uint seed) {
 
     // this is a simple direct rendering approach, no multiple paths traced
     vec3 sample_pos = ray.origin + t * ray.direction;
-    vec3 light_col;
-    vec3 light_dir = sample_environment(seed, light_col);
+    vec3 light_dir;
+    vec4 Le_pdf = sample_environment(rng2(seed), light_dir);
+
     // check light intensity
     float light_att = transmittanceDDA(Ray(sample_pos, -light_dir), seed);
 
     // TODO: Phase function
-    return vec4(throughput * (light_att * light_col + light_amb), 1);
+    return vec4(throughput * (light_att * Le_pdf.rgb + light_amb), 1);
 }
 
 const uint ray_count = 1u;

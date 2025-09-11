@@ -1,7 +1,10 @@
+#ifndef UTILS
+#define UTILS
+
 #define M_PI float(3.14159265358979323846)
 #define inv_PI (1.f / M_PI)
-#define inv_2PI (1.f / (2 * M_PI))
-#define inv_4PI (1.f / (4 * M_PI))
+#define inv_2PI (1.f / (2.0 * M_PI))
+#define inv_4PI (1.f / (4.0 * M_PI))
 #define FLT_MAX float(3.402823466e+38)
 
 #include "random.glsl"
@@ -80,30 +83,22 @@ bool ray_box_intersection_positions(Ray ray, vec3 aabb[2], out vec3 hit_min, out
     return true;
 }
 
-// --------------------------------------------------------------
-// environment helper (input vectors assumed in world space!)
+// math utils
 
-const float env_strength = 1.0;
-uniform sampler2D u_envmap;
 
-vec3 lookup_environment(const vec3 dir) {
-    vec3 idir = dir;
-    float u = atan(idir.z, idir.x) / (2.0 * M_PI) + 0.5f;
-    float v = 1.f - acos(idir.y) / M_PI;
-    return env_strength * texture(u_envmap, vec2(u, v)).rgb;
-}
+float sqr(float x) { return x * x; }
+vec3 sqr(vec3 x) { return x * x; }
 
-vec3 get_background_color(Ray ray) {
-    return lookup_environment(-ray.direction);
-    float angleHorizontal = dot(vec3(0, 0, 1), normalize(vec3(ray.direction.x, 0, ray.direction.z))) * 0.5 + 0.5;
-    angleHorizontal = int(round(angleHorizontal * 8.0)) % 2 == 0 ? 1.0 : 0.0;
-    float angleVertical = dot(normalize(ray.direction), normalize(vec3(ray.direction.x, 0, ray.direction.z)));
-    angleVertical = int(round(angleVertical * 8.0)) % 2 == 0 ? 0.0 : 1.0;
-    return vec3(abs(angleHorizontal - angleVertical) * 0.05); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
-}
+float sum(const vec3 x) { return x.x + x.y + x.z; }
 
-vec3 sample_environment(inout uint seed, out vec3 light_color) {
-    vec3 random_direction = normalize(rng3(seed) * 2.0 - 1.0);
-    light_color = lookup_environment(random_direction);
-    return random_direction;
-}
+float mean(const vec3 x) { return sum(x) / 3.f; }
+
+float sanitize(const float x) { return isnan(x) || isinf(x) ? 0.f : x; }
+vec3 sanitize(const vec3 x) { return mix(x, vec3(0), bvec3(isnan(x.x) || isinf(x.x), isnan(x.y) || isinf(x.y), isnan(x.z) || isinf(x.z))); }
+vec4 sanitize(const vec4 x) { return mix(x, vec4(0), bvec4(isnan(x.x) || isinf(x.x), isnan(x.y) || isinf(x.y), isnan(x.z) || isinf(x.z), isnan(x.w) || isinf(x.w))); }
+
+float luma(const vec3 col) { return dot(col, vec3(0.212671f, 0.715160f, 0.072169f)); }
+
+float saturate(const float x) { return clamp(x, 0.f, 1.f); }
+
+#endif

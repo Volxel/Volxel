@@ -1,11 +1,21 @@
 import {WasmWorkerMessageEnvReturn, WasmWorkerMessageType} from "../common";
+import envSetupSource from "../shaders/envSetup.frag";
+import {ComputeContext} from "../utils/compute";
+import {createShader} from "../utils/gl";
 
 let defaultInstance: Environment | null = null;
 
+// importance map parameters (power of two!)
+const DIMENSION = 512;
+const SAMPLES = 64;
+
 export class Environment {
     private readonly texture: WebGLTexture;
+    private readonly importance: WebGLTexture;
 
     constructor(private gl: WebGL2RenderingContext, base: WasmWorkerMessageEnvReturn) {
+        const floatExt = gl.getExtension("OES_texture_float_linear");
+        if (!floatExt) throw new Error(`OES_texture_float_linear not available, cannot prepare environment map.`)
         // Setup base environment map
         this.texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -16,6 +26,29 @@ export class Environment {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, 0);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, base.width, base.height, 0, gl.RGBA, gl.FLOAT, base.floats);
+
+        // setup importance map
+        this.importance = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.importance);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_NEAREST);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, DIMENSION, DIMENSION, 0, gl.RED, gl.FLOAT, null);
+
+        const n_samples = Math.floor(Math.sqrt(SAMPLES));
+
+        const importanceComputeContext = new ComputeContext(gl, createShader(gl, gl.FRAGMENT_SHADER, envSetupSource), this.texture, this.importance);
+        importanceComputeContext.dispatch(DIMENSION, DIMENSION, (gl, loc) => {
+            gl.uniform2i(loc("output_size_samples"), DIMENSION * n_samples, DIMENSION * n_samples);
+            gl.uniform2i(loc("num_samples"), n_samples, n_samples);
+            gl.uniform1f(loc("inv_samples"), 1.0 / (n_samples * n_samples));
+
+            return 0;
+        });
+        gl.bindTexture(gl.TEXTURE_2D, this.importance);
+        gl.generateMipmap(gl.TEXTURE_2D)
     }
 
     private readonly notFoundUniforms = new Set<string>()
@@ -34,9 +67,9 @@ export class Environment {
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
         this.gl.uniform1i(uniformLoc("u_envmap"), textureOffset++);
         // Bind impmap into shader
-        // this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
-        // this.gl.bindTexture(this.gl.TEXTURE_2D, this.importance);
-        // this.gl.uniform1i(uniformLoc("u_impmap"), textureOffset++);
+        this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.importance);
+        this.gl.uniform1i(uniformLoc("u_impmap"), textureOffset++);
 
         return textureOffset;
     }
