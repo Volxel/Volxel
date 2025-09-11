@@ -13,7 +13,7 @@ export class Environment {
     private readonly texture: WebGLTexture;
     private readonly importance: WebGLTexture;
 
-    constructor(private gl: WebGL2RenderingContext, base: WasmWorkerMessageEnvReturn) {
+    constructor(private gl: WebGL2RenderingContext, base: WasmWorkerMessageEnvReturn, public strength: number = 1) {
         const floatExt = gl.getExtension("OES_texture_float_linear");
         if (!floatExt) throw new Error(`OES_texture_float_linear not available, cannot prepare environment map.`)
         // Setup base environment map
@@ -70,6 +70,11 @@ export class Environment {
         this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.importance);
         this.gl.uniform1i(uniformLoc("u_impmap"), textureOffset++);
+
+        // bind other info
+        this.gl.uniform1i(uniformLoc("env_imp_base_mip"), Math.floor(Math.log2(DIMENSION)))
+        this.gl.uniform1f(uniformLoc("env_strength"), this.strength)
+        this.gl.uniform2f(uniformLoc("env_imp_inv_dim"), 1.0 / DIMENSION, 1.0 / DIMENSION)
 
         return textureOffset;
     }

@@ -345,6 +345,13 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             Upload Environment Map HDR
             <input type="file" name="light_env" id="light_env" accept="image/aces">
         </label>
+        <label>
+            Environment Strength
+            <div class="rangeWrapper">
+                <input type="range" name="env_strength" id="env_strength" min="0.01" max="2" step="0.01">
+                <div class="thumb"></div>
+            </div>
+        </label>
         <div>
             Light direction
             <volxel-cube-direction id="direction"></volxel-cube-direction>

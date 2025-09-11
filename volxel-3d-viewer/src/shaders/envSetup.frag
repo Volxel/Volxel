@@ -17,7 +17,7 @@ uniform float inv_samples;
 in vec2 tex;
 
 // compute output (environment map is R32F, so float)
-out float out_imp;
+out vec4 out_imp;
 
 float luma(const vec3 col) { return dot(col, vec3(0.212671f, 0.715160f, 0.072169f)); }
 
@@ -33,5 +33,5 @@ void main() {
         }
     }
 
-    out_imp = importance * inv_samples;
+    out_imp = vec4(importance * inv_samples);
 }

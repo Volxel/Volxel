@@ -53,11 +53,11 @@ const vec3 light_amb = vec3(0);
 #include "utils.glsl"
 #include "environment.glsl"
 
-Ray setup_world_ray(vec2 ss_position, int i) {
+Ray setup_world_ray(vec2 ss_position, int i, vec2 rng) {
     float aspect = float(u_res.x) / float(u_res.y);
 
-    float x_offset = (halton(i, 2u) * 2.0 - 1.0) * (1.0 / float(u_res.x));
-    float y_offset = (halton(i, 3u) * 2.0 - 1.0) * (1.0 / float(u_res.y));
+    float x_offset = (rng.x * 2.0 - 1.0) * (1.0 / float(u_res.x));
+    float y_offset = (rng.y * 2.0 - 1.0) * (1.0 / float(u_res.y));
     ss_position += vec2(x_offset, y_offset);
 
     return Ray(cameraWorldPos(), cameraWorldDir(ss_position));
@@ -278,14 +278,18 @@ const uint ray_count = 1u;
 void main() {
     vec3 hit_min;
     vec3 hit_max;
+    vec2 uv = tex * 0.5 + 0.5;
 
-    vec4 previous_frame = texture(u_previous_frame, tex * 0.5 + 0.5);
+
+    vec4 previous_frame = texture(u_previous_frame, uv);
 
     vec3 aabb[2] = u_volume_aabb;
 
     outColor = vec4(0.0);
 
-    ivec2 pixel = ivec2((tex * 0.5 + 0.5) * vec2(u_res));
+    int env_mip_level = 5;
+
+    ivec2 pixel = ivec2((uv) * vec2(512 / int(pow(2.0, float(env_mip_level)))));
 
     vec4 result = vec4(0);
     uint seed = 42u;
@@ -293,7 +297,7 @@ void main() {
 
     for (uint i = 0u; i < ray_count; ++i) {
         seed += i;
-        Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i));
+        Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i), rng2(seed));
         vec3 background = get_background_color(ray);
         if (u_debugHits) {
             if (ray_box_intersection_positions(ray, aabb, hit_min, hit_max)) {

@@ -511,11 +511,28 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 })
             })
 
+            const envStrengthInput = this.shadowRoot!.getElementById("env_strength") as HTMLInputElement;
+            envStrengthInput.valueAsNumber = this.environment!.strength;
+            const setupSliderInfoEnvStrength = () => {
+                const progress = (this.environment!.strength - Number.parseFloat(envStrengthInput.min)) / (Number.parseFloat(envStrengthInput.max) - Number.parseFloat(envStrengthInput.min));
+                envStrengthInput.parentElement!.style.setProperty("--value", progress.toFixed(2))
+                envStrengthInput.parentElement!.style.setProperty("--absolute-value", `"${this.environment!.strength.toFixed(2)}"`)
+            }
+            envStrengthInput.addEventListener("input", async () => {
+                await this.restartRendering(async () => {
+                    this.environment!.strength = envStrengthInput.valueAsNumber;
+                    setupSliderInfoEnvStrength()
+                })
+            })
+            setupSliderInfoEnvStrength()
+
             const envUpload = this.shadowRoot!.querySelector("#light_env") as HTMLInputElement;
             envUpload.addEventListener("change", async () => {
                 const files = envUpload.files;
                 if (files?.length !== 1) return;
                 await this.loadEnv(new Uint8Array(await files[0].arrayBuffer()))
+                envStrengthInput.valueAsNumber = this.environment!.strength;
+                setupSliderInfoEnvStrength();
             })
 
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;

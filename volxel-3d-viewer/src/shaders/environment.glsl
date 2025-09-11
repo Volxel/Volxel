@@ -4,7 +4,7 @@
 // --------------------------------------------------------------
 // environment helper (input vectors assumed in world space!)
 
-const float env_strength = 1.0;
+uniform float env_strength;
 uniform sampler2D u_envmap;
 uniform sampler2D u_impmap;
 uniform int u_hide_envmap;
@@ -15,7 +15,7 @@ vec3 lookup_environment(const vec3 dir) {
     vec3 idir = dir;
     float u = atan(idir.z, idir.x) / (2.0 * M_PI) + 0.5f;
     float v = 1.f - acos(idir.y) / M_PI;
-    return env_strength * texture(u_envmap, vec2(u, v)).rgb;
+    return texture(u_envmap, vec2(u, v)).rgb;
 }
 
 vec3 get_background_color(Ray ray) {
