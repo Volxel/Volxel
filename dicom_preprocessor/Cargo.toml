@@ -27,7 +27,7 @@ js-sys = "0.3.78"
 glam = "0.30.5"
 bytemuck = "1.23.2"
 half = "2.6.0" # TODO: Remove this once f16 is stable in Rust
-zip = { version = "5.0.1", default-features = false, features = ["bzip2", "deflate", "lzma", "deflate64", "ppmd", "zstd"] }
+zip = { version = "5.1.0", default-features = false, features = ["bzip2", "deflate", "lzma", "deflate64", "ppmd", "zstd"] }
 exr = "1.73.0"
 
 [profile.release]
