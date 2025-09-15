@@ -1,9 +1,12 @@
 #version 300 es
 
 precision highp float;
-precision mediump sampler3D;
-precision mediump usampler3D;
+precision highp sampler3D;
+precision highp usampler3D;
 precision highp int;
+precision highp sampler2D;
+precision highp usampler2D;
+precision highp isampler2D;
 
 out vec4 outColor;
 
@@ -53,7 +56,7 @@ const vec3 light_amb = vec3(0);
 #include "utils.glsl"
 #include "environment.glsl"
 
-Ray setup_world_ray(vec2 ss_position, int i, vec2 rng) {
+Ray setup_world_ray(vec2 ss_position, vec2 rng) {
     float aspect = float(u_res.x) / float(u_res.y);
 
     float x_offset = (rng.x * 2.0 - 1.0) * (1.0 / float(u_res.x));
@@ -71,11 +74,11 @@ float map_to_range(float x, vec2 range) {
 // --------------------------------------------------------------
 // stochastic filter helpers
 
-ivec3 stochastic_trilinear_filter(const vec3 ipos, inout uint seed) {
+ivec3 stochastic_trilinear_filter(const vec3 ipos, inout rand_seed seed) {
     return ivec3(ipos - 0.5 + rng3(seed));
 }
 
-ivec3 stochastic_tricubic_filter(const vec3 ipos, inout uint seed) {
+ivec3 stochastic_tricubic_filter(const vec3 ipos, inout rand_seed seed) {
     // from "Stochastic Texture Filtering": https://arxiv.org/pdf/2305.05810.pdf
     ivec3 iipos = ivec3(floor(ipos - 0.5));
     vec3 t = (ipos - 0.5) - vec3(iipos);
@@ -138,7 +141,7 @@ float lookup_density_trilinear(const vec3 ipos) {
 }
 
 // density lookup (stochastic tricubic filter)
-float lookup_density_stochastic(const vec3 ipos, inout uint seed) {
+float lookup_density_stochastic(const vec3 ipos, inout rand_seed seed) {
     // return lookup_density(ivec3(ipos));
     // return lookup_density(stochastic_trilinear_filter(ipos, seed));
     return lookup_density(vec3(stochastic_tricubic_filter(ipos, seed)));
@@ -169,7 +172,7 @@ float stepDDA(vec3 pos, vec3 inv_dir, int mip) {
 const uint max_steps = 100u;
 
 // DDA-based transmittance
-float transmittanceDDA(Ray ray, inout uint seed) {
+float transmittanceDDA(Ray ray, inout rand_seed seed) {
     vec2 near_far;
     if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return 1.0F;
 
@@ -213,7 +216,7 @@ float transmittanceDDA(Ray ray, inout uint seed) {
 }
 
 // DDA-based volume sampling
-bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout uint seed) {
+bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout rand_seed seed) {
     vec2 near_far;
     if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return false;
 
@@ -253,7 +256,7 @@ bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout uint se
 
 // ------------
 
-vec4 direct_render(Ray ray, inout uint seed) {
+vec4 direct_render(Ray ray, inout rand_seed seed) {
     vec3 background = get_background_color(ray);
     float t = 0.0;
     vec3 throughput = vec3(1);
@@ -264,7 +267,8 @@ vec4 direct_render(Ray ray, inout uint seed) {
     // this is a simple direct rendering approach, no multiple paths traced
     vec3 sample_pos = ray.origin + t * ray.direction;
     vec3 light_dir;
-    vec4 Le_pdf = sample_environment(rng2(seed), light_dir);
+    vec4 Le_pdf = sample_environment((rng2(seed) + rng2(seed)) / 2.0, light_dir);
+    return vec4(light_dir * 0.5 + 0.5, 1);
 
     // check light intensity
     float light_att = transmittanceDDA(Ray(sample_pos, -light_dir), seed);
@@ -273,7 +277,55 @@ vec4 direct_render(Ray ray, inout uint seed) {
     return vec4(throughput * (light_att * Le_pdf.rgb + light_amb), 1);
 }
 
-const uint ray_count = 1u;
+// TODO: uniform
+const uint bounces = 10u;
+
+vec4 trace_path(Ray ray, inout rand_seed seed) {
+    // trace path
+    vec3 L = vec3(0);
+    vec3 throughput = vec3(1);
+    bool free_path = true;
+    uint n_paths = 0u;
+    float t, f_p; // t: end of ray segment (i.e. sampled position or out of volume), f_p: last phase function sample for MIS
+    while (sample_volumeDDA(ray, t, throughput, seed)) {
+        // advance ray
+        ray.origin = ray.origin + t * ray.direction;
+
+        // sample light source (environment)
+        vec3 w_i;
+        vec4 Le_pdf = sample_environment(rng2(seed), w_i);
+        if (Le_pdf.w > 0.0) {
+            f_p = phase_henyey_greenstein(dot(-ray.direction, w_i), u_volume_phase_g);
+            float mis_weight = power_heuristic(Le_pdf.w, f_p);
+            float Tr = transmittanceDDA(ray, seed);
+            L += throughput * mis_weight * f_p * Tr * Le_pdf.rgb / Le_pdf.w;
+        }
+
+        // early out?
+        if (++n_paths >= bounces) { free_path = false; break; }
+        // russian roulette
+        float rr_val = luma(throughput);
+        if (rr_val < .1f) {
+            float prob = 1.0 - rr_val;
+            if (rng(seed) < prob) { free_path = false; break; }
+            throughput /= 1.0 - prob;
+        }
+
+        // scatter ray
+        vec3 scatter_dir = sample_phase_henyey_greenstein(ray.direction, u_volume_phase_g, rng2(seed));
+        f_p = phase_henyey_greenstein(dot(-ray.direction, scatter_dir), u_volume_phase_g);
+        ray.direction = scatter_dir;
+    }
+
+    // free path? -> add envmap contribution
+    if (free_path) {
+        vec3 Le = lookup_environment(-ray.direction);
+        float mis_weight = n_paths > 0u ? power_heuristic(f_p, pdf_environment(-ray.direction)) : 1.f;
+        L += throughput * mis_weight * Le;
+    }
+
+    return vec4(L, clamp(float(n_paths), 0.0, 1.0));
+}
 
 void main() {
     vec3 hit_min;
@@ -289,28 +341,24 @@ void main() {
 
     int env_mip_level = 5;
 
-    ivec2 pixel = ivec2((uv) * vec2(512 / int(pow(2.0, float(env_mip_level)))));
+    ivec2 pixel = ivec2(uv * vec2(u_res));
 
     vec4 result = vec4(0);
-    uint seed = 42u;
-    seed = tea(seed * uint(pixel.y * u_res.x + pixel.x), u_frame_index, 32u);
+    uint seed = tea(128u * uint(pixel.y * u_res.x + pixel.x), u_frame_index * 4u, 32u);
+    rand_seed rand_state = seedXoshiro(seed);
 
-    for (uint i = 0u; i < ray_count; ++i) {
-        seed += i;
-        Ray ray = setup_world_ray(tex, int(u_frame_index * ray_count + i), rng2(seed));
-        vec3 background = get_background_color(ray);
-        if (u_debugHits) {
-            if (ray_box_intersection_positions(ray, aabb, hit_min, hit_max)) {
-                result = vec4(world_to_aabb(hit_min, aabb), 1);
-            } else {
-                result = vec4(background, 1);
-            }
-            continue;
+    Ray ray = setup_world_ray(tex, (rng2(rand_state) + rng2(rand_state)) / 2.0);
+    vec3 background = get_background_color(ray);
+    if (u_debugHits) {
+        if (ray_box_intersection_positions(ray, aabb, hit_min, hit_max)) {
+            result = vec4(world_to_aabb(hit_min, aabb), 1);
+        } else {
+            result = vec4(background, 1);
         }
-
-        result = direct_render(ray, seed);
+    } else {
+        result = sanitize(trace_path(ray, rand_state));
     }
-    result = result / float(ray_count);
 
-    if (outColor.a == 0.0) outColor = u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result;
+
+    if (outColor.a == 0.0) outColor = vec4((u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result).rgb, 1);
 }

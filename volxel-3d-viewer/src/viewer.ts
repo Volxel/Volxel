@@ -1012,7 +1012,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
         this.gl.uniform1ui(this.getUniformLocation("u_frame_index"), this.frameIndex);
 
-        this.gl.uniform2i(this.getUniformLocation("u_res"), this.canvas.width, this.canvas.height)
+        this.gl.uniform2i(this.getUniformLocation("u_res"), this.resolutionFactor * this.gl.canvas.width, this.resolutionFactor * this.gl.canvas.height)
         this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.debugHits ? 1 : 0);
 
         this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < this.lowResolutionDuration ? 0 : (this.frameIndex - this.lowResolutionDuration) / (this.frameIndex - this.lowResolutionDuration + 1));

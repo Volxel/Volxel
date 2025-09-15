@@ -101,4 +101,42 @@ float luma(const vec3 col) { return dot(col, vec3(0.212671f, 0.715160f, 0.072169
 
 float saturate(const float x) { return clamp(x, 0.f, 1.f); }
 
+float power_heuristic(const float a, const float b) { return sqr(a) / (sqr(a) + sqr(b)); }
+
+vec3 align(const vec3 N, const vec3 v) {
+    // build tangent frame
+    vec3 T = abs(N.x) > abs(N.y) ?
+    vec3(-N.z, 0, N.x) / sqrt(N.x * N.x + N.z * N.z) :
+    vec3(0, N.z, -N.y) / sqrt(N.y * N.y + N.z * N.z);
+    vec3 B = cross(N, T);
+    // tangent to world
+    return normalize(v.x * T + v.y * B + v.z * N);
+}
+
+// --------------------------------------------------------------
+// phase function helpers
+
+float phase_isotropic() { return inv_4PI; }
+
+float phase_henyey_greenstein(const float cos_t, const float g) {
+    float denom = 1.0 + sqr(g) + 2.0 * g * cos_t;
+    return inv_4PI * (1.0 - sqr(g)) / (denom * sqrt(denom));
+}
+
+vec3 sample_phase_isotropic(const vec2 phase_sample) {
+    float cos_t = 1.f - 2.f * phase_sample.x;
+    float sin_t = sqrt(max(0.f, 1.f - sqr(cos_t)));
+    float phi = 2.f * M_PI * phase_sample.y;
+    return normalize(vec3(sin_t * cos(phi), sin_t * sin(phi), cos_t));
+}
+
+vec3 sample_phase_henyey_greenstein(const vec3 dir, const float g, const vec2 phase_sample) {
+    float cos_t = abs(g) < 1e-4f ? 1.f - 2.f * phase_sample.x :
+    (1.0 + sqr(g) - sqr((1.0 - sqr(g)) / (1.0 - g + 2.0 * g * phase_sample.x))) / (2.0 * g);
+    float sin_t = sqrt(max(0.f, 1.f - sqr(cos_t)));
+    float phi = 2.f * M_PI * phase_sample.y;
+    return align(dir, vec3(sin_t * cos(phi), sin_t * sin(phi), cos_t));
+}
+
+
 #endif

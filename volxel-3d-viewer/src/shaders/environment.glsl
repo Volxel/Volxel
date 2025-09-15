@@ -15,7 +15,7 @@ vec3 lookup_environment(const vec3 dir) {
     vec3 idir = dir;
     float u = atan(idir.z, idir.x) / (2.0 * M_PI) + 0.5f;
     float v = 1.f - acos(idir.y) / M_PI;
-    return texture(u_envmap, vec2(u, v)).rgb;
+    return env_strength * texture(u_envmap, vec2(u, v)).rgb;
 }
 
 vec3 get_background_color(Ray ray) {
