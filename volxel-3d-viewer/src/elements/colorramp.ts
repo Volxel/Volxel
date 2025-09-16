@@ -1,6 +1,6 @@
 import {ColorStop} from "../utils/data";
 import {css, html} from "../util";
-import {rangeInputStyles} from "../template";
+import {Slider} from "./slider";
 
 function buildHeightsSVG(stops: ColorStop[]): SVGSVGElement {
     const NS = "http://www.w3.org/2000/svg";
@@ -54,10 +54,7 @@ const dialogTemplate = html`
         </label>
         <label>
             Set density
-            <div class="rangeWrapper">
-                <input type="range" name="density" id="density" min="0" max="1" step="0.001">
-                <div class="thumb"></div>
-            </div>
+            <volxel-slider id="density" min="0" max="1" step="0.01"></volxel-slider>
         </label>
         <div class="buttons">
             <button type="submit" value="cancel">Cancel</button>
@@ -81,7 +78,7 @@ export class ColorRampComponent extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
-        this.shadowRoot!.adoptedStyleSheets.push(rangeInputStyles, css`
+        this.shadowRoot!.adoptedStyleSheets.push(css`
             * {
                 box-sizing: border-box;
                 font-family: system-ui, -apple-system;
@@ -249,7 +246,7 @@ export class ColorRampComponent extends HTMLElement {
         this.colors.sort((a, b) => a.stop - b.stop);
     }
 
-    private rerenderColors() {
+    private async rerenderColors() {
         this.controlsDiv.innerHTML = "";
         const gradientSteps: string[] = [];
         for (const stop of this.colors) {
@@ -264,22 +261,12 @@ export class ColorRampComponent extends HTMLElement {
             const contents = dialogTemplate.content.cloneNode(true);
             dialog.appendChild(contents);
             const colorInput = dialog.querySelector("#color") as HTMLInputElement;
-            const densityInput = dialog.querySelector("#density") as HTMLInputElement;
+            const densityInput = dialog.querySelector("#density") as Slider;
             colorInput.value = hex;
-            densityInput.valueAsNumber = stop.color[3]
-
-            const setupSliderInfo = () => {
-                const progress = (densityInput.valueAsNumber - Number.parseFloat(densityInput.min)) / (Number.parseFloat(densityInput.max) - Number.parseFloat(densityInput.min));
-                densityInput.parentElement!.style.setProperty("--value", progress.toFixed(2))
-                densityInput.parentElement!.style.setProperty("--absolute-value", `"${densityInput.valueAsNumber.toFixed(2)}"`)
-            }
-            densityInput.addEventListener("input", () => {
-                setupSliderInfo()
-            })
-            setupSliderInfo()
 
             wrapper.appendChild(dialog);
             wrapper.appendChild(stopControl);
+
             dialog.addEventListener("close", () => {
                 if (dialog.returnValue !== "save") return;
                 colorInput.style.setProperty("color", colorInput.value);
@@ -288,7 +275,7 @@ export class ColorRampComponent extends HTMLElement {
                         .map(match => match[0].substring(0, match[0].length - 1))
                         .map(number => Number.parseInt(number) / 255)
                 );
-                stop.color = (parsedColor.length === 4 ? parsedColor : [...parsedColor, densityInput.valueAsNumber]) as [number, number, number, number]
+                stop.color = (parsedColor.length === 4 ? parsedColor : [...parsedColor, densityInput.value]) as [number, number, number, number]
                 this.sortColors();
                 this.rerenderColors();
                 this.dispatchEvent(new CustomEvent("change", { detail: this.colors }))
@@ -343,6 +330,11 @@ export class ColorRampComponent extends HTMLElement {
             gradientSteps.push(`${withoutAlpha} ${Math.round(stop.stop * 100)}%`)
 
             this.controlsDiv.appendChild(wrapper);
+
+            if (!densityInput.connected) {
+                await new Promise(resolve => densityInput.addEventListener("connected", resolve))
+            }
+            densityInput.value = stop.color[3]
         }
         this.displayedColorDiv.style.setProperty("--gradient", `linear-gradient(to right, ${gradientSteps.join(", ")})`);
         this.displayedColorDiv.innerHTML = "";

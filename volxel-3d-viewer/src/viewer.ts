@@ -19,7 +19,7 @@ import {Volume} from "./representation/volume";
 import {Matrix4, Vector3} from "math.gl";
 import {closestPoints, cubeFace, Ray, rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
 import {UnitCubeDisplay} from "./elements/cubeDirection";
-import {rangeInputStyles, volxelStyles, volxelTemplate} from "./template";
+import {volxelStyles, volxelTemplate} from "./template";
 import {
     WasmWorkerMessage,
     WasmWorkerMessageDicomReturn, WasmWorkerMessageEnvReturn,
@@ -38,6 +38,7 @@ import {
 } from "./settings";
 import {Environment} from "./representation/environment";
 import {checkFbo, createProgram, createShader, Framebuffer} from "./utils/gl";
+import {Slider} from "./elements/slider";
 
 declare global {
     interface Window {
@@ -117,7 +118,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         super()
 
         this.attachShadow({ mode: "open" });
-        this.shadowRoot!.adoptedStyleSheets.push(volxelStyles, rangeInputStyles)
+        this.shadowRoot!.adoptedStyleSheets.push(volxelStyles)
 
         // setup template
         const instantiated = volxelTemplate!.content.cloneNode(true);
@@ -362,10 +363,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 if (right) this.adjustingClipping = false;
             });
 
-            const samplesRangeInput = this.shadowRoot!.getElementById("samples") as HTMLInputElement;
-            samplesRangeInput.valueAsNumber = this.maxSamples;
+            const samplesRangeInput = this.shadowRoot!.getElementById("samples") as Slider;
+            samplesRangeInput.value = this.maxSamples;
             samplesRangeInput.addEventListener("change", async () => {
-                this.maxSamples = samplesRangeInput.valueAsNumber;
+                this.maxSamples = samplesRangeInput.value;
+                if (this.maxSamples < this.frameIndex) {
+                    this.restartRendering();
+                }
             })
 
             const generatedTransfer = this.shadowRoot!.getElementById("generated_transfer") as HTMLInputElement;
@@ -420,20 +424,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 })
             })
 
-            const densityMultiplierInput = this.shadowRoot!.getElementById("density_multiplier") as HTMLInputElement;
-            densityMultiplierInput.valueAsNumber = this.densityMultiplier;
-            const setupSliderInfo = () => {
-                const progress = (this.densityMultiplier - Number.parseFloat(densityMultiplierInput.min)) / (Number.parseFloat(densityMultiplierInput.max) - Number.parseFloat(densityMultiplierInput.min));
-                densityMultiplierInput.parentElement!.style.setProperty("--value", progress.toFixed(2))
-                densityMultiplierInput.parentElement!.style.setProperty("--absolute-value", `"${this.densityMultiplier.toFixed(2)}"`)
-            }
+            const densityMultiplierInput = this.shadowRoot!.getElementById("density_multiplier") as Slider;
+            densityMultiplierInput.value = this.densityMultiplier;
             densityMultiplierInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
-                    this.densityMultiplier = densityMultiplierInput.valueAsNumber;
-                    setupSliderInfo()
+                    this.densityMultiplier = densityMultiplierInput.value;
                 })
             })
-            setupSliderInfo()
 
             const exportTransferSettingsButton = this.shadowRoot!.getElementById("export-transfer") as HTMLButtonElement;
             exportTransferSettingsButton.addEventListener("click", () => {
@@ -466,8 +463,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
                 // restore density multiplier settings
                 this.densityMultiplier = settings.densityMultiplier;
-                densityMultiplierInput.valueAsNumber = settings.densityMultiplier;
-                setupSliderInfo();
+                densityMultiplierInput.value = settings.densityMultiplier;
 
                 // restore color settings
                 if (settings.transfer.type === TransferSettingsTransferType.COLOR_STOPS) {
@@ -511,28 +507,20 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 })
             })
 
-            const envStrengthInput = this.shadowRoot!.getElementById("env_strength") as HTMLInputElement;
-            envStrengthInput.valueAsNumber = this.environment!.strength;
-            const setupSliderInfoEnvStrength = () => {
-                const progress = (this.environment!.strength - Number.parseFloat(envStrengthInput.min)) / (Number.parseFloat(envStrengthInput.max) - Number.parseFloat(envStrengthInput.min));
-                envStrengthInput.parentElement!.style.setProperty("--value", progress.toFixed(2))
-                envStrengthInput.parentElement!.style.setProperty("--absolute-value", `"${this.environment!.strength.toFixed(2)}"`)
-            }
+            const envStrengthInput = this.shadowRoot!.getElementById("env_strength") as Slider;
+            envStrengthInput.value = this.environment!.strength;
             envStrengthInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
-                    this.environment!.strength = envStrengthInput.valueAsNumber;
-                    setupSliderInfoEnvStrength()
+                    this.environment!.strength = envStrengthInput.value;
                 })
             })
-            setupSliderInfoEnvStrength()
 
             const envUpload = this.shadowRoot!.querySelector("#light_env") as HTMLInputElement;
             envUpload.addEventListener("change", async () => {
                 const files = envUpload.files;
                 if (files?.length !== 1) return;
                 await this.loadEnv(new Uint8Array(await files[0].arrayBuffer()))
-                envStrengthInput.valueAsNumber = this.environment!.strength;
-                setupSliderInfoEnvStrength();
+                envStrengthInput.value = this.environment!.strength;
             })
 
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
@@ -853,14 +841,14 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
     }
 
-    private restartRendering<T>(action: () => T): T | undefined {
+    private restartRendering<T>(action?: () => T): T | undefined {
         if (this.errored) return;
         this.classList.add("restarting");
         this.clearError();
         // JS runs on a single main thread, this should never be interrupted
         const previousSuspend = this.suspend;
         this.suspend = true;
-        const result = action();
+        const result = action && action();
         if (result instanceof Promise) {
             // @ts-expect-error ts doesn't understand this
             return result.then(x => {
@@ -890,7 +878,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             let current_pong = this.framebufferPingPong;
             // bind Quad VAO for raytracing shaders
             this.gl.bindVertexArray(this.quad);
-            if (this.frameIndex < this.maxSamples) {
+            if (this.frameIndex <= this.maxSamples) {
                 this.gl.disable(this.gl.DEPTH_TEST);
                 const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
                 // -- Render into Framebuffer --
@@ -1104,8 +1092,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
 export function registerVolxelComponents(worker: () => Worker) {
     workerFactory = worker;
-    customElements.define("volxel-colorramp", ColorRampComponent);
+    customElements.define("volxel-slider", Slider);
     customElements.define("volxel-histogram-viewer", HistogramViewer);
     customElements.define("volxel-cube-direction", UnitCubeDisplay);
+    customElements.define("volxel-colorramp", ColorRampComponent);
     customElements.define("volxel-3d-viewer", Volxel3DDicomRenderer);
 }
