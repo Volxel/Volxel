@@ -18,15 +18,6 @@ vec3 lookup_environment(const vec3 dir) {
     return env_strength * texture(u_envmap, vec2(u, v)).rgb;
 }
 
-vec3 get_background_color(Ray ray) {
-    if (u_hide_envmap == 0) return lookup_environment(-ray.direction);
-    float angleHorizontal = dot(vec3(0, 0, 1), normalize(vec3(ray.direction.x, 0, ray.direction.z))) * 0.5 + 0.5;
-    angleHorizontal = int(round(angleHorizontal * 8.0)) % 2 == 0 ? 1.0 : 0.0;
-    float angleVertical = dot(normalize(ray.direction), normalize(vec3(ray.direction.x, 0, ray.direction.z)));
-    angleVertical = int(round(angleVertical * 8.0)) % 2 == 0 ? 0.0 : 1.0;
-    return vec3(abs(angleHorizontal - angleVertical) * 0.05); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
-}
-
 vec4 sample_environment(vec2 rng, out vec3 w_i) {
     ivec2 pos = ivec2(0);   // pixel position
     vec2 p = rng;           // sub-pixel position
@@ -81,4 +72,13 @@ float pdf_environment(vec3 dir) {
     return pdf * inv_4PI;
 }
 
+
+vec3 get_background_color(Ray ray) {
+    if (u_hide_envmap == 0) return lookup_environment(ray.direction);
+    float angleHorizontal = dot(vec3(0, 0, 1), normalize(vec3(ray.direction.x, 0, ray.direction.z))) * 0.5 + 0.5;
+    angleHorizontal = int(round(angleHorizontal * 8.0)) % 2 == 0 ? 1.0 : 0.0;
+    float angleVertical = dot(normalize(ray.direction), normalize(vec3(ray.direction.x, 0, ray.direction.z)));
+    angleVertical = int(round(angleVertical * 8.0)) % 2 == 0 ? 0.0 : 1.0;
+    return vec3(abs(angleHorizontal - angleVertical) * 0.05); // vec3(clamp(pow(dot(ray.direction, -light_dir), 30.0), 0.0, 1.0)); //clamp(ray.direction, vec3(0.2), vec3(1.0));
+}
 #endif

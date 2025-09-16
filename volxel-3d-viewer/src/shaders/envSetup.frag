@@ -22,7 +22,7 @@ out vec4 out_imp;
 float luma(const vec3 col) { return dot(col, vec3(0.212671f, 0.715160f, 0.072169f)); }
 
 void main() {
-    ivec2 pixel = ivec2((tex * 0.5 + 0.5) * vec2(u_dimension));
+    ivec2 pixel = ivec2(tex * vec2(u_dimension));
     ivec2 size_env = textureSize(u_input, 0);
 
     float importance = 0.0F;

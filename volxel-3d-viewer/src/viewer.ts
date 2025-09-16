@@ -88,6 +88,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     // environment
     private showEnvironment: boolean = true;
     // rendering
+    private tracePath: boolean = true;
     private bounces: number = 10;
 
     // input elements
@@ -525,6 +526,14 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 if (files?.length !== 1) return;
                 await this.loadEnv(new Uint8Array(await files[0].arrayBuffer()))
                 envStrengthInput.value = this.environment!.strength;
+            })
+
+            const tracePathInput = this.shadowRoot!.querySelector("#trace_path") as HTMLInputElement;
+            tracePathInput.checked = this.tracePath
+            tracePathInput.addEventListener("change", async () => {
+                await this.restartRendering(async () => {
+                    this.tracePath = tracePathInput.checked;
+                })
             })
 
             const showEnv = this.shadowRoot!.querySelector("#env_show") as HTMLInputElement;
@@ -1010,6 +1019,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         }
         this.gl.uniform1i(this.getUniformLocation("show_environment"), this.showEnvironment ? 1 : 0);
         this.gl.uniform1i(this.getUniformLocation("bounces"), this.bounces)
+        this.gl.uniform1i(this.getUniformLocation("u_trace_path"), this.tracePath ? 1 : 0);
 
         // bind sample range
         this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.sampleRange);

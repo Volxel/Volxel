@@ -27,7 +27,7 @@ vec3 cameraWorldPos() {
 }
 vec3 cameraWorldDir(vec2 ndcXY) {
     mat4 invProj = inverse(camera_proj);
-    vec4 clipPos = vec4(ndcXY, 0, 1.0);
+    vec4 clipPos = vec4(ndcXY * 2.0 - 1.0, 0, 1.0);
 
     vec4 viewPosH = invProj * clipPos;
     vec3 viewPos = viewPosH.xyz / viewPosH.w;

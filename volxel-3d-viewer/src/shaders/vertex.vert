@@ -6,5 +6,5 @@ out vec2 tex;
 
 void main() {
   gl_Position = a_position;
-  tex = a_position.xy; //(vec2(a_position.x, a_position.y) + vec2(1)) / vec2(2);
+  tex = a_position.xy * 0.5 + 0.5;
 }

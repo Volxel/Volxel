@@ -275,13 +275,12 @@ vec4 direct_render(Ray ray, inout rand_seed seed) {
     vec3 sample_pos = ray.origin + t * ray.direction;
     vec3 light_dir;
     vec4 Le_pdf = sample_environment((rng2(seed) + rng2(seed)) / 2.0, light_dir);
-    return vec4(light_dir * 0.5 + 0.5, 1);
 
     // check light intensity
-    float light_att = transmittanceDDA(Ray(sample_pos, -light_dir), seed);
+    float light_att = transmittanceDDA(Ray(sample_pos, light_dir), seed);
 
-    // TODO: Phase function
-    return vec4(throughput * (light_att * Le_pdf.rgb + light_amb), 1);
+    float f_p = phase_henyey_greenstein(dot(-ray.direction, light_dir), u_volume_phase_g);
+    return vec4(throughput * (light_att * f_p * Le_pdf.rgb / Le_pdf.w + light_amb), 1);
 }
 
 vec4 trace_path(Ray ray, inout rand_seed seed) {
@@ -301,7 +300,7 @@ vec4 trace_path(Ray ray, inout rand_seed seed) {
         if (Le_pdf.w > 0.0) {
             f_p = phase_henyey_greenstein(dot(-ray.direction, w_i), u_volume_phase_g);
             float mis_weight = show_environment > 0 ? power_heuristic(Le_pdf.w, f_p) : 1.f;
-            float Tr = transmittanceDDA(ray, seed);
+            float Tr = transmittanceDDA(Ray(ray.origin, w_i), seed);
             L += throughput * mis_weight * f_p * Tr * Le_pdf.rgb / Le_pdf.w;
         }
 
@@ -323,21 +322,21 @@ vec4 trace_path(Ray ray, inout rand_seed seed) {
 
     // free path? -> add envmap contribution
     if (free_path && show_environment > 0) {
-        vec3 Le = lookup_environment(-ray.direction);
-        float mis_weight = n_paths > 0u ? power_heuristic(f_p, pdf_environment(-ray.direction)) : 1.f;
+        vec3 Le = lookup_environment(ray.direction);
+        float mis_weight = n_paths > 0u ? power_heuristic(f_p, pdf_environment(ray.direction)) : 1.f;
         L += throughput * mis_weight * Le;
     }
 
     return vec4(L, clamp(float(n_paths), 0.0, 1.0));
 }
 
+uniform int u_trace_path;
+
 void main() {
     vec3 hit_min;
     vec3 hit_max;
-    vec2 uv = tex * 0.5 + 0.5;
 
-
-    vec4 previous_frame = texture(u_previous_frame, uv);
+    vec4 previous_frame = texture(u_previous_frame, tex);
 
     vec3 aabb[2] = u_volume_aabb;
 
@@ -345,24 +344,27 @@ void main() {
 
     int env_mip_level = 5;
 
-    ivec2 pixel = ivec2(uv * vec2(u_res));
+    ivec2 pixel = ivec2(tex * vec2(u_res));
 
     vec4 result = vec4(0);
-    uint seed = tea(128u * uint(pixel.y * u_res.x + pixel.x), u_frame_index * 4u, 32u);
+    uint seed = tea(42u * uint(pixel.y * u_res.x + pixel.x), u_frame_index, 32u);
     rand_seed rand_state = seedXoshiro(seed);
 
     Ray ray = setup_world_ray(tex, (rng2(rand_state) + rng2(rand_state)) / 2.0);
-    vec3 background = get_background_color(ray);
     if (u_debugHits) {
         if (ray_box_intersection_positions(ray, aabb, hit_min, hit_max)) {
             result = vec4(world_to_aabb(hit_min, aabb), 1);
         } else {
+            vec3 background = get_background_color(ray);
             result = vec4(background, 1);
         }
     } else {
-        result = sanitize(trace_path(ray, rand_state));
+        if (u_trace_path > 0) {
+            result = sanitize(trace_path(ray, rand_state));
+        } else {
+            result = sanitize(direct_render(ray, rand_state));
+        }
     }
-
 
     if (outColor.a == 0.0) outColor = vec4((u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result).rgb, 1);
 }

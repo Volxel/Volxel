@@ -29,8 +29,7 @@ vec3 hable_tonemap(in vec3 rgb, in float exposure) {
 }
 
 void main() {
-    vec2 uv = tex * 0.5 + 0.5;
-    vec4 accumulated = texture(u_result, uv);
+    vec4 accumulated = texture(u_result, tex);
     out_color = accumulated;
     out_color.rgb = pow(hable_tonemap(out_color.rgb, exposure), vec3(1.0 / gamma));
 }

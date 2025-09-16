@@ -316,6 +316,10 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             <volxel-slider id="samples" min="1" max="3000" step="1"></volxel-slider>
         </label>
         <label>
+            <input type="checkbox" name="trace_path" id="trace_path">
+            Use full Path Tracing
+        </label>
+        <label>
             <input type="checkbox" name="env_show" id="env_show">
             Show Environment
         </label>

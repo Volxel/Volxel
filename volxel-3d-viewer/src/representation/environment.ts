@@ -25,7 +25,10 @@ export class Environment {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, 0);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        // TODO: This is deprecated, use something better
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, base.width, base.height, 0, gl.RGBA, gl.FLOAT, base.floats);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
 
         // setup importance map
         this.importance = gl.createTexture();
