@@ -85,6 +85,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private mousePos: [number, number] | null = null;
     private adjustingClipping: boolean = false;
     private showClipping: boolean = true;
+    // environment
+    private showEnvironment: boolean = true;
+    // rendering
+    private bounces: number = 10;
 
     // input elements
     private histogram: HistogramViewer | undefined;
@@ -521,6 +525,22 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 if (files?.length !== 1) return;
                 await this.loadEnv(new Uint8Array(await files[0].arrayBuffer()))
                 envStrengthInput.value = this.environment!.strength;
+            })
+
+            const showEnv = this.shadowRoot!.querySelector("#env_show") as HTMLInputElement;
+            showEnv.checked = this.showEnvironment
+            showEnv.addEventListener("change", async () => {
+                await this.restartRendering(async () => {
+                    this.showEnvironment = showEnv.checked;
+                })
+            })
+
+            const bouncesInput = this.shadowRoot!.getElementById("bounces") as Slider;
+            bouncesInput.value = this.bounces;
+            bouncesInput.addEventListener("input", async () => {
+                await this.restartRendering(async () => {
+                    this.bounces = bouncesInput.value;
+                })
             })
 
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
@@ -988,6 +1008,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         if (this.environment) {
             textureOffset = this.environment.bindUniforms(this.program, textureOffset)
         }
+        this.gl.uniform1i(this.getUniformLocation("show_environment"), this.showEnvironment ? 1 : 0);
+        this.gl.uniform1i(this.getUniformLocation("bounces"), this.bounces)
 
         // bind sample range
         this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.sampleRange);

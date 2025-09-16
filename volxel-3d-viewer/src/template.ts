@@ -316,6 +316,14 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             <volxel-slider id="samples" min="1" max="3000" step="1"></volxel-slider>
         </label>
         <label>
+            <input type="checkbox" name="env_show" id="env_show">
+            Show Environment
+        </label>
+        <label>
+            Max Bounces
+            <volxel-slider id="bounces" min="1" max="20" step="1"></volxel-slider>
+        </label>
+        <label>
             <input type="checkbox" name="debugHits" id="debugHits" >
             Debug Hit Positions
         </label>

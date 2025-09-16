@@ -74,7 +74,7 @@ export class Environment {
         // bind other info
         this.gl.uniform1i(uniformLoc("env_imp_base_mip"), Math.floor(Math.log2(DIMENSION)))
         this.gl.uniform1f(uniformLoc("env_strength"), this.strength)
-        this.gl.uniform2f(uniformLoc("env_imp_inv_dim"), 1.0 / DIMENSION, 1.0 / DIMENSION)
+        this.gl.uniform2f(uniformLoc("env_imp_inv_dim"), 1.0 / DIMENSION, 1.0 / DIMENSION);
 
         return textureOffset;
     }

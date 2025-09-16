@@ -95,7 +95,6 @@ export class Slider extends HTMLElement {
         });
         this.wrapped.addEventListener("input", () => {
             this.dispatchEvent(new CustomEvent("input"));
-            console.log(this.value);
             this.setupSliderInfo();
         });
         this.setupSliderInfo();

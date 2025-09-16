@@ -154,6 +154,12 @@ vec4 lookup_transfer(float density) {
     return texture(u_transfer, vec2(density, 0.0));
 }
 
+// emission lookup stub
+
+vec3 lookup_emission(vec3 ipos, inout rand_seed seed) {
+    return vec3(0);
+}
+
 // --------------------------------------------------------------
 // DDA-based null-collision methods
 
@@ -216,22 +222,20 @@ float transmittanceDDA(Ray ray, inout rand_seed seed) {
 }
 
 // DDA-based volume sampling
-bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout rand_seed seed) {
+bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout vec3 Le, inout rand_seed seed) {
     vec2 near_far;
     if (!ray_box_intersection(ray, u_volume_aabb, near_far)) return false;
 
-    // in index space
-    vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1.0));
-    vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0.0));
+    // to index-space
+    vec3 ipos = vec3(u_volume_density_transform_inv * vec4(ray.origin, 1));
+    vec3 idir = vec3(u_volume_density_transform_inv * vec4(ray.direction, 0)); // non-normalized!
     vec3 ri = 1.f / idir;
     // march brick grid
     t = near_far.x + 1e-6f;
     float tau = -log(1.f - rng(seed)), mip = MIP_START;
-    uint step = 0u;
-    while (t < near_far.y && (step++ < max_steps)) {
+    while (t < near_far.y) {
         vec3 curr = ipos + t * idir;
         float majorant = u_volume_maj * lookup_transfer(lookup_majorant(curr, int(round(mip))) * u_volume_inv_maj).a;
-
         float dt = stepDDA(curr, ri, int(round(mip)));
         t += dt;
         tau -= majorant * dt;
@@ -239,10 +243,9 @@ bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout rand_se
         if (tau > 0.0) continue; // no collision, step ahead
         t += tau / majorant; // step back to point of collision
         if (t >= near_far.y) break;
-
         vec4 rgba = lookup_transfer(lookup_density_trilinear(ipos + t * idir) * u_volume_inv_maj);
         float d = u_volume_maj * rgba.a;
-
+        Le += throughput * (1.f - u_volume_albedo) * lookup_emission(ipos + t * idir, seed) * d * u_volume_inv_maj;
         if (rng(seed) * majorant < d) { // check if real or null collision
             throughput *= u_volume_albedo;
             throughput *= rgba.rgb;
@@ -256,11 +259,15 @@ bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout rand_se
 
 // ------------
 
+uniform int show_environment;
+uniform int bounces;
+
 vec4 direct_render(Ray ray, inout rand_seed seed) {
     vec3 background = get_background_color(ray);
     float t = 0.0;
     vec3 throughput = vec3(1);
-    if (!sample_volumeDDA(ray, t, throughput, seed)) {
+    vec3 Le = vec3(0);
+    if (!sample_volumeDDA(ray, t, throughput, Le, seed)) {
         return vec4(background, 1);
     }
 
@@ -277,9 +284,6 @@ vec4 direct_render(Ray ray, inout rand_seed seed) {
     return vec4(throughput * (light_att * Le_pdf.rgb + light_amb), 1);
 }
 
-// TODO: uniform
-const uint bounces = 10u;
-
 vec4 trace_path(Ray ray, inout rand_seed seed) {
     // trace path
     vec3 L = vec3(0);
@@ -287,7 +291,7 @@ vec4 trace_path(Ray ray, inout rand_seed seed) {
     bool free_path = true;
     uint n_paths = 0u;
     float t, f_p; // t: end of ray segment (i.e. sampled position or out of volume), f_p: last phase function sample for MIS
-    while (sample_volumeDDA(ray, t, throughput, seed)) {
+    while (sample_volumeDDA(ray, t, throughput, L, seed)) {
         // advance ray
         ray.origin = ray.origin + t * ray.direction;
 
@@ -296,13 +300,13 @@ vec4 trace_path(Ray ray, inout rand_seed seed) {
         vec4 Le_pdf = sample_environment(rng2(seed), w_i);
         if (Le_pdf.w > 0.0) {
             f_p = phase_henyey_greenstein(dot(-ray.direction, w_i), u_volume_phase_g);
-            float mis_weight = power_heuristic(Le_pdf.w, f_p);
+            float mis_weight = show_environment > 0 ? power_heuristic(Le_pdf.w, f_p) : 1.f;
             float Tr = transmittanceDDA(ray, seed);
             L += throughput * mis_weight * f_p * Tr * Le_pdf.rgb / Le_pdf.w;
         }
 
         // early out?
-        if (++n_paths >= bounces) { free_path = false; break; }
+        if (++n_paths >= uint(bounces)) { free_path = false; break; }
         // russian roulette
         float rr_val = luma(throughput);
         if (rr_val < .1f) {
@@ -318,7 +322,7 @@ vec4 trace_path(Ray ray, inout rand_seed seed) {
     }
 
     // free path? -> add envmap contribution
-    if (free_path) {
+    if (free_path && show_environment > 0) {
         vec3 Le = lookup_environment(-ray.direction);
         float mis_weight = n_paths > 0u ? power_heuristic(f_p, pdf_environment(-ray.direction)) : 1.f;
         L += throughput * mis_weight * Le;
