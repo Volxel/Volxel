@@ -77,7 +77,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     // inputs
     private densityMultiplier = 1;
-    private maxSamples = 1000;
+    private maxSamples = 2000;
     private debugHits = false;
     private volumeClipMin = new Vector3(0, 0, 0);
     private volumeClipMax = new Vector3(1, 1, 1);
@@ -89,7 +89,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private showEnvironment: boolean = true;
     // rendering
     private tracePath: boolean = true;
-    private bounces: number = 10;
+    private bounces: number = 3;
 
     // input elements
     private histogram: HistogramViewer | undefined;
