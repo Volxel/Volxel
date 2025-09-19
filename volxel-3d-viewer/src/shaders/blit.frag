@@ -9,8 +9,8 @@ in vec2 tex;
 
 out vec4 out_color;
 
-const float exposure = 5.0;
-const float gamma = 2.2;
+uniform float exposure;
+uniform float gamma;
 
 float luma(const vec3 col) { return dot(col, vec3(0.212671f, 0.715160f, 0.072169f)); }
 

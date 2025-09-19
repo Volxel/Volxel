@@ -103,6 +103,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private lightDirInput: UnitCubeDisplay | undefined;
     // environment
     private environment: Environment | undefined;
+    // tonemap
+    private gamma = 2.2;
+    private exposure = 5;
 
     // volume settings
     private densityScale: number = 1;
@@ -552,6 +555,22 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 })
             })
 
+            const gammaInput = this.shadowRoot!.getElementById("gamma") as Slider;
+            gammaInput.value = this.gamma;
+            gammaInput.addEventListener("input", async () => {
+                await this.restartRendering(async () => {
+                    this.gamma = gammaInput.value;
+                })
+            })
+
+            const exposureInput = this.shadowRoot!.getElementById("exposure") as Slider;
+            exposureInput.value = this.exposure;
+            exposureInput.addEventListener("input", async () => {
+                await this.restartRendering(async () => {
+                    this.exposure = exposureInput.value;
+                })
+            })
+
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
             debugHits.checked = this.debugHits
             debugHits.addEventListener("change", async () => {
@@ -946,6 +965,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             this.gl.useProgram(this.blit);
             this.gl.activeTexture(this.gl.TEXTURE0 + 2 + current_pong);
             this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[current_pong].target);
+            this.gl.uniform1f(this.getUniformLocation("gamma", this.blit), this.gamma);
+            this.gl.uniform1f(this.getUniformLocation("exposure", this.blit), this.exposure);
             this.gl.uniform1i(this.getUniformLocation("u_result", this.blit), 2 + current_pong);
             this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 
