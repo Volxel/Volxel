@@ -10,8 +10,16 @@ uniform sampler2D u_impmap;
 uniform int u_hide_envmap;
 uniform vec2 env_imp_inv_dim;
 uniform int env_imp_base_mip;
+uniform int u_use_env;
+
+// Light
+uniform vec3 u_light_dir;
+const vec3 light_amb = vec3(0);
 
 vec3 lookup_environment(const vec3 dir) {
+    if (u_use_env < 1) {
+        return env_strength * vec3(clamp(pow(dot(dir, -u_light_dir), 300.0), 0.0, 1.0) * 4.0 + 0.01);
+    }
     vec3 idir = dir;
     float u = atan(idir.z, idir.x) / (2.0 * M_PI) + 0.5f;
     float v = 1.f - acos(idir.y) / M_PI;
@@ -19,6 +27,11 @@ vec3 lookup_environment(const vec3 dir) {
 }
 
 vec4 sample_environment(vec2 rng, out vec3 w_i) {
+    if (u_use_env < 1) {
+        w_i = -u_light_dir;
+        return vec4(vec3(env_strength * (4.01)), 1);
+    }
+
     ivec2 pos = ivec2(0);   // pixel position
     vec2 p = rng;           // sub-pixel position
     // warp sample over mip hierarchy

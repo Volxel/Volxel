@@ -20,7 +20,7 @@ export class Environment {
         this.texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, 0);
@@ -34,7 +34,7 @@ export class Environment {
         this.importance = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.importance);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
@@ -89,10 +89,10 @@ export class Environment {
         const envData = new Float32Array(width * height * 4);
 
         for (let y = 0; y < height; ++y) {
-            const topHalf = y < Math.floor(height / 2); // true for rows 0..2 (top)
+            const top = y < Math.floor(height / 3);
             for (let x = 0; x < width; ++x) {
                 const isLightSquare = ((x + y) & 1) === 0;
-                const val = topHalf
+                const val = top
                     ? (isLightSquare ? 3 : 0.9)   // top: 0.9 / 0.7
                     : (isLightSquare ? 0.1 : 0.0);  // bottom: 0.3 / 0.2
 

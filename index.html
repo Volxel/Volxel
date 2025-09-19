@@ -21,10 +21,11 @@
         </summary>
         <p>This is a demo for my volumetric data visualization tool called Volxel. You can find the source code <a
                 href="https://github.com/Volxel/Volxel">on GitHub</a>.</p>
-        <p>The actual use case is specifying a list of file <abbr title="Uniform Resource Locator">URL</abbr>s via an
+        <p>The actual use case is specifying a list of DICOM file <abbr title="Uniform Resource Locator">URL</abbr>s or
+            the <abbr>URL</abbr> of a <abbr>ZIP</abbr> file containing multiple DICOM files via an
             attribute that the component will then
-            use to fetch and display, which will be used from a Drupal module to load DICOM and display a collection of
-            medical samples.</p>
+            use to fetch and display. This will be used by a <a href="https://github.com/Volxel/Volxel-Drupal">Drupal
+                Module</a> to automatically load volumes to display.</p>
         <p>You can try this demo by selecting a folder containing Dicom images in the file select below or by uploading
             a zip file containing DICOM images to the zip file select below.</p>
     </details>
@@ -37,9 +38,30 @@
         <p>The control panel is opened with the hamburger button on the bottom left. It contains three tabs for three
             different types of settings:</p>
         <ul>
-            <li>The <b>Lighting</b> tab lets you control the direction from which the light shines onto the displayed
-                volume. You can also tick the "Backlight" checkbox to have the light direction always come from behind
-                the volume.
+            <li>
+                <p>
+                    The <b>Lighting</b> tab lets you control the lighting of the scene. There are two main options:
+                </p>
+                <ol>
+                    <li>You can use an environment map (<abbr>.exr</abbr> file) which will be used to light the scene.
+                    </li>
+                    <li>You can use a directional light.</li>
+                </ol>
+                <p>
+                    Using an environment map allows for more natural lighting at the expense of giving up directional
+                    control.
+                    Using directional lighting means less natural looking images, but more control, since it allows you
+                    to move the light direction.
+                </p>
+                <p>
+                    In directional lighting mode, you can also enable the <em>Backlight</em> mode, where the light
+                    direction will always be the opposite of the view direction.
+                </p>
+                <p>
+                    You can also prevent the environment from being shown, which will result in only the light from it
+                    being used but the background remaining black.
+                    This is useful in the event that the background interferes with the image.
+                </p>
             </li>
             <li>
                 <p>The <b>Transfer function</b> tab lets you control how the density data in the volume is interpreted.
@@ -61,7 +83,10 @@
                     transfer settings. The transfer settings can also be loaded programmatically, by providing a <code>data-transfer-settings-url</code>
                     via attribute.</p>
             </li>
-            <li>The <b>Display</b> tab is less relevant for scientific users and more of interest to developers. You can adjust the maximum samples rendered for convergence, and you can enable showing the bounding box of the volume with the <abbr title="Axis Aligned Bounding Box">AABB</abbr> coordinates visualized as colors.</li>
+            <li>The <b>Display</b> tab is less relevant for scientific users and more of interest to developers. You can
+                adjust the maximum samples rendered for convergence, adjust how many bounces the volume path tracer takes, and you can enable showing the bounding box of the
+                volume with the <abbr title="Axis Aligned Bounding Box">AABB</abbr> coordinates visualized as colors.
+            </li>
         </ul>
     </details>
     <h2>Demo</h2>

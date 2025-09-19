@@ -48,10 +48,6 @@ uniform float u_stepsize;
 uniform bool u_debugHits;
 uniform float u_sample_weight;
 
-// Light
-uniform vec3 u_light_dir;
-const vec3 light_amb = vec3(0);
-
 #include "random.glsl"
 #include "utils.glsl"
 #include "environment.glsl"
@@ -262,27 +258,6 @@ bool sample_volumeDDA(Ray ray, out float t, inout vec3 throughput, inout vec3 Le
 uniform int show_environment;
 uniform int bounces;
 
-vec4 direct_render(Ray ray, inout rand_seed seed) {
-    vec3 background = get_background_color(ray);
-    float t = 0.0;
-    vec3 throughput = vec3(1);
-    vec3 Le = vec3(0);
-    if (!sample_volumeDDA(ray, t, throughput, Le, seed)) {
-        return vec4(background, 1);
-    }
-
-    // this is a simple direct rendering approach, no multiple paths traced
-    vec3 sample_pos = ray.origin + t * ray.direction;
-    vec3 light_dir;
-    vec4 Le_pdf = sample_environment((rng2(seed) + rng2(seed)) / 2.0, light_dir);
-
-    // check light intensity
-    float light_att = transmittanceDDA(Ray(sample_pos, light_dir), seed);
-
-    float f_p = phase_henyey_greenstein(dot(-ray.direction, light_dir), u_volume_phase_g);
-    return vec4(throughput * (light_att * f_p * Le_pdf.rgb / Le_pdf.w + light_amb), 1);
-}
-
 vec4 trace_path(Ray ray, inout rand_seed seed) {
     // trace path
     vec3 L = vec3(0);
@@ -359,11 +334,7 @@ void main() {
             result = vec4(background, 1);
         }
     } else {
-        if (u_trace_path > 0) {
-            result = sanitize(trace_path(ray, rand_state));
-        } else {
-            result = sanitize(direct_render(ray, rand_state));
-        }
+        result = sanitize(trace_path(ray, rand_state));
     }
 
     if (outColor.a == 0.0) outColor = vec4((u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result).rgb, 1);

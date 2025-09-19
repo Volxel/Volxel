@@ -271,23 +271,30 @@ export const volxelTemplate: HTMLTemplateElement =  html`
         </label>
     </div>
     <div class="tab" id="light-tab">
-        <p>Disclaimer: Lighting controls currently inactive in favor of HDR upload</p>
         <label>
             Upload Environment Map HDR
             <input type="file" name="light_env" id="light_env" accept="image/aces">
         </label>
         <label>
+            <input type="checkbox" name="use_env" id="use_env">
+            Use environment
+        </label>
+        <label>
+            <input type="checkbox" name="env_show" id="env_show">
+            Show Environment
+        </label>
+        <label>
             Environment Strength
             <volxel-slider id="env_strength" min="0.01" max="2" step="0.01"></volxel-slider>
+        </label>
+        <label>
+            <input type="checkbox" name="light_backlight" id="light_backlight">
+            Backlight
         </label>
         <div>
             Light direction
             <volxel-cube-direction id="direction"></volxel-cube-direction>
         </div>
-        <label>
-            <input type="checkbox" name="light_backlight" id="light_backlight">
-            Backlight
-        </label>
     </div>
     <div class="tab" id="transfer-tab">
         <label>
@@ -314,14 +321,6 @@ export const volxelTemplate: HTMLTemplateElement =  html`
         <label>
             Max Samples
             <volxel-slider id="samples" min="1" max="3000" step="1"></volxel-slider>
-        </label>
-        <label>
-            <input type="checkbox" name="trace_path" id="trace_path">
-            Use full Path Tracing
-        </label>
-        <label>
-            <input type="checkbox" name="env_show" id="env_show">
-            Show Environment
         </label>
         <label>
             Max Bounces
