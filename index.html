@@ -21,11 +21,16 @@
         </summary>
         <p>This is a demo for my volumetric data visualization tool called Volxel. You can find the source code <a
                 href="https://github.com/Volxel/Volxel">on GitHub</a>.</p>
-        <p>The actual use case is specifying a list of DICOM file <abbr title="Uniform Resource Locator">URL</abbr>s or
-            the <abbr>URL</abbr> of a <abbr>ZIP</abbr> file containing multiple DICOM files via an
-            attribute that the component will then
-            use to fetch and display. This will be used by a <a href="https://github.com/Volxel/Volxel-Drupal">Drupal
+        <p>The actual use case is specifying a list of DICOM file <abbr title="Uniform Resource Locator">URL</abbr>s via
+            the <code>data-urls</code> Attribute or
+            the <abbr>URL</abbr> of a <abbr>ZIP</abbr> file containing multiple DICOM files via the
+            <code>data-zip-url</code> attribute that the component will then
+            use to fetch and display.
+            This will be used by a <a href="https://github.com/Volxel/Volxel-Drupal">Drupal
                 Module</a> to automatically load volumes to display.</p>
+        <p>Additionally, the component also accepts the <code>data-settings-url</code> attribute, which it will use to
+            restore the current view settings from, and the <code>data-env-url</code>, which it will use to load an
+            environment map.</p>
         <p>You can try this demo by selecting a folder containing Dicom images in the file select below or by uploading
             a zip file containing DICOM images to the zip file select below.</p>
     </details>
@@ -79,15 +84,17 @@
                         density of 0, right a density of 1. The lines' heights scale logarithmically.
                     </li>
                 </ul>
-                <p>Additionally, the button and file upload below these settings allow you to export and later re-import
-                    transfer settings. The transfer settings can also be loaded programmatically, by providing a <code>data-transfer-settings-url</code>
-                    via attribute.</p>
             </li>
             <li>The <b>Display</b> tab is less relevant for scientific users and more of interest to developers. You can
-                adjust the maximum samples rendered for convergence, adjust how many bounces the volume path tracer takes, and you can enable showing the bounding box of the
+                adjust the maximum samples rendered for convergence, adjust how many bounces the volume path tracer
+                takes, and you can enable showing the bounding box of the
                 volume with the <abbr title="Axis Aligned Bounding Box">AABB</abbr> coordinates visualized as colors.
             </li>
         </ul>
+        <p>
+            The "Export" and "Import" buttons above the hamburger button allow you to import and export the entire view
+            settings as a <abbr>JSON</abbr> file, which can later be reimported.
+        </p>
     </details>
     <h2>Demo</h2>
     <div class="controls">

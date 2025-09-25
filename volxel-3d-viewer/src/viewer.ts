@@ -22,7 +22,8 @@ import {UnitCubeDisplay} from "./elements/cubeDirection";
 import {volxelStyles, volxelTemplate} from "./template";
 import {
     WasmWorkerMessage,
-    WasmWorkerMessageDicomReturn, WasmWorkerMessageEnvReturn,
+    WasmWorkerMessageDicomReturn,
+    WasmWorkerMessageEnvReturn,
     WasmWorkerMessageFiles,
     WasmWorkerMessageType,
     WasmWorkerMessageUrls,
@@ -30,11 +31,14 @@ import {
     WasmWorkerMessageZipUrl
 } from "./common";
 import {
-    loadTransferSettings,
-    saveTransferSettings,
+    DisplaySettings,
+    LightingSettings,
+    loadSettings, saveSettings,
+    SettingsExport,
+    SettingsVersion,
     TransferSettings,
-    TransferSettingsTransferType,
-    TransferSettingsVersion
+    TransferSettingsTransferType, verifySettings,
+    ViewerSettings
 } from "./settings";
 import {Environment} from "./representation/environment";
 import {checkFbo, createProgram, createShader, Framebuffer} from "./utils/gl";
@@ -49,7 +53,7 @@ declare global {
 let workerFactory: (() => Worker) | undefined = undefined;
 
 export class Volxel3DDicomRenderer extends HTMLElement {
-    public static readonly observedAttributes = ["data-urls", "data-zip-url", "data-transfer-settings-url"]
+    public static readonly observedAttributes = ["data-urls", "data-zip-url", "data-settings-url", "data-env-url"]
 
     private worker = workerFactory!!()
     private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
@@ -75,37 +79,37 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private atlas: WebGLTexture | undefined;
     private transfer: WebGLTexture | undefined;
 
-    // inputs
-    private densityMultiplier = 1;
-    private maxSamples = 2000;
-    private debugHits = false;
-    private volumeClipMin = new Vector3(0, 0, 0);
-    private volumeClipMax = new Vector3(1, 1, 1);
+    // settings, these can be exported and reimported
+    private settings: ViewerSettings = {
+        densityMultiplier: 1,
+        maxSamples: 2000,
+        debugHits: false,
+        volumeClipMin: new Vector3(0, 0, 0),
+        volumeClipMax: new Vector3(1, 1, 1),
+        showEnvironment: true,
+        useEnv: true,
+        lightDir: new Vector3(-1, -1, -1).normalize(),
+        syncLightDir: false,
+        bounces: 3,
+        gamma: 2.2,
+        exposure: 5.5,
+        sampleRange: [0, 1],
+    }
+
     // used for clipping controls
     private mousePos: [number, number] | null = null;
     private adjustingClipping: boolean = false;
     private showClipping: boolean = true;
-    // environment
-    private showEnvironment: boolean = true;
-    // rendering
-    private useEnv: boolean = true;
-    private bounces: number = 3;
 
     // input elements
     private histogram: HistogramViewer | undefined;
 
     private camera: Camera | undefined;
-    private sampleRange: [number, number] = [0, 1];
 
     // light
-    private lightDir: Vector3 = new Vector3(-1, -1, -1).normalize();
-    private syncLightDir = false;
     private lightDirInput: UnitCubeDisplay | undefined;
     // environment
     private environment: Environment | undefined;
-    // tonemap
-    private gamma = 2.2;
-    private exposure = 5;
 
     // volume settings
     private densityScale: number = 1;
@@ -117,7 +121,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     // for export
     private lastRawTransferImport: [r: number, g: number, b: number, density: number][] | undefined;
-    private restoreTransferSettings: (settings: TransferSettings) => void = () => undefined
+    private restoreSettings: (settings: SettingsExport) => void = () => undefined
 
     // error handling
     private errored: boolean = false;
@@ -125,7 +129,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public constructor() {
         super()
 
-        this.attachShadow({ mode: "open" });
+        this.attachShadow({mode: "open"});
         this.shadowRoot!.adoptedStyleSheets.push(volxelStyles)
 
         // setup template
@@ -228,7 +232,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
                 checkFbo(gl);
 
-                this.framebuffers.push({ fbo, target: renderTargetTexture });
+                this.framebuffers.push({fbo, target: renderTargetTexture});
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             }
 
@@ -283,7 +287,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
             // Setup transfer function
             this.transfer = this.gl.createTexture();
-            const { data, length } = generateTransferFunction([{
+            const {data, length} = generateTransferFunction([{
                 color: [1, 1, 1, 0],
                 stop: 0
             }, {
@@ -343,7 +347,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         c.width = width;
                         c.height = height;
                     }
-                })
+                }, "Resizing view...")
             });
             resizeObserver.observe(this.canvas);
 
@@ -356,15 +360,15 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     } else {
                         this.rescaleAABBFromClippingInput();
                     }
-                })
+                }, right ? "Rotating camera..." : "Adjusting clipping planes...")
             }, (by) => {
                 return this.restartRendering(() => {
                     return this.camera?.zoom(by);
-                }) ?? false
+                }, "Zooming...") ?? false
             }, (by) => {
                 this.restartRendering(() => {
                     this.camera?.translateOnPlane(by);
-                })
+                }, "Moving camera...")
             }, (right) => {
                 if (right) this.adjustingClipping = true;
             }, (right) => {
@@ -372,11 +376,11 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             });
 
             const samplesRangeInput = this.shadowRoot!.getElementById("samples") as Slider;
-            samplesRangeInput.value = this.maxSamples;
+            samplesRangeInput.value = this.settings.maxSamples;
             samplesRangeInput.addEventListener("change", async () => {
-                this.maxSamples = samplesRangeInput.value;
-                if (this.maxSamples < this.frameIndex) {
-                    this.restartRendering();
+                this.settings.maxSamples = samplesRangeInput.value;
+                if (this.settings.maxSamples < this.frameIndex) {
+                    this.restartRendering(undefined, "Restarting due to samples change...");
                 }
             })
 
@@ -385,10 +389,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             generatedTransfer.addEventListener("change", async () => {
                 this.restartRendering(() => {
                     if (generatedTransfer.checked) {
-                        const { data, length } = generateTransferFunction(colorRamp.colors);
+                        const {data, length} = generateTransferFunction(colorRamp.colors);
                         this.changeTransferFunc(data, length);
                     } else {
-                        const { data, length } = generateTransferFunction([{
+                        const {data, length} = generateTransferFunction([{
                             color: [1, 1, 1, 0],
                             stop: 0
                         }, {
@@ -397,7 +401,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         }])
                         this.changeTransferFunc(data, length);
                     }
-                })
+                }, "Toggling used transfer function...")
             })
 
             const transferFileSelect = this.shadowRoot!.getElementById("transfer_file") as HTMLInputElement;
@@ -409,110 +413,53 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         return;
                     }
                     if (file.length != 1) throw new Error("Multiple files selected");
-                    const { data, length, raw } = await loadTransferFunction(file.item(0)!);
+                    const {data, length, raw} = await loadTransferFunction(file.item(0)!);
                     this.lastRawTransferImport = raw;
                     this.changeTransferFunc(data, length);
                     generatedTransfer.checked = false;
-                })
+                }, "Loading transfer function from file...")
             });
 
             const colorRamp = this.shadowRoot!.getElementById("color-ramp") as ColorRampComponent;
             colorRamp.addEventListener("change", async (event: Event) => {
                 this.restartRendering(() => {
                     if (!generatedTransfer.checked) return;
-                    const { data, length } = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
+                    const {data, length} = generateTransferFunction((event as CustomEvent<ColorStop[]>).detail);
                     this.changeTransferFunc(data, length)
-                });
+                }, "Adjusting transfer function...");
             })
 
             this.histogram = this.shadowRoot!.getElementById("histogram") as HistogramViewer;
             this.histogram.addEventListener("change", async (event: Event) => {
                 await this.restartRendering(async () => {
-                    this.sampleRange = (event as CustomEvent<[min: number, max: number]>).detail;
-                })
+                    this.settings.sampleRange = (event as CustomEvent<[min: number, max: number]>).detail;
+                }, "Changing displayed density range...")
             })
 
             const densityMultiplierInput = this.shadowRoot!.getElementById("density_multiplier") as Slider;
-            densityMultiplierInput.value = this.densityMultiplier;
+            densityMultiplierInput.value = this.settings.densityMultiplier;
             densityMultiplierInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
-                    this.densityMultiplier = densityMultiplierInput.value;
-                })
-            })
-
-            const exportTransferSettingsButton = this.shadowRoot!.getElementById("export-transfer") as HTMLButtonElement;
-            exportTransferSettingsButton.addEventListener("click", () => {
-                const useGenerated = generatedTransfer.checked;
-                const colors = colorRamp.colors;
-
-                if (!useGenerated && !this.lastRawTransferImport) {
-                    alert("No transfer function selected")
-                    return;
-                }
-
-                saveTransferSettings({
-                    version: TransferSettingsVersion.V1,
-                    densityMultiplier: this.densityMultiplier,
-                    transfer: useGenerated ? {
-                        type: TransferSettingsTransferType.COLOR_STOPS,
-                        colors
-                    } : {
-                        type: TransferSettingsTransferType.FULL,
-                        colors: this.lastRawTransferImport!
-                    },
-                    histogramRange: this.sampleRange
-                })
-            })
-
-            this.restoreTransferSettings = (settings) => {
-                // restore histogram settings
-                this.histogram?.setRange(...settings.histogramRange);
-                this.sampleRange = settings.histogramRange;
-
-                // restore density multiplier settings
-                this.densityMultiplier = settings.densityMultiplier;
-                densityMultiplierInput.value = settings.densityMultiplier;
-
-                // restore color settings
-                if (settings.transfer.type === TransferSettingsTransferType.COLOR_STOPS) {
-                    colorRamp.colors = settings.transfer.colors;
-                    generatedTransfer.checked = true;
-                    const { data, length } = generateTransferFunction(colorRamp.colors);
-                    this.changeTransferFunc(data, length);
-                } else {
-                    generatedTransfer.checked = false;
-                    const data = new Float32Array(settings.transfer.colors.flat())
-                    this.changeTransferFunc(data, settings.transfer.colors.length);
-                }
-            }
-
-            const importTransferInput = this.shadowRoot!.getElementById("import-transfer") as HTMLInputElement;
-            importTransferInput.value = "";
-            importTransferInput.addEventListener("change", async () => {
-                const files = importTransferInput.files;
-                if (files?.length !== 1) return;
-                await this.restartRendering(async () => {
-                    const settings = await loadTransferSettings(files[0])
-                    this.restoreTransferSettings(settings);
-                })
+                    this.settings.densityMultiplier = densityMultiplierInput.value;
+                }, "Adjusting density multiplier...")
             })
 
             this.lightDirInput = this.shadowRoot!.querySelector("#direction") as UnitCubeDisplay;
             this.lightDirInput.addEventListener("direction", async (event) => {
-                const { detail: { x, y, z } } = event as CustomEvent<{ x: number, y: number, z: number }>;
+                const {detail: {x, y, z}} = event as CustomEvent<{ x: number, y: number, z: number }>;
                 this.restartRendering(() => {
-                    this.lightDir = new Vector3(x, y, z);
-                })
+                    this.settings.lightDir = new Vector3(x, y, z);
+                }, "Changing light direction...")
             })
-            this.lightDirInput.direction = this.lightDir;
+            this.lightDirInput.direction = this.settings.lightDir;
 
             const backlightToggle = this.shadowRoot!.querySelector("#light_backlight") as HTMLInputElement;
-            backlightToggle.checked = this.syncLightDir;
+            backlightToggle.checked = this.settings.syncLightDir;
             backlightToggle.addEventListener("change", () => {
                 this.restartRendering(() => {
-                    this.syncLightDir = backlightToggle.checked;
+                    this.settings.syncLightDir = backlightToggle.checked;
                     this.maybeSyncLight();
-                })
+                }, "Toggling backlight...")
             })
 
             const envStrengthInput = this.shadowRoot!.getElementById("env_strength") as Slider;
@@ -520,7 +467,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             envStrengthInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
                     this.environment!.strength = envStrengthInput.value;
-                })
+                }, "Adjusting environment strength...")
             })
 
             const envUpload = this.shadowRoot!.querySelector("#light_env") as HTMLInputElement;
@@ -532,52 +479,177 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             })
 
             const useEnvCheckbox = this.shadowRoot!.querySelector("#use_env") as HTMLInputElement;
-            useEnvCheckbox.checked = this.useEnv
+            useEnvCheckbox.checked = this.settings.useEnv
             useEnvCheckbox.addEventListener("change", async () => {
                 await this.restartRendering(async () => {
-                    this.useEnv = useEnvCheckbox.checked;
-                })
+                    this.settings.useEnv = useEnvCheckbox.checked;
+                }, "Toggling use of environment...")
             })
 
             const showEnv = this.shadowRoot!.querySelector("#env_show") as HTMLInputElement;
-            showEnv.checked = this.showEnvironment
+            showEnv.checked = this.settings.showEnvironment
             showEnv.addEventListener("change", async () => {
                 await this.restartRendering(async () => {
-                    this.showEnvironment = showEnv.checked;
-                })
+                    this.settings.showEnvironment = showEnv.checked;
+                }, "Toggling environment visibility...")
             })
 
             const bouncesInput = this.shadowRoot!.getElementById("bounces") as Slider;
-            bouncesInput.value = this.bounces;
+            bouncesInput.value = this.settings.bounces;
             bouncesInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
-                    this.bounces = bouncesInput.value;
-                })
+                    this.settings.bounces = bouncesInput.value;
+                }, "Changing maximum bounces...")
             })
 
             const gammaInput = this.shadowRoot!.getElementById("gamma") as Slider;
-            gammaInput.value = this.gamma;
+            gammaInput.value = this.settings.gamma;
             gammaInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
-                    this.gamma = gammaInput.value;
-                })
+                    this.settings.gamma = gammaInput.value;
+                }, "Adjusting gamma...")
             })
 
             const exposureInput = this.shadowRoot!.getElementById("exposure") as Slider;
-            exposureInput.value = this.exposure;
+            exposureInput.value = this.settings.exposure;
             exposureInput.addEventListener("input", async () => {
                 await this.restartRendering(async () => {
-                    this.exposure = exposureInput.value;
-                })
+                    this.settings.exposure = exposureInput.value;
+                }, "Changing exposure...")
             })
 
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
-            debugHits.checked = this.debugHits
+            debugHits.checked = this.settings.debugHits
             debugHits.addEventListener("change", async () => {
                 await this.restartRendering(async () => {
-                    this.debugHits = debugHits.checked;
-                })
+                    this.settings.debugHits = debugHits.checked;
+                }, "Toggling debug hits view...")
             })
+
+            // settings export and import
+            const exportTransferSettings = (): TransferSettings | null => {
+                const useGenerated = generatedTransfer.checked;
+                const colors = colorRamp.colors;
+
+                if (!useGenerated && !this.lastRawTransferImport) {
+                    alert("No transfer function selected")
+                    return null;
+                }
+
+                return {
+                    densityMultiplier: this.settings.densityMultiplier,
+                    transfer: useGenerated ? {
+                        type: TransferSettingsTransferType.COLOR_STOPS,
+                        colors
+                    } : {
+                        type: TransferSettingsTransferType.FULL,
+                        colors: this.lastRawTransferImport!
+                    },
+                    histogramRange: this.settings.sampleRange
+                }
+            }
+            const restoreTransferSettings = (settings: TransferSettings) => {
+                // restore histogram settings
+                this.histogram?.setRange(...settings.histogramRange);
+                this.settings.sampleRange = settings.histogramRange;
+
+                // restore density multiplier settings
+                this.settings.densityMultiplier = settings.densityMultiplier;
+                densityMultiplierInput.value = settings.densityMultiplier;
+
+                // restore color settings
+                if (settings.transfer.type === TransferSettingsTransferType.COLOR_STOPS) {
+                    colorRamp.colors = settings.transfer.colors;
+                    generatedTransfer.checked = true;
+                    const {data, length} = generateTransferFunction(colorRamp.colors);
+                    this.changeTransferFunc(data, length);
+                } else {
+                    generatedTransfer.checked = false;
+                    const data = new Float32Array(settings.transfer.colors.flat())
+                    this.changeTransferFunc(data, settings.transfer.colors.length);
+                }
+            }
+            const exportDisplaySettings = (): DisplaySettings => {
+                return {
+                    bounces: this.settings.bounces,
+                    samples: this.settings.maxSamples,
+                    gamma: this.settings.gamma,
+                    exposure: this.settings.exposure,
+                    debugHits: this.settings.debugHits
+                }
+            }
+            const restoreDisplaySettings = (settings: DisplaySettings) => {
+                this.settings.bounces = bouncesInput.value = settings.bounces;
+                this.settings.maxSamples = samplesRangeInput.value = settings.samples;
+                this.settings.gamma = gammaInput.value = settings.gamma;
+                this.settings.exposure = exposureInput.value = settings.exposure;
+                this.settings.debugHits = debugHits.checked = settings.debugHits;
+            }
+            const exportLightingSettings = (): LightingSettings => {
+                return {
+                    useEnv: this.settings.useEnv,
+                    showEnv: this.settings.showEnvironment,
+                    envStrength: this.environment!.strength,
+                    syncLightDir: this.settings.syncLightDir,
+                    lightDir: [this.settings.lightDir.x, this.settings.lightDir.y, this.settings.lightDir.z]
+                }
+            }
+            const restoreLightingSettings = (settings: LightingSettings) => {
+                this.lightDirInput!.direction = this.settings.lightDir = new Vector3(...settings.lightDir);
+                this.settings.showEnvironment = showEnv.checked = settings.showEnv;
+                this.settings.useEnv = useEnvCheckbox.checked = settings.useEnv;
+                this.environment!.strength = envStrengthInput.value = settings.envStrength;
+                this.settings.syncLightDir = backlightToggle.checked = settings.syncLightDir;
+            }
+            this.restoreSettings = (settings) => {
+                restoreTransferSettings(settings.transfer);
+                restoreDisplaySettings(settings.display);
+                restoreLightingSettings(settings.lighting);
+                const { clipMax, clipMin, cameraLookAt, cameraPos } = settings.other;
+                this.settings.volumeClipMax = new Vector3(...clipMax);
+                this.settings.volumeClipMin = new Vector3(...clipMin);
+                this.camera!.pos = new Vector3(...cameraPos);
+                this.camera!.view = new Vector3(...cameraLookAt);
+            }
+            const exportSettings = (): SettingsExport | null => {
+                const transfer = exportTransferSettings();
+                if (!transfer) return null
+                return {
+                    version: SettingsVersion.V1,
+                    transfer,
+                    lighting: exportLightingSettings(),
+                    display: exportDisplaySettings(),
+                    other: {
+                        clipMax: [this.settings.volumeClipMax.x, this.settings.volumeClipMax.y, this.settings.volumeClipMax.z],
+                        clipMin: [this.settings.volumeClipMin.x, this.settings.volumeClipMin.y, this.settings.volumeClipMin.z],
+                        cameraLookAt: [this.camera!.view.x, this.camera!.view.y, this.camera!.view.z],
+                        cameraPos: [this.camera!.pos.x, this.camera!.pos.y, this.camera!.pos.z]
+                    }
+                }
+            }
+
+            const exportButton = this.shadowRoot!.getElementById("exportSettings") as HTMLButtonElement;
+            exportButton.addEventListener("click", () => {
+                const settings = exportSettings();
+                if (!settings) return;
+                verifySettings(settings);
+                saveSettings(settings);
+            });
+
+            const fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.accept = "application/json"
+            fileInput.addEventListener("change", async () => {
+                const file = fileInput.files;
+                if (!file || file.length !== 1) {
+                    alert("Please select only one settings file");
+                    return;
+                }
+                const settings = await loadSettings(file.item(0)!);
+                this.restartRendering(() => this.restoreSettings(settings), "Loading Settings...");
+            });
+            const importButton = this.shadowRoot!.getElementById("importSettings") as HTMLButtonElement;
+            importButton.addEventListener("click", () => fileInput.click())
 
             // initial call to the render function
             requestAnimationFrame(this.render)
@@ -587,10 +659,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     private maybeSyncLight() {
-        if (this.syncLightDir) {
+        if (this.settings.syncLightDir) {
             const diff = this.camera!.view.clone().subtract(this.camera!.pos);
-            this.lightDir.set(-diff.x, -diff.y, -diff.z);
-            this.lightDirInput!.direction = this.lightDir;
+            this.settings.lightDir.set(-diff.x, -diff.y, -diff.z);
+            this.lightDirInput!.direction = this.settings.lightDir;
         }
     }
 
@@ -625,7 +697,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     public async attributesChangedCallback(name: string) {
-        if (name === "data-urls" || name === "data-zip-url" || name === "data-transfer-settings-url") {
+        if (name === "data-urls" || name === "data-zip-url" || name === "data-settings-url" || name === "data-env-url") {
             await this.restartFromAttributes()
         }
     }
@@ -633,7 +705,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private async restartFromAttributes() {
         const urls = this.getAttribute("data-urls")
         const zipUrl = this.getAttribute("data-zip-url")
-        const transferSettingsUrl = this.getAttribute("data-transfer-settings-url")
+        const settingsUrl = this.getAttribute("data-settings-url")
+        const envUrl = this.getAttribute("data-env-url")
         try {
             await this.restartRendering(async () => {
                 if (zipUrl) {
@@ -644,16 +717,19 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                         await this.restartFromURLs(parsed);
                     }
                 }
-                if (transferSettingsUrl) {
-                    const response = await fetch(transferSettingsUrl);
+                if (settingsUrl) {
+                    const response = await fetch(settingsUrl);
                     if (!response.ok) {
-                        throw new Error(`Transfer settings URL fetch failed: ${response.status} (${response.statusText})`);
+                        throw new Error(`Settings URL fetch failed: ${response.status} (${response.statusText})`);
                     }
                     const text = await response.text();
-                    const settings = await loadTransferSettings(text);
-                    this.restoreTransferSettings(settings);
+                    const settings = await loadSettings(text);
+                    this.restoreSettings(settings);
                 }
-            })
+                if (envUrl) {
+                    await this.loadEnvFromUrl(envUrl);
+                }
+            }, "Loading from Attributes...")
         } catch (e) {
             this.handleError(e);
         }
@@ -668,7 +744,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
         gl.viewport(0, 0, scaledWidth, scaledHeight);
         // resize framebuffer textures
-        for (const { target } of this.framebuffers) {
+        for (const {target} of this.framebuffers) {
             gl.bindTexture(gl.TEXTURE_2D, target);
             gl.texImage2D(
                 gl.TEXTURE_2D,
@@ -708,7 +784,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.worker.postMessage(message)
                 this.setupWorkerListener(resolve, reject)
             })
-        })
+        }, "Loading DICOM data from multiple files")
     }
 
     public async restartFromZip(zip: File) {
@@ -722,7 +798,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.worker.postMessage(message)
                 this.setupWorkerListener(resolve, reject)
             })
-        })
+        }, "Loading DICOM data from ZIP...")
     }
 
     public async restartFromZipUrl(url: string) {
@@ -736,7 +812,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.worker.postMessage(message)
                 this.setupWorkerListener(resolve, reject)
             })
-        })
+        }, "Loading DICOM data from ZIP via URL...")
     }
 
     public async restartFromURLs(urls: string[]) {
@@ -750,7 +826,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.worker.postMessage(message)
                 this.setupWorkerListener(resolve, reject)
             })
-        })
+        }, "Loading DICOM data from multiple URLs...")
     }
 
     public async loadEnv(bytes: Uint8Array) {
@@ -766,12 +842,12 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 })
                 this.setupWorkerListener(resolve, reject)
             })
-        })
+        }, "Loading environment map...")
     }
 
     public async loadEnvFromUrl(url: string) {
         const response = await fetch(url)
-        if (!response.ok) throw new Error("Env map fetch responded with error response");
+        if (!response.ok) throw new Error("Environment fetch responded with error response");
         const bytes = await response.bytes();
         await this.workerInitialized;
         await this.loadEnv(bytes);
@@ -817,8 +893,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private setupFromGrid(grid: WasmWorkerMessageDicomReturn) {
         if (!this.gl || !this.indirection || !this.range || !this.atlas) throw new Error("Trying to setup from grid without GL context being initialized")
         this.densityScale = 1.0;
-        this.volumeClipMax = new Vector3(1, 1, 1);
-        this.volumeClipMin = new Vector3(0, 0, 0);
+        this.settings.volumeClipMax = new Vector3(1, 1, 1);
+        this.settings.volumeClipMin = new Vector3(0, 0, 0);
 
         this.volume = Volume.fromWasm(grid);
 
@@ -857,7 +933,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_BASE_LEVEL, 0);
         this.gl.texParameteri(this.gl.TEXTURE_3D, this.gl.TEXTURE_MAX_LEVEL, grid.rangeMipmaps.length);
         let level = 0;
-        for (const { mipmap, stride: [x, y, z] } of grid.rangeMipmaps) {
+        for (const {mipmap, stride: [x, y, z]} of grid.rangeMipmaps) {
             this.gl.texImage3D(
                 this.gl.TEXTURE_3D,
                 level + 1,
@@ -889,11 +965,12 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, length, 1, 0, this.gl.RGBA, this.gl.FLOAT, data);
     }
 
-    private restartRendering<T>(action?: () => T): T | undefined {
+    private restartRendering<T>(action?: () => T, message: string = "Loading and preparing..."): T | undefined {
         if (this.errored) return;
         this.classList.add("restarting");
         this.clearError();
-        // JS runs on a single main thread, this should never be interrupted
+        this.shadowRoot!.getElementById("loadingIndicator")!.innerText = message;
+        // JS runs on a single main thread, there shouldn't ever by multithreading issues here
         const previousSuspend = this.suspend;
         this.suspend = true;
         const result = action && action();
@@ -926,7 +1003,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             let current_pong = this.framebufferPingPong;
             // bind Quad VAO for raytracing shaders
             this.gl.bindVertexArray(this.quad);
-            if (this.frameIndex <= this.maxSamples) {
+            if (this.frameIndex <= this.settings.maxSamples) {
                 this.gl.disable(this.gl.DEPTH_TEST);
                 const previous_pong = (this.framebufferPingPong + this.framebuffers.length - 1) % this.framebuffers.length
                 // -- Render into Framebuffer --
@@ -965,8 +1042,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             this.gl.useProgram(this.blit);
             this.gl.activeTexture(this.gl.TEXTURE0 + 2 + current_pong);
             this.gl.bindTexture(this.gl.TEXTURE_2D, this.framebuffers[current_pong].target);
-            this.gl.uniform1f(this.getUniformLocation("gamma", this.blit), this.gamma);
-            this.gl.uniform1f(this.getUniformLocation("exposure", this.blit), this.exposure);
+            this.gl.uniform1f(this.getUniformLocation("gamma", this.blit), this.settings.gamma);
+            this.gl.uniform1f(this.getUniformLocation("exposure", this.blit), this.settings.exposure);
             this.gl.uniform1i(this.getUniformLocation("u_result", this.blit), 2 + current_pong);
             this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 
@@ -980,7 +1057,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.gl.useProgram(this.clipping);
                 this.camera.bindAsUniforms(this.gl, this.clipping);
                 if (this.volume) {
-                    const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
+                    const aabb = this.volume.aabbClipped(this.settings.volumeClipMin, this.settings.volumeClipMax);
                     const face = this.currentCubeFace(aabb);
                     this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb", this.clipping), new Float32Array(aabb.flat()));
                     this.gl.uniform1i(this.getUniformLocation("u_selected_face", this.clipping), (typeof face === "number" ? face + 1 : 0) * (this.adjustingClipping ? -1 : 1))
@@ -1003,7 +1080,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.gl.uniform1i(this.getUniformLocation("u_transfer"), textureOffset++);
 
         // light
-        this.gl.uniform3f(this.getUniformLocation("u_light_dir"), this.lightDir.x, this.lightDir.y, this.lightDir.z)
+        this.gl.uniform3f(this.getUniformLocation("u_light_dir"), this.settings.lightDir.x, this.settings.lightDir.y, this.settings.lightDir.z)
 
         // brick lookup textures
         this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset);
@@ -1019,15 +1096,15 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         // bind volume
         if (this.volume) {
             const [min, maj] = this.volume.minMaj();
-            const aabb = this.volume.aabbClipped(this.volumeClipMin, this.volumeClipMax);
+            const aabb = this.volume.aabbClipped(this.settings.volumeClipMin, this.settings.volumeClipMax);
             this.gl.uniform3fv(this.getUniformLocation("u_volume_aabb"), new Float32Array(aabb.flat()));
-            this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.densityMultiplier);
-            this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.densityMultiplier);
-            this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.densityMultiplier))
+            this.gl.uniform1f(this.getUniformLocation("u_volume_min"), min * this.densityScale * this.settings.densityMultiplier);
+            this.gl.uniform1f(this.getUniformLocation("u_volume_maj"), maj * this.densityScale * this.settings.densityMultiplier);
+            this.gl.uniform1f(this.getUniformLocation("u_volume_inv_maj"), 1 / (maj * this.densityScale * this.settings.densityMultiplier))
 
             this.gl.uniform3f(this.getUniformLocation("u_volume_albedo"), 0.9, 0.9, 0.9) // TODO
             this.gl.uniform1f(this.getUniformLocation("u_volume_phase_g"), 0) // TODO
-            this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale * this.densityMultiplier);
+            this.gl.uniform1f(this.getUniformLocation("u_volume_density_scale"), this.densityScale * this.settings.densityMultiplier);
 
             const combinedMatrix = this.volume.combinedTransform()
             this.gl.uniformMatrix4fv(this.getUniformLocation("u_volume_density_transform"), false, combinedMatrix)
@@ -1038,12 +1115,12 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         if (this.environment) {
             textureOffset = this.environment.bindUniforms(this.program, textureOffset)
         }
-        this.gl.uniform1i(this.getUniformLocation("show_environment"), this.showEnvironment ? 1 : 0);
-        this.gl.uniform1i(this.getUniformLocation("bounces"), this.bounces)
-        this.gl.uniform1i(this.getUniformLocation("u_use_env"), this.useEnv ? 1 : 0);
+        this.gl.uniform1i(this.getUniformLocation("show_environment"), this.settings.showEnvironment ? 1 : 0);
+        this.gl.uniform1i(this.getUniformLocation("bounces"), this.settings.bounces)
+        this.gl.uniform1i(this.getUniformLocation("u_use_env"), this.settings.useEnv ? 1 : 0);
 
         // bind sample range
-        this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.sampleRange);
+        this.gl.uniform2f(this.getUniformLocation("u_sample_range"), ...this.settings.sampleRange);
 
         // bind previous frame
         this.gl.activeTexture(this.gl.TEXTURE0 + textureOffset + framebuffer);
@@ -1054,7 +1131,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         this.gl.uniform1ui(this.getUniformLocation("u_frame_index"), this.frameIndex);
 
         this.gl.uniform2i(this.getUniformLocation("u_res"), this.resolutionFactor * this.gl.canvas.width, this.resolutionFactor * this.gl.canvas.height)
-        this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.debugHits ? 1 : 0);
+        this.gl.uniform1i(this.getUniformLocation("u_debugHits"), this.settings.debugHits ? 1 : 0);
 
         this.gl.uniform1f(this.getUniformLocation("u_sample_weight"), this.frameIndex < this.lowResolutionDuration ? 0 : (this.frameIndex - this.lowResolutionDuration) / (this.frameIndex - this.lowResolutionDuration + 1));
     }
@@ -1062,7 +1139,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private lastCurrentCubeFace: number | null = null;
     private lastWorldPos: Vector3 | null = null;
 
-    private currentCubeFace(aabb = this.volume!.aabbClipped(this.volumeClipMin, this.volumeClipMax)) {
+    private currentCubeFace(aabb = this.volume!.aabbClipped(this.settings.volumeClipMin, this.settings.volumeClipMax)) {
         if (this.adjustingClipping) return this.lastCurrentCubeFace;
         if (!this.mousePos) return null;
         const [hitMin] = rayBoxIntersectionPositions(worldRay(this.gl!, this.camera!, this.mousePos), aabb) ?? [null];
@@ -1111,32 +1188,32 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         switch (face) {
             // +z, front
             case 0: {
-                this.volumeClipMax.z = Math.min(Math.max(this.volumeClipMin.z + 0.1, 1 - (max.z - newPos.z) / (max.z - min.z)), 1)
+                this.settings.volumeClipMax.z = Math.min(Math.max(this.settings.volumeClipMin.z + 0.1, 1 - (max.z - newPos.z) / (max.z - min.z)), 1)
                 break;
             }
             // -z, back
             case 1: {
-                this.volumeClipMin.z = Math.max(Math.min(this.volumeClipMax.z - 0.1, 1 - (max.z - newPos.z) / (max.z - min.z)), 0)
+                this.settings.volumeClipMin.z = Math.max(Math.min(this.settings.volumeClipMax.z - 0.1, 1 - (max.z - newPos.z) / (max.z - min.z)), 0)
                 break;
             }
             // -x, left
             case 2: {
-                this.volumeClipMin.x = Math.max(Math.min(this.volumeClipMax.x - 0.1, 1 - (max.x - newPos.x) / (max.x - min.x)), 0)
+                this.settings.volumeClipMin.x = Math.max(Math.min(this.settings.volumeClipMax.x - 0.1, 1 - (max.x - newPos.x) / (max.x - min.x)), 0)
                 break;
             }
             // +x, right
             case 3: {
-                this.volumeClipMax.x = Math.min(Math.max(this.volumeClipMin.x + 0.1, 1 - (max.x - newPos.x) / (max.x - min.x)), 1)
+                this.settings.volumeClipMax.x = Math.min(Math.max(this.settings.volumeClipMin.x + 0.1, 1 - (max.x - newPos.x) / (max.x - min.x)), 1)
                 break;
             }
             // +y, top
             case 4: {
-                this.volumeClipMax.y = Math.min(Math.max(this.volumeClipMin.y + 0.1, 1 - (max.y - newPos.y) / (max.y - min.y)), 1)
+                this.settings.volumeClipMax.y = Math.min(Math.max(this.settings.volumeClipMin.y + 0.1, 1 - (max.y - newPos.y) / (max.y - min.y)), 1)
                 break;
             }
             // -y, bottom
             case 5: {
-                this.volumeClipMin.y = Math.max(Math.min(this.volumeClipMax.y - 0.1, 1 - (max.y - newPos.y) / (max.y - min.y)), 0)
+                this.settings.volumeClipMin.y = Math.max(Math.min(this.settings.volumeClipMax.y - 0.1, 1 - (max.y - newPos.y) / (max.y - min.y)), 0)
                 break;
             }
         }

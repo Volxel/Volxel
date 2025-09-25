@@ -132,70 +132,89 @@ export const volxelStyles = css`
             display: flex;
         }
 
-        label.menuButton {
+        div.sideMenuOpener {
             position: absolute;
             bottom: 0;
             left: 100%;
+            display: flex;
+            flex-direction: column;
             background: black;
             border-top: 1px solid #444;
             border-right: 1px solid #444;
-            width: 2em;
-            height: 2em;
-            cursor: pointer;
-
-            > span, > input {
-                position: absolute;
-                width: 0;
-                height: 0;
-                overflow: hidden;
-                opacity: 0;
-            }
-
-            &:has(input:is(:hover, :focus-visible)) {
-                background: #444;
-            }
             
-            div {
-                width: 100%;
-                height: 100%;
-                position: relative;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: space-between;
-                padding: 30%;
+            button {
+                writing-mode: vertical-lr;
+                appearance: none;
+                border: none;
+                background: none;
+                color: inherit;
+                border-bottom: 1px solid #444;
+                cursor: pointer;
                 
-                span {
-                    display: block;
-                    height: 1px;
-                    background: white;
-                    transition: .1s;
-                    width: 60%;
-                    position: absolute;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    &:first-child {
-                        top: 30%;
-                    }
-                    &:last-child {
-                        top: 70%;
-                    }
+                &:hover, &:focus-visible {
+                    background: #444;
                 }
             }
-            &:has(input:checked) {
+            
+            label.menuButton {
+                width: 2em;
+                height: 2em;
+                cursor: pointer;
+    
+                > span, > input {
+                    position: absolute;
+                    width: 0;
+                    height: 0;
+                    overflow: hidden;
+                    opacity: 0;
+                }
+    
+                &:has(input:is(:hover, :focus-visible)) {
+                    background: #444;
+                }
+                
                 div {
-                    span:nth-child(2) {
-                        opacity: 0;
-                    }
-                    span:nth-child(2n + 1) {
+                    width: 100%;
+                    height: 100%;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 30%;
+                    
+                    span {
+                        display: block;
+                        height: 1px;
+                        background: white;
+                        transition: .1s;
                         width: 60%;
                         position: absolute;
                         top: 50%;
                         left: 50%;
-                        transform: translate(-50%, -50%) rotate(-45deg);
-                        &:nth-child(1) {
-                            transform: translate(-50%, -50%) rotate(45deg);
+                        transform: translate(-50%, -50%);
+                        &:first-child {
+                            top: 30%;
+                        }
+                        &:last-child {
+                            top: 70%;
+                        }
+                    }
+                }
+                &:has(input:checked) {
+                    div {
+                        span:nth-child(2) {
+                            opacity: 0;
+                        }
+                        span:nth-child(2n + 1) {
+                            width: 60%;
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%) rotate(-45deg);
+                            &:nth-child(1) {
+                                transform: translate(-50%, -50%) rotate(45deg);
+                            }
                         }
                     }
                 }
@@ -311,11 +330,6 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             <volxel-slider id="density_multiplier" min="0.01" max="2" step="0.01"></volxel-slider>
         </label>
         <volxel-histogram-viewer id="histogram"></volxel-histogram-viewer>
-        <button type="button" id="export-transfer">Export Transfer Settings</button>
-        <label>
-            Import Transfer Settings
-            <input type="file" name="import-transfer" id="import-transfer">
-        </label>
     </div>
     <div class="tab" id="render-tab">
         <label>
@@ -339,19 +353,22 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             Debug Hit Positions
         </label>
     </div>
-    <label class="menuButton">
-        <span class="label">Menü</span>
-        <input type="checkbox" name="menu" id="menu">
-
-        <div aria-hidden>
-            <span></span>
-            <span></span>
-            <span></span>
-        </div>
-    </label>
+    <div class="sideMenuOpener">
+        <button id="exportSettings">Export</button>
+        <button id="importSettings">Import</button>
+        <label class="menuButton">
+            <span class="label">Menü</span>
+            <input type="checkbox" name="menu" id="menu">
+            <div aria-hidden>
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </label>
+    </div>
 </div>
-<div class="loadingIndicator">
-    Loading and preparing volumetric data ...
+<div class="loadingIndicator" id="loadingIndicator">
+    THIS SHOULD NOT BE VISIBLE
 </div>
 <div class="errorIndicator">
     An error occurred:
