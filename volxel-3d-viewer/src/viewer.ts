@@ -160,7 +160,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 OUT_OF_MEMORY: gl.OUT_OF_MEMORY,
                 CONTEXT_LOST_WEBGL: gl.CONTEXT_LOST_WEBGL
             }
-            console.log("WebGL Error IDs:", errors)
             gl = new Proxy(gl, {
                 get(target: WebGL2RenderingContext, p: keyof WebGL2RenderingContext): any {
                     const prop = target[p]
@@ -980,7 +979,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.resolutionFactor = 0.33;
                 this.resizeFramebuffersToCanvas();
                 this.frameIndex = 0;
-                this.suspend = false;
+                this.suspend = previousSuspend;
                 return x;
             }).catch(e => {
                 this.handleError(e);
