@@ -338,4 +338,9 @@ void main() {
     }
 
     if (outColor.a == 0.0) outColor = vec4((u_sample_weight * previous_frame + (1.0 - u_sample_weight) * result).rgb, 1);
+
+//    int level = env_imp_base_mip;
+//    outColor = vec4(texelFetch(u_impmap, pixel / int(pow(2.0, float(level))), level).r, 0, 0, 1);
+//    if (isnan(outColor.r) || isnan(outColor.g) || isnan(outColor.b)) outColor = vec4(1, 0, 0, 1);
+//    else outColor = vec4(0, 1, 0, 1);
 }

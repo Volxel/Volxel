@@ -19,9 +19,7 @@ impl ExrImage {
     pub fn height(&self) -> usize { self.height }
 
     pub fn data(&self) -> Float32Array {
-        unsafe {
-            Float32Array::view(&self.data)
-        }
+        Float32Array::from(self.data.as_slice())
     }
 
     pub fn decode_from_bytes(bytes: &Uint8Array) -> Result<ExrImage, JsValue> {
@@ -50,6 +48,7 @@ impl ExrImage {
             )
             .first_valid_layer()
             .all_attributes()
+            .non_parallel()
             .from_buffered(cursor)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 

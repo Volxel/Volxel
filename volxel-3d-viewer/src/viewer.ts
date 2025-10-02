@@ -282,6 +282,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             gl.vertexAttribPointer(barycentricsAttribute, 3, gl.FLOAT, false, 0, 0);
 
             // setup default environment map
+            this.environment?.dispose();
             this.environment = Environment.default(gl);
 
             // Setup transfer function
@@ -886,6 +887,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     private setupEnv(env: WasmWorkerMessageEnvReturn) {
         if (!this.gl) throw new Error("Tried to load env into uninitialized gl context");
+        this.environment?.dispose();
         this.environment = new Environment(this.gl, env);
     }
 
@@ -1063,7 +1065,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 }
                 this.gl.drawArrays(this.gl.TRIANGLES, 0, cubeVertices.length / 3);
                 this.gl.disable(this.gl.CULL_FACE);
-                this.gl.disable(this.gl.DEPTH_TEST)
+                this.gl.disable(this.gl.DEPTH_TEST);
+                this.gl.disable(this.gl.BLEND);
+                this.gl.bindVertexArray(null);
+                this.gl.useProgram(null);
             }
             this.gl.finish()
         }

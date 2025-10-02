@@ -17,6 +17,7 @@ export class Environment {
         const floatExt = gl.getExtension("OES_texture_float_linear");
         if (!floatExt) throw new Error(`OES_texture_float_linear not available, cannot prepare environment map.`)
         // Setup base environment map
+        gl.activeTexture(this.gl.TEXTURE0);
         this.texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
@@ -31,6 +32,7 @@ export class Environment {
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
 
         // setup importance map
+        gl.activeTexture(this.gl.TEXTURE0 + 1);
         this.importance = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.importance);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
@@ -50,6 +52,8 @@ export class Environment {
 
             return 0;
         });
+        importanceComputeContext.dispose();
+        gl.activeTexture(this.gl.TEXTURE0 + 1);
         gl.bindTexture(gl.TEXTURE_2D, this.importance);
         gl.generateMipmap(gl.TEXTURE_2D)
     }
@@ -80,6 +84,11 @@ export class Environment {
         this.gl.uniform2f(uniformLoc("env_imp_inv_dim"), 1.0 / DIMENSION, 1.0 / DIMENSION);
 
         return textureOffset;
+    }
+
+    public dispose() {
+        this.gl.deleteTexture(this.texture);
+        this.gl.deleteTexture(this.importance);
     }
 
     static default(gl: WebGL2RenderingContext) {

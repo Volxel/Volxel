@@ -56,6 +56,13 @@ export class ComputeContext {
 
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
         this.gl.useProgram(null);
+        this.gl.bindVertexArray(null);
         if (waitForFinish) this.gl.finish();
+    }
+
+    public dispose() {
+        this.gl.deleteFramebuffer(this.framebuffer);
+        this.gl.deleteProgram(this.program);
+        this.gl.deleteVertexArray(this.quad);
     }
 }
