@@ -292,7 +292,7 @@ export const volxelTemplate: HTMLTemplateElement =  html`
     <div class="tab" id="light-tab">
         <label>
             Upload Environment Map HDR
-            <input type="file" name="light_env" id="light_env" accept="image/aces">
+            <input type="file" name="light_env" id="light_env" accept="image/aces, image/vnd.radiance">
         </label>
         <label>
             <input type="checkbox" name="use_env" id="use_env">
