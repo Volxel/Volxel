@@ -30,7 +30,6 @@ void main() {
         for (int x = 0; x < num_samples.x; ++x) {
             vec2 uv = (vec2(pixel * num_samples) + vec2(float(x) + 0.5F, float(y) + 0.5F)) / vec2(output_size_samples);
             importance += luma(texture(u_input, uv).rgb);
-            break;
         }
     }
 
