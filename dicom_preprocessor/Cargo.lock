@@ -332,12 +332,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "dicom-core"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31f6e9f0a581bffa2630b1bd381d8114b09b3f66d1ed76ab924104ad153e0c59"
+dependencies = [
+ "chrono",
+ "either",
+ "itertools 0.14.0",
+ "num-traits",
+ "safe-transmute",
+ "smallvec",
+ "snafu",
+]
+
+[[package]]
 name = "dicom-dictionary-std"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb8bff24f681377e7b8595e17ed82828decfbcec9c69d09f9dbb8f1c3e8081eb"
 dependencies = [
- "dicom-core",
+ "dicom-core 0.8.2",
  "once_cell",
 ]
 
@@ -348,7 +363,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9664d8c8de377e29b1e5b8fe8efa7c3cc3ea848ee6a70247f906fa5e00fdc97"
 dependencies = [
  "byteordered",
- "dicom-core",
+ "dicom-core 0.8.2",
  "dicom-dictionary-std",
  "encoding",
  "snafu",
@@ -361,7 +376,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f460ce81c9a0c2d958888cce45243846845b5447a0023f144d8164e822989fe6"
 dependencies = [
  "byteordered",
- "dicom-core",
+ "dicom-core 0.8.2",
  "dicom-dictionary-std",
  "dicom-encoding",
  "dicom-parser",
@@ -378,7 +393,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7986f989ccdf19c71a742690e20c66b02f5751964876076ce69d2fc43f6eaff"
 dependencies = [
- "dicom-core",
+ "dicom-core 0.8.2",
  "dicom-dictionary-std",
  "dicom-encoding",
  "smallvec",
@@ -393,7 +408,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3155f33cc72a0621458a92d46e5e11f59f4c46e96c05234bda1fdc1b05c17b18"
 dependencies = [
  "byteorder",
- "dicom-core",
+ "dicom-core 0.8.2",
  "dicom-dictionary-std",
  "dicom-encoding",
  "dicom-object",
@@ -412,7 +427,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62672d33f29f7c049a92a662c4bd7ef34e85b5eaea379627d335d93b5d25edf6"
 dependencies = [
  "byteordered",
- "dicom-core",
+ "dicom-core 0.8.2",
  "dicom-encoding",
  "jpeg-decoder",
  "jpeg-encoder",
@@ -429,7 +444,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "console_error_panic_hook",
- "dicom-core",
+ "dicom-core 0.9.0",
  "dicom-object",
  "dicom-pixeldata",
  "glam",
