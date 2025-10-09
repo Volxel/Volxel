@@ -20,13 +20,13 @@ wasm-bindgen = "0.2.104"
 console_error_panic_hook = { version = "0.1.7", optional = true }
 
 # dicom
-dicom-core = "0.8.2"
-dicom-object = "0.8.2"
-dicom-pixeldata = { version = "0.8.2", features = ["image", "jpeg", "jpegxl", "native"] }
+dicom-core = "0.9.0"
+dicom-object = "0.9.0"
+dicom-pixeldata = { version = "0.9.0", features = ["image", "jpeg", "jpegxl", "native"] }
 js-sys = "0.3.81"
 glam = "0.30.8"
-bytemuck = "1.23.2"
-half = "2.6.0" # TODO: Remove this once f16 is stable in Rust
+bytemuck = "1.24.0"
+half = "2.7.0" # TODO: Remove this once f16 is stable in Rust
 zip = { version = "5.1.1", default-features = false, features = ["bzip2", "deflate", "lzma", "deflate64", "ppmd", "zstd"] }
 image = { version = "0.25.8", features = ["exr", "hdr"]}
 
