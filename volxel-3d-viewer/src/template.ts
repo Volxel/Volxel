@@ -121,6 +121,10 @@ export const volxelStyles = css`
                     width: 100%;
                 }
             }
+            
+            hr {
+                width: 100%;
+            }
         }
         &:has(input#light:checked):has(input#menu:checked) div#light-tab {
             display: flex;
@@ -348,9 +352,19 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             Exposure
             <volxel-slider id="exposure" min="0.01" max="8" step="0.01"></volxel-slider>
         </label>
+        <hr />
+        <strong>Developer Options</strong>
         <label>
             <input type="checkbox" name="debugHits" id="debugHits" >
             Debug Hit Positions
+        </label>
+        <label>
+            Render mode
+            <select id="render-mode">
+                <option value="default">Default</option>
+                <option value="no_dda">No DDA</option>
+                <option value="raymarch">Raymarch</option>
+            </select>
         </label>
     </div>
     <div class="sideMenuOpener">

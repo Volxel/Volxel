@@ -52,8 +52,14 @@ declare global {
 
 let workerFactory: (() => Worker) | undefined = undefined;
 
+export enum VolxelRenderMode {
+    DEFAULT = "default",
+    NO_DDA = "no_dda",
+    RAYMARCH = "raymarch"
+}
+
 export class Volxel3DDicomRenderer extends HTMLElement {
-    public static readonly observedAttributes = ["data-urls", "data-zip-url", "data-settings-url", "data-env-url"]
+    public static readonly observedAttributes = ["data-urls", "data-zip-url", "data-settings-url", "data-env-url", "data-render-mode"]
 
     private worker = workerFactory!!()
     private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
@@ -62,6 +68,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     private canvas: HTMLCanvasElement;
     private gl: WebGL2RenderingContext | undefined;
+    private vertexShader: WebGLShader | undefined;
     private program: WebGLProgram | undefined;
     private blit: WebGLProgram | undefined;
     private clipping: WebGLProgram | undefined;
@@ -190,13 +197,12 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             }
 
             // Set up main shaders
-            const vertex = createShader(gl, gl.VERTEX_SHADER, vertexShader);
-            const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
-            this.program = createProgram(gl, vertex, fragment);
+            this.vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShader);
+            this.program = this.createShaderProgram(this.vertexShader)
 
             // Set up blit shaders
             const blit = createShader(gl, gl.FRAGMENT_SHADER, blitShader);
-            this.blit = createProgram(gl, vertex, blit);
+            this.blit = createProgram(gl, this.vertexShader, blit);
 
             // Set up clipping controls shader
             const clipVertex = createShader(gl, gl.VERTEX_SHADER, clipVertexShader);
@@ -605,7 +611,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 restoreTransferSettings(settings.transfer);
                 restoreDisplaySettings(settings.display);
                 restoreLightingSettings(settings.lighting);
-                const { clipMax, clipMin, cameraLookAt, cameraPos } = settings.other;
+                const {clipMax, clipMin, cameraLookAt, cameraPos} = settings.other;
                 this.settings.volumeClipMax = new Vector3(...clipMax);
                 this.settings.volumeClipMin = new Vector3(...clipMin);
                 this.camera!.pos = new Vector3(...cameraPos);
@@ -651,11 +657,36 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             const importButton = this.shadowRoot!.getElementById("importSettings") as HTMLButtonElement;
             importButton.addEventListener("click", () => fileInput.click())
 
+            const renderModeSelect = this.shadowRoot!.getElementById("render-mode") as HTMLSelectElement;
+            renderModeSelect.value = this.renderMode;
+            renderModeSelect.addEventListener("change", async () => {
+                this.renderMode = renderModeSelect.value as VolxelRenderMode;
+                await this.restartRenderMode();
+            })
+
             // initial call to the render function
             requestAnimationFrame(this.render)
         } catch (e) {
             this.handleError(e);
         }
+    }
+
+    private createShaderProgram(vertex: WebGLShader): WebGLProgram {
+        if (!this.gl) throw new Error("WebGL context undefined for creating shader program");
+        let defines = "";
+        switch (this.renderMode) {
+            case VolxelRenderMode.NO_DDA:
+                defines = "#define NO_DDA";
+                break;
+            case VolxelRenderMode.RAYMARCH:
+                defines = "#define RAYMARCH";
+                break;
+            case VolxelRenderMode.DEFAULT:
+            default:
+                break;
+        }
+        const fragment = createShader(this.gl, this.gl.FRAGMENT_SHADER, fragmentShader.replace("// DEFINES", defines));
+        return createProgram(this.gl, vertex, fragment);
     }
 
     private maybeSyncLight() {
@@ -697,9 +728,19 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     public async attributesChangedCallback(name: string) {
+        if (name === "data-render-mode") {
+            await this.restartRenderMode();
+        }
         if (name === "data-urls" || name === "data-zip-url" || name === "data-settings-url" || name === "data-env-url") {
             await this.restartFromAttributes()
         }
+    }
+
+    private async restartRenderMode() {
+        await this.restartRendering(async () => {
+            if (!this.vertexShader) throw new Error("No vertex shader defined for program creation")
+            this.program = this.createShaderProgram(this.vertexShader)
+        })
     }
 
     private async restartFromAttributes() {
@@ -1221,6 +1262,17 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 break;
             }
         }
+    }
+
+    public set renderMode(to: VolxelRenderMode) {
+        this.setAttribute("data-render-mode", to)
+    }
+
+    public get renderMode() {
+        const attr = this.getAttribute("data-render-mode");
+        if (attr === null) return VolxelRenderMode.DEFAULT;
+        if (!Object.values(VolxelRenderMode).includes(attr as VolxelRenderMode)) throw new Error(`Unrecognized render mode provided: ${attr}`);
+        return attr as VolxelRenderMode
     }
 }
 

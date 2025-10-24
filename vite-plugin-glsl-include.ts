@@ -7,7 +7,7 @@ function processIncludes(source: string, dir: string, seen: Set<string> = new Se
     const fullPath = path.resolve(dir, includePath);
 
     if (seen.has(fullPath)) {
-      throw new Error(`Circular include detected: ${fullPath}`);
+      return ""
     }
 
     if (!fs.existsSync(fullPath)) {
@@ -18,7 +18,6 @@ function processIncludes(source: string, dir: string, seen: Set<string> = new Se
     seen.add(fullPath);
     const includedSource = fs.readFileSync(fullPath, 'utf8');
     const processed = processIncludes(includedSource, path.dirname(fullPath), seen, context);
-    seen.delete(fullPath);
     return processed;
   });
 }
