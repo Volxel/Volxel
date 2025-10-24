@@ -14,9 +14,9 @@
     "@volxel/3d-viewer": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^24.7.0",
+    "@types/node": "^24.9.1",
     "typescript": "^5.9.3",
-    "vite": "^7.1.9",
+    "vite": "^7.1.12",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.5.0",
     "wasm-pack": "^0.13.1"
