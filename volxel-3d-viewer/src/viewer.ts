@@ -58,8 +58,24 @@ export enum VolxelRenderMode {
     RAYMARCH = "raymarch"
 }
 
+export type VolxelBenchmarkSettings = {
+    zip?: string,
+    env?: string,
+    renderMode: VolxelRenderMode,
+    settings: number | SettingsExport,
+}
+export type VolxelBenchmark = {
+    sharedSettings: SettingsExport[],
+    benchmarks: VolxelBenchmarkSettings[]
+}
+export type VolxelBenchmarkResult = {
+    settings: ViewerSettings,
+    totalTime: number,
+    timePerSample: number
+}
+
 export class Volxel3DDicomRenderer extends HTMLElement {
-    public static readonly observedAttributes = ["data-urls", "data-zip-url", "data-settings-url", "data-env-url", "data-render-mode"]
+    public static readonly observedAttributes = ["data-urls", "data-zip-url", "data-settings-url", "data-env-url", "data-render-mode", "data-benchmark-url"]
 
     private worker = workerFactory!!()
     private workerInitialized = new Promise<void>(resolve => this.worker.addEventListener("message", () => {
@@ -78,6 +94,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private frameIndex: number = 0;
 
     private suspend: boolean = false;
+    private benchmarking: boolean = false;
+    private benchmarkTime: number = 0;
+    private benchmarkResults: VolxelBenchmarkResult[] = [];
+    private benchmarkInits: (() => Promise<void>)[] = [];
     private resolutionFactor: number = 1;
     private lowResolutionDuration: number = 5;
 
@@ -101,6 +121,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         gamma: 2.2,
         exposure: 5.5,
         sampleRange: [0, 1],
+        renderMode: VolxelRenderMode.DEFAULT
     }
 
     // used for clipping controls
@@ -581,7 +602,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     samples: this.settings.maxSamples,
                     gamma: this.settings.gamma,
                     exposure: this.settings.exposure,
-                    debugHits: this.settings.debugHits
+                    debugHits: this.settings.debugHits,
+                    renderMode: this.renderMode
                 }
             }
             const restoreDisplaySettings = (settings: DisplaySettings) => {
@@ -590,6 +612,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.settings.gamma = gammaInput.value = settings.gamma;
                 this.settings.exposure = exposureInput.value = settings.exposure;
                 this.settings.debugHits = debugHits.checked = settings.debugHits;
+                this.renderMode = settings.renderMode
             }
             const exportLightingSettings = (): LightingSettings => {
                 return {
@@ -621,7 +644,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 const transfer = exportTransferSettings();
                 if (!transfer) return null
                 return {
-                    version: SettingsVersion.V1,
+                    version: SettingsVersion.V2,
                     transfer,
                     lighting: exportLightingSettings(),
                     display: exportDisplaySettings(),
@@ -663,6 +686,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.renderMode = renderModeSelect.value as VolxelRenderMode;
                 await this.restartRenderMode();
             })
+
+            const benchmarkButton = this.shadowRoot!.getElementById("benchmark") as HTMLButtonElement;
+            benchmarkButton.addEventListener("click", () => { this.singleBenchmark(); })
 
             // initial call to the render function
             requestAnimationFrame(this.render)
@@ -725,6 +751,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     public async connectedCallback() {
         await this.restartFromAttributes()
+        await this.attributeBenchmark()
     }
 
     public async attributesChangedCallback(name: string) {
@@ -734,13 +761,61 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         if (name === "data-urls" || name === "data-zip-url" || name === "data-settings-url" || name === "data-env-url") {
             await this.restartFromAttributes()
         }
+        if (name === "data-benchmark-url") {
+            await this.attributeBenchmark()
+        }
+    }
+
+    private async attributeBenchmark() {
+        const url = this.getAttribute("data-benchmark-url");
+        console.log(url)
+        if (!url) return;
+        const benchmarkResp = await fetch(url);
+        const text = await benchmarkResp.text();
+        if (!benchmarkResp.ok) throw new Error(`Failed to fetch benchmark URL: ${benchmarkResp.status} (${benchmarkResp.statusText})\n${text}`)
+        const benchmark = JSON.parse(text);
+        console.log(benchmark);
+        await this.startBenchmark(benchmark);
     }
 
     private async restartRenderMode() {
         await this.restartRendering(async () => {
             if (!this.vertexShader) throw new Error("No vertex shader defined for program creation")
             this.program = this.createShaderProgram(this.vertexShader)
-        })
+        }, "Setting Render Mode")
+    }
+
+    private singleBenchmark() {
+        this.restartRendering(() => {
+            this.benchmarking = true;
+            this.benchmarkTime = 0;
+        }, "Starting benchmark")
+    }
+
+    public async startBenchmark(benchmarkCollection: VolxelBenchmark) {
+        this.benchmarkResults.splice(0)
+        this.benchmarkInits.splice(0);
+        for (const benchmark of benchmarkCollection.benchmarks) {
+            this.benchmarkInits.push(async () => {
+                await this.restartRendering(async () => {
+                    if (benchmark.zip) await this.restartFromZipUrl(benchmark.zip)
+                    if (benchmark.env) await this.loadEnvFromUrl(benchmark.env)
+                    if (typeof benchmark.settings === "number") {
+                        this.restoreSettings(benchmarkCollection.sharedSettings[benchmark.settings])
+                    } else {
+                        this.restoreSettings(benchmark.settings)
+                    }
+                    if (benchmark.renderMode) {
+                        this.renderMode = benchmark.renderMode
+                        await this.restartRenderMode()
+                    }
+                    this.singleBenchmark();
+                }, "Setting up benchmark")
+            })
+        }
+        this.benchmarkInits.reverse()
+        const firstBenchmark = this.benchmarkInits.pop();
+        if (firstBenchmark) await firstBenchmark();
     }
 
     private async restartFromAttributes() {
@@ -1042,6 +1117,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             this.resizeFramebuffersToCanvas();
         }
         if (!this.suspend) {
+            const frameStart = performance.now();
             let current_pong = this.framebufferPingPong;
             // bind Quad VAO for raytracing shaders
             this.gl.bindVertexArray(this.quad);
@@ -1063,7 +1139,13 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.bindUniforms(previous_pong);
                 this.camera.bindAsUniforms(this.gl, this.program);
                 this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
-                this.gl.finish()
+
+                if (this.benchmarking) {
+                    this.gl.finish();
+
+                    const frameEnd = performance.now();
+                    this.benchmarkTime += (frameEnd - frameStart);
+                }
 
                 // -- Render to canvas --
                 this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
@@ -1074,6 +1156,21 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.frameIndex++;
 
                 this.classList.remove("restarting");
+            } else if (this.benchmarking) {
+                const result: VolxelBenchmarkResult = {
+                    settings: this.settings,
+                    timePerSample: this.benchmarkTime / this.frameIndex,
+                    totalTime: this.benchmarkTime
+                }
+                this.benchmarkResults.push(JSON.parse(JSON.stringify(result)));
+                console.log("benchmark result", JSON.stringify(result, null, 2))
+                this.benchmarking = false;
+                this.benchmarkTime = 0;
+                const nextBenchmarkInit = this.benchmarkInits.pop()
+                if (nextBenchmarkInit) nextBenchmarkInit().then()
+                else {
+                    console.log("benchmarking done", this.benchmarkResults)
+                }
             }
             this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
@@ -1265,6 +1362,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     }
 
     public set renderMode(to: VolxelRenderMode) {
+        this.settings.renderMode = to;
         this.setAttribute("data-render-mode", to)
     }
 

@@ -366,6 +366,7 @@ export const volxelTemplate: HTMLTemplateElement =  html`
                 <option value="raymarch">Raymarch</option>
             </select>
         </label>
+        <button id="benchmark">Start Benchmark</button>
     </div>
     <div class="sideMenuOpener">
         <button id="exportSettings">Export</button>
