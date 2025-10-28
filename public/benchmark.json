@@ -59,7 +59,7 @@
         "exposure": 5.5,
         "debugHits": false,
         "renderMode": "default",
-        "resolutionFactor": 0.3
+        "resolutionFactor": 0.8
       },
       "other": {
         "clipMax": [

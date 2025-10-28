@@ -12,7 +12,7 @@ export class Volume {
     }
 
     combinedTransform(): Matrix4 {
-        return this.transform.clone().multiplyRight(this.grid.transform());
+        return this.transform.clone().multiplyRight(this.grid.transform);
     }
     toWorld(index: Vector4): Vector4 {
         // @ts-expect-error this should return a 4 element vector always
@@ -24,7 +24,7 @@ export class Volume {
     }
     aabb(): [Vector3, Vector3] {
         const wbb_min = this.toWorld(new Vector4(0, 0, 0, 1))
-        const indexExtent = this.grid.indexExtent();
+        const indexExtent = this.grid.indexExtent;
         const toTransform = new Vector4().set(indexExtent.x, indexExtent.y, indexExtent.z, 1);
         const wbb_max = this.toWorld(toTransform);
         return [new Vector3(wbb_min.x, wbb_min.y, wbb_min.z), new Vector3(wbb_max.x, wbb_max.y, wbb_max.z)];
@@ -36,7 +36,7 @@ export class Volume {
         return [aabbClippedMin, aabbClippedMax]
     }
     minMaj() {
-        return this.grid.minMaj();
+        return this.grid.minMaj;
     }
 
     setTransform(from: Matrix4) {
