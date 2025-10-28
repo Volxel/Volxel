@@ -668,6 +668,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.settings.gamma = gammaInput.value = settings.gamma;
                 this.settings.exposure = exposureInput.value = settings.exposure;
                 this.settings.debugHits = debugHits.checked = settings.debugHits;
+                this.settings.resolutionFactor = settings.resolutionFactor;
                 this.renderMode = settings.renderMode
             }
             const exportLightingSettings = (): LightingSettings => {
@@ -824,13 +825,11 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
     private async attributeBenchmark() {
         const url = this.getAttribute("data-benchmark-url");
-        console.log(url)
         if (!url) return;
         const benchmarkResp = await fetch(url);
         const text = await benchmarkResp.text();
         if (!benchmarkResp.ok) throw new Error(`Failed to fetch benchmark URL: ${benchmarkResp.status} (${benchmarkResp.statusText})\n${text}`)
         const benchmark = JSON.parse(text);
-        console.log(benchmark);
         await this.startBenchmark(benchmark);
     }
 
@@ -913,8 +912,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
         const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor * this.settings.resolutionFactor)
         const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor * this.settings.resolutionFactor)
-
-        console.log(this.settings.resolutionFactor, scaledWidth, scaledHeight)
 
         gl.viewport(0, 0, scaledWidth, scaledHeight);
         // resize framebuffer textures
@@ -1213,7 +1210,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
                 this.frameIndex++;
 
-                if (this.frameIndex % 100 === 0) {
+                if (this.frameIndex % 100 === 0 && this.benchmarking) {
                     console.log("Rendered frame", this.frameIndex, "of", this.settings.maxSamples)
                 }
 
