@@ -1,6 +1,89 @@
 {
   "sharedSettings": [
-    {"version":"v2","transfer":{"densityMultiplier":0.99,"transfer":{"type":"color_stops","colors":[{"color":[0.5686274509803921,0.2549019607843137,0.6745098039215687,0.54],"stop":0},{"color":[0.9725490196078431,0.8941176470588236,0.3607843137254902,1],"stop":0.17822873724342708},{"color":[0,1,1,0.17],"stop":0.3985239852398524}]},"histogramRange":[0.05645751953125,1]},"lighting":{"useEnv":true,"showEnv":true,"envStrength":1,"syncLightDir":false,"lightDir":[-0.5773502691896258,-0.5773502691896257,-0.5773502691896257]},"display":{"bounces":3,"samples":2000,"gamma":2.2,"exposure":5.5,"debugHits":false,"renderMode":"default"},"other":{"clipMax":[1,1,1],"clipMin":[0,0,0],"cameraLookAt":[0.0025690138263833135,0.027589039598078468,-0.04982115887377399],"cameraPos":[0.6609656965103848,0.10997611027017339,-0.8109681692227295]}}
+    {
+      "version": "v3",
+      "transfer": {
+        "densityMultiplier": 0.99,
+        "transfer": {
+          "type": "color_stops",
+          "colors": [
+            {
+              "color": [
+                0.5686274509803921,
+                0.2549019607843137,
+                0.6745098039215687,
+                0.54
+              ],
+              "stop": 0
+            },
+            {
+              "color": [
+                0.9725490196078431,
+                0.8941176470588236,
+                0.3607843137254902,
+                1
+              ],
+              "stop": 0.17822873724342708
+            },
+            {
+              "color": [
+                0,
+                1,
+                1,
+                0.17
+              ],
+              "stop": 0.3985239852398524
+            }
+          ]
+        },
+        "histogramRange": [
+          0.05645751953125,
+          1
+        ]
+      },
+      "lighting": {
+        "useEnv": true,
+        "showEnv": true,
+        "envStrength": 1,
+        "syncLightDir": false,
+        "lightDir": [
+          -0.5773502691896258,
+          -0.5773502691896257,
+          -0.5773502691896257
+        ]
+      },
+      "display": {
+        "bounces": 1,
+        "samples": 500,
+        "gamma": 2.2,
+        "exposure": 5.5,
+        "debugHits": false,
+        "renderMode": "default",
+        "resolutionFactor": 0.3
+      },
+      "other": {
+        "clipMax": [
+          1,
+          1,
+          1
+        ],
+        "clipMin": [
+          0,
+          0,
+          0
+        ],
+        "cameraLookAt": [
+          0.0025690138263833135,
+          0.027589039598078468,
+          -0.04982115887377399
+        ],
+        "cameraPos": [
+          0.6609656965103848,
+          0.10997611027017339,
+          -0.8109681692227295
+        ]
+      }
+    }
   ],
   "benchmarks": [
     {

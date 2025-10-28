@@ -4,7 +4,8 @@ import {VolxelBenchmarkResult, VolxelRenderMode} from "./viewer";
 
 export enum SettingsVersion {
     V1 = "v1",
-    V2 = "v2"
+    V2 = "v2",
+    V3 = "v3"
 }
 
 export enum TransferSettingsTransferType {
@@ -30,7 +31,8 @@ export type DisplaySettings = {
     gamma: number,
     exposure: number,
     debugHits: boolean,
-    renderMode: VolxelRenderMode
+    renderMode: VolxelRenderMode,
+    resolutionFactor: number
 }
 export type LightingSettings = {
     useEnv: boolean,
@@ -54,10 +56,11 @@ export type ViewerSettings = {
     gamma: number,
     exposure: number,
     sampleRange: [number, number],
-    renderMode: VolxelRenderMode
+    renderMode: VolxelRenderMode,
+    resolutionFactor: number
 }
 export type SettingsExport = {
-    version: SettingsVersion.V2;
+    version: SettingsVersion.V3;
     transfer: TransferSettings,
     display: DisplaySettings,
     lighting: LightingSettings,
@@ -95,7 +98,8 @@ export function verifyDisplaySettings(settings: DisplaySettings) {
         typeof settings.exposure !== "number" ||
         typeof settings.debugHits !== "boolean" ||
         typeof settings.renderMode !== "string" ||
-        !Object.values(VolxelRenderMode).includes(settings.renderMode)) {
+        !Object.values(VolxelRenderMode).includes(settings.renderMode) ||
+        typeof settings.resolutionFactor !== "number") {
         throw new Error("Malformed Display Settings detected.")
     }
 }
@@ -114,7 +118,7 @@ export function verifyLightingSettings(settings: LightingSettings) {
 }
 
 export function verifySettings(settings: SettingsExport) {
-    if (settings.version !== SettingsVersion.V2) {
+    if (settings.version !== SettingsVersion.V3) {
         throw new Error(`Unsupported Settings Format Version: ${settings.version}`);
     }
     verifyTransferSettings(settings.transfer);

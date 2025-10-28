@@ -345,6 +345,10 @@ export const volxelTemplate: HTMLTemplateElement =  html`
             <volxel-slider id="bounces" min="1" max="20" step="1"></volxel-slider>
         </label>
         <label>
+            Resolution Factor
+            <volxel-slider id="resolution" min="0.1" max="1" step="0.05"></volxel-slider>
+        </label>
+        <label>
             Gamma
             <volxel-slider id="gamma" min="0.01" max="5" step="0.01"></volxel-slider>
         </label>

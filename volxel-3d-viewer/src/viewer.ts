@@ -144,7 +144,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         gamma: 2.2,
         exposure: 5.5,
         sampleRange: [0, 1],
-        renderMode: VolxelRenderMode.DEFAULT
+        renderMode: VolxelRenderMode.DEFAULT,
+        resolutionFactor: 1
     }
 
     // used for clipping controls
@@ -591,6 +592,14 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 }, "Changing exposure...")
             })
 
+            const resolutionInput = this.shadowRoot!.getElementById("resolution") as Slider;
+            resolutionInput.value = this.settings.resolutionFactor;
+            resolutionInput.addEventListener("input", async () => {
+                await this.restartRendering(async () => {
+                    this.settings.resolutionFactor = resolutionInput.value;
+                }, "Changing resolution factor...")
+            })
+
             const debugHits = this.shadowRoot!.querySelector("#debugHits") as HTMLInputElement;
             debugHits.checked = this.settings.debugHits
             debugHits.addEventListener("change", async () => {
@@ -649,7 +658,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     gamma: this.settings.gamma,
                     exposure: this.settings.exposure,
                     debugHits: this.settings.debugHits,
-                    renderMode: this.renderMode
+                    renderMode: this.renderMode,
+                    resolutionFactor: this.settings.resolutionFactor
                 }
             }
             const restoreDisplaySettings = (settings: DisplaySettings) => {
@@ -690,7 +700,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 const transfer = exportTransferSettings();
                 if (!transfer) return null
                 return {
-                    version: SettingsVersion.V2,
+                    version: SettingsVersion.V3,
                     transfer,
                     lighting: exportLightingSettings(),
                     display: exportDisplaySettings(),
@@ -901,8 +911,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         const gl = this.gl;
         if (!gl) throw new Error("Resizing method called without GL context being set up")
 
-        const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor)
-        const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor)
+        const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor * this.settings.resolutionFactor)
+        const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor * this.settings.resolutionFactor)
+
+        console.log(this.settings.resolutionFactor, scaledWidth, scaledHeight)
 
         gl.viewport(0, 0, scaledWidth, scaledHeight);
         // resize framebuffer textures
@@ -1174,7 +1186,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[this.framebufferPingPong].fbo);
                 this.gl.drawBuffers([this.gl.COLOR_ATTACHMENT0]);
                 // Set up viewport size, since canvas size can change
-                this.gl.viewport(0, 0, this.resolutionFactor * this.gl.canvas.width, this.resolutionFactor * this.gl.canvas.height);
+                this.gl.viewport(0, 0, this.settings.resolutionFactor * this.resolutionFactor * this.gl.canvas.width, this.settings.resolutionFactor * this.resolutionFactor * this.gl.canvas.height);
 
                 // Clear stuff
                 this.gl.clearColor(1, 0, 0, 1);
@@ -1200,6 +1212,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 current_pong = this.framebufferPingPong;
                 this.framebufferPingPong = (this.framebufferPingPong + 1) % this.framebuffers.length;
                 this.frameIndex++;
+
+                if (this.frameIndex % 100 === 0) {
+                    console.log("Rendered frame", this.frameIndex, "of", this.settings.maxSamples)
+                }
 
                 this.classList.remove("restarting");
             } else if (this.benchmarking) {
