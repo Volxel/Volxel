@@ -6,6 +6,7 @@ import {
     WasmWorkerMessageType
 } from "./common";
 import * as wasm from "@volxel/dicom_preprocessor";
+import {exportResponseBytes} from "./util";
 
 export {}
 
@@ -120,12 +121,12 @@ self.onmessage = async (ev: MessageEvent<WasmWorkerMessage>) => {
                 break;
             }
             case WasmWorkerMessageType.LOAD_FROM_ZIP_URL: {
-                const zipBytes = await (await fetch(ev.data.zipUrl)).arrayBuffer()
-                buildFromZipBytesAndReturn(new Uint8Array(zipBytes))
+                const zipBytes = await exportResponseBytes(await fetch(ev.data.zipUrl))
+                buildFromZipBytesAndReturn(zipBytes)
                 break;
             }
             case WasmWorkerMessageType.LOAD_FROM_URLS: {
-                const bytes = await Promise.all(ev.data.urls.map(url => fetch(url).then(async res => new Uint8Array(await res.arrayBuffer()))))
+                const bytes = await Promise.all(ev.data.urls.map(url => fetch(url).then(exportResponseBytes)));
                 buildFromBytesAndReturn(bytes);
                 break;
             }

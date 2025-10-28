@@ -17,7 +17,15 @@ import {ColorRampComponent} from "./elements/colorramp";
 import {HistogramViewer} from "./elements/histogramViewer";
 import {Volume} from "./representation/volume";
 import {Matrix4, Vector3} from "math.gl";
-import {closestPoints, cubeFace, Ray, rayBoxIntersectionPositions, setupPanningListeners, worldRay} from "./util";
+import {
+    closestPoints,
+    cubeFace,
+    exportResponseBytes,
+    Ray,
+    rayBoxIntersectionPositions,
+    setupPanningListeners,
+    worldRay
+} from "./util";
 import {UnitCubeDisplay} from "./elements/cubeDirection";
 import {volxelStyles, volxelTemplate} from "./template";
 import {
@@ -1019,9 +1027,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public async loadEnvFromUrl(url: string) {
         const response = await fetch(url)
         if (!response.ok) throw new Error("Environment fetch responded with error response");
-        const bytes = await response.arrayBuffer();
         await this.workerInitialized;
-        await this.loadEnv(new Uint8Array(bytes));
+        await this.loadEnv(await exportResponseBytes(response));
     }
 
     private setupWorkerListener(resolve: () => void, reject: (e: unknown) => void) {
