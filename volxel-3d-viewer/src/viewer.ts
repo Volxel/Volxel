@@ -90,7 +90,7 @@ export type VolxelBenchmarkResult = {
     settings: ViewerSettings,
     totalTime: number,
     timePerSample: number,
-    resolution: [number, number],
+    viewport: [number, number, number, number],
     device: VolxelBenchmarkDeviceResult,
     timestamp: Date
 }
@@ -1220,7 +1220,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     settings: this.settings,
                     timePerSample: this.benchmarkTime / this.frameIndex,
                     totalTime: this.benchmarkTime,
-                    resolution: [this.canvas.width, this.canvas.height],
+                    viewport: this.gl.getParameter(this.gl.VIEWPORT),
                     device: this.device!,
                     timestamp: new Date()
                 }
