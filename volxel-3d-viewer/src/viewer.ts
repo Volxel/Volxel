@@ -33,7 +33,7 @@ import {
 import {
     DisplaySettings,
     LightingSettings,
-    loadSettings, saveSettings,
+    loadSettings, saveBenchmark, saveSettings,
     SettingsExport,
     SettingsVersion,
     TransferSettings,
@@ -68,10 +68,31 @@ export type VolxelBenchmark = {
     sharedSettings: SettingsExport[],
     benchmarks: VolxelBenchmarkSettings[]
 }
+export type VolxelBenchmarkDeviceResult = {
+    platform: string,
+    userAgent: string,
+    deviceMemory: number,
+    hardwareConcurrency: number,
+    screen: {
+        width: number,
+        height: number,
+        pixelRatio: number
+    },
+    gpu?: {
+        vendor: string,
+        renderer: string,
+        version: string,
+        shadingLanguageVersion: string,
+        supportedExtensions: unknown
+    }
+}
 export type VolxelBenchmarkResult = {
     settings: ViewerSettings,
     totalTime: number,
-    timePerSample: number
+    timePerSample: number,
+    resolution: [number, number],
+    device: VolxelBenchmarkDeviceResult,
+    timestamp: Date
 }
 
 export class Volxel3DDicomRenderer extends HTMLElement {
@@ -94,12 +115,14 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private frameIndex: number = 0;
 
     private suspend: boolean = false;
+    private resolutionFactor: number = 1;
+    private lowResolutionDuration: number = 5;
+
+    private device: VolxelBenchmarkDeviceResult | undefined;
     private benchmarking: boolean = false;
     private benchmarkTime: number = 0;
     private benchmarkResults: VolxelBenchmarkResult[] = [];
     private benchmarkInits: (() => Promise<void>)[] = [];
-    private resolutionFactor: number = 1;
-    private lowResolutionDuration: number = 5;
 
     private indirection: WebGLTexture | undefined;
     private range: WebGLTexture | undefined;
@@ -180,6 +203,29 @@ export class Volxel3DDicomRenderer extends HTMLElement {
             // set up GL context
             let gl = this.canvas.getContext("webgl2");
             if (!gl) throw new Error("WebGL 2 not supported on this Browser");
+
+            const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+
+            // setup info for benchmarking
+            this.device = {
+                platform: navigator.platform,
+                userAgent: navigator.userAgent,
+                deviceMemory: "deviceMemory" in navigator ? navigator.deviceMemory as number : -1,
+                hardwareConcurrency: navigator.hardwareConcurrency,
+                screen: {
+                    width: screen.width,
+                    height: screen.height,
+                    pixelRatio: window.devicePixelRatio
+                },
+                gpu: debugInfo ? {
+                    vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+                    renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL),
+                    version: gl.getParameter(gl.VERSION),
+                    shadingLanguageVersion: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+                    supportedExtensions: gl.getSupportedExtensions()
+                } : undefined
+            }
+
             const errors = {
                 NO_ERROR: gl.NO_ERROR,
                 INVALID_ENUM: gl.INVALID_ENUM,
@@ -1160,7 +1206,10 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 const result: VolxelBenchmarkResult = {
                     settings: this.settings,
                     timePerSample: this.benchmarkTime / this.frameIndex,
-                    totalTime: this.benchmarkTime
+                    totalTime: this.benchmarkTime,
+                    resolution: [this.canvas.width, this.canvas.height],
+                    device: this.device!,
+                    timestamp: new Date()
                 }
                 this.benchmarkResults.push(JSON.parse(JSON.stringify(result)));
                 console.log("benchmark result", JSON.stringify(result, null, 2))
@@ -1169,7 +1218,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 const nextBenchmarkInit = this.benchmarkInits.pop()
                 if (nextBenchmarkInit) nextBenchmarkInit().then()
                 else {
-                    console.log("benchmarking done", this.benchmarkResults)
+                    saveBenchmark(this.benchmarkResults)
                 }
             }
             this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);

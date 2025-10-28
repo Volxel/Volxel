@@ -1,6 +1,6 @@
 import {ColorStop} from "./utils/data";
 import {Vector3} from "math.gl";
-import {VolxelRenderMode} from "./viewer";
+import {VolxelBenchmarkResult, VolxelRenderMode} from "./viewer";
 
 export enum SettingsVersion {
     V1 = "v1",
@@ -135,6 +135,14 @@ export function saveSettings(settings: SettingsExport) {
     const url = URL.createObjectURL(blob);
     download.href = url;
     download.download = "settings.json"
+    download.click()
+    URL.revokeObjectURL(url);
+}
+export function saveBenchmark(benchmarks: VolxelBenchmarkResult[]) {
+    const blob = new Blob([JSON.stringify(benchmarks)])
+    const url = URL.createObjectURL(blob);
+    download.href = url;
+    download.download = `benchmark_results-${Date.now()}.json`
     download.click()
     URL.revokeObjectURL(url);
 }
