@@ -1220,7 +1220,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     settings: this.settings,
                     timePerSample: this.benchmarkTime / this.frameIndex,
                     totalTime: this.benchmarkTime,
-                    viewport: this.gl.getParameter(this.gl.VIEWPORT),
+                    viewport: [0, 0, this.settings.resolutionFactor * this.canvas.width, this.settings.resolutionFactor * this.canvas.height],
                     device: this.device!,
                     timestamp: new Date()
                 }
