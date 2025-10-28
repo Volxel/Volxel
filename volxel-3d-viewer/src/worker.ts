@@ -120,12 +120,12 @@ self.onmessage = async (ev: MessageEvent<WasmWorkerMessage>) => {
                 break;
             }
             case WasmWorkerMessageType.LOAD_FROM_ZIP_URL: {
-                const zipBytes = await (await fetch(ev.data.zipUrl)).bytes()
-                buildFromZipBytesAndReturn(zipBytes)
+                const zipBytes = await (await fetch(ev.data.zipUrl)).arrayBuffer()
+                buildFromZipBytesAndReturn(new Uint8Array(zipBytes))
                 break;
             }
             case WasmWorkerMessageType.LOAD_FROM_URLS: {
-                const bytes = await Promise.all(ev.data.urls.map(url => fetch(url).then(res => res.bytes())))
+                const bytes = await Promise.all(ev.data.urls.map(url => fetch(url).then(async res => new Uint8Array(await res.arrayBuffer()))))
                 buildFromBytesAndReturn(bytes);
                 break;
             }

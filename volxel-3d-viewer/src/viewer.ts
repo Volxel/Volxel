@@ -1010,9 +1010,9 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     public async loadEnvFromUrl(url: string) {
         const response = await fetch(url)
         if (!response.ok) throw new Error("Environment fetch responded with error response");
-        const bytes = await response.bytes();
+        const bytes = await response.arrayBuffer();
         await this.workerInitialized;
-        await this.loadEnv(bytes);
+        await this.loadEnv(new Uint8Array(bytes));
     }
 
     private setupWorkerListener(resolve: () => void, reject: (e: unknown) => void) {
