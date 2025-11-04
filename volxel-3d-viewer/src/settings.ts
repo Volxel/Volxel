@@ -133,22 +133,21 @@ export function verifySettings(settings: SettingsExport) {
 
 const download = document.createElement("a");
 
-export function saveSettings(settings: SettingsExport) {
-    verifySettings(settings);
-    const blob = new Blob([JSON.stringify(settings)])
+export function saveJson(json: any, name: string) {
+    const blob = new Blob([JSON.stringify(json)])
     const url = URL.createObjectURL(blob);
     download.href = url;
-    download.download = "settings.json"
+    download.download = `${name}.json`
     download.click()
     URL.revokeObjectURL(url);
 }
+
+export function saveSettings(settings: SettingsExport) {
+    verifySettings(settings);
+    saveJson(settings, "settings")
+}
 export function saveBenchmark(benchmarks: VolxelBenchmarkResult[]) {
-    const blob = new Blob([JSON.stringify(benchmarks)])
-    const url = URL.createObjectURL(blob);
-    download.href = url;
-    download.download = `benchmark_results-${Date.now()}.json`
-    download.click()
-    URL.revokeObjectURL(url);
+    saveJson(benchmarks, `benchmark_results-${Date.now()}`)
 }
 
 export async function loadSettings(from: File | string | Blob | URL) {

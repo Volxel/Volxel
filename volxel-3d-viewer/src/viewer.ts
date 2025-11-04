@@ -41,7 +41,7 @@ import {
 import {
     DisplaySettings,
     LightingSettings,
-    loadSettings, saveBenchmark, saveSettings,
+    loadSettings, saveBenchmark, saveJson, saveSettings,
     SettingsExport,
     SettingsVersion,
     TransferSettings,
@@ -234,6 +234,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     supportedExtensions: gl.getSupportedExtensions()
                 } : undefined
             }
+
+            saveJson(this.device, "device")
 
             const errors = {
                 NO_ERROR: gl.NO_ERROR,
@@ -920,6 +922,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
 
         const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor * this.settings.resolutionFactor)
         const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor * this.settings.resolutionFactor)
+
+        console.log("viewport", [0, 0, scaledWidth, scaledHeight])
 
         gl.viewport(0, 0, scaledWidth, scaledHeight);
         // resize framebuffer textures
