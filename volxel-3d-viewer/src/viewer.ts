@@ -71,6 +71,7 @@ export type VolxelBenchmarkSettings = {
     env?: string,
     renderMode: VolxelRenderMode,
     settings: number | SettingsExport,
+    name?: string
 }
 export type VolxelBenchmark = {
     sharedSettings: SettingsExport[],
@@ -95,6 +96,7 @@ export type VolxelBenchmarkDeviceResult = {
     }
 }
 export type VolxelBenchmarkResult = {
+    name?: string,
     settings: ViewerSettings,
     totalTime: number,
     timePerSample: number,
@@ -131,6 +133,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
     private benchmarkTime: number = 0;
     private benchmarkResults: VolxelBenchmarkResult[] = [];
     private benchmarkInits: (() => Promise<void>)[] = [];
+    private benchmarkCurrentName: string | undefined;
 
     private indirection: WebGLTexture | undefined;
     private range: WebGLTexture | undefined;
@@ -863,6 +866,8 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         for (const benchmark of benchmarkCollection.benchmarks) {
             this.benchmarkInits.push(async () => {
                 await this.restartRendering(async () => {
+                    this.benchmarkCurrentName = benchmark.name;
+                    console.log("Starting benchmark", benchmark.name)
                     if (benchmark.zip) await this.restartFromZipUrl(benchmark.zip)
                     if (benchmark.env) await this.loadEnvFromUrl(benchmark.env)
                     if (typeof benchmark.settings === "number") {
@@ -923,7 +928,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor * this.settings.resolutionFactor)
         const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor * this.settings.resolutionFactor)
 
-        console.log("viewport", [0, 0, scaledWidth, scaledHeight])
+        alert("viewport" + JSON.stringify([0, 0, scaledWidth, scaledHeight]))
 
         gl.viewport(0, 0, scaledWidth, scaledHeight);
         // resize framebuffer textures
@@ -1228,6 +1233,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                 this.classList.remove("restarting");
             } else if (this.benchmarking) {
                 const result: VolxelBenchmarkResult = {
+                    name: this.benchmarkCurrentName,
                     settings: this.settings,
                     timePerSample: this.benchmarkTime / this.frameIndex,
                     totalTime: this.benchmarkTime,
