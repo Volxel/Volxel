@@ -928,7 +928,7 @@ export class Volxel3DDicomRenderer extends HTMLElement {
         const scaledWidth = Math.floor(this.canvas.width * this.resolutionFactor * this.settings.resolutionFactor)
         const scaledHeight = Math.floor(this.canvas.height * this.resolutionFactor * this.settings.resolutionFactor)
 
-        alert("viewport" + JSON.stringify([0, 0, scaledWidth, scaledHeight]))
+        console.log("viewport" + JSON.stringify([0, 0, scaledWidth, scaledHeight]))
 
         gl.viewport(0, 0, scaledWidth, scaledHeight);
         // resize framebuffer textures

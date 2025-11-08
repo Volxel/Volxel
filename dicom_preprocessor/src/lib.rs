@@ -172,8 +172,12 @@ fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
             result = Some(dicom.data)
         }
     }
+    
+    let data = result.expect("No dicom data collected");
+
+    log_to_console(format!("Grid Resolution: {} {} {}", data.stride.x, data.stride.y, data.stride.z).as_str());
     DicomDataInternal {
-        data: result.expect("No dicom data collected"),
+        data,
         transform,
         histogram,
         min,
