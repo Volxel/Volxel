@@ -41,11 +41,14 @@ import {
 import {
     DisplaySettings,
     LightingSettings,
-    loadSettings, saveBenchmark, saveJson, saveSettings,
+    loadSettings,
+    saveBenchmark,
+    saveSettings,
     SettingsExport,
     SettingsVersion,
     TransferSettings,
-    TransferSettingsTransferType, verifySettings,
+    TransferSettingsTransferType,
+    verifySettings,
     ViewerSettings
 } from "./settings";
 import {Environment} from "./representation/environment";
@@ -237,8 +240,6 @@ export class Volxel3DDicomRenderer extends HTMLElement {
                     supportedExtensions: gl.getSupportedExtensions()
                 } : undefined
             }
-
-            saveJson(this.device, "device")
 
             const errors = {
                 NO_ERROR: gl.NO_ERROR,
