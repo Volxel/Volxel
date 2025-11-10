@@ -6,6 +6,7 @@ mod grid;
 mod zip;
 mod hdr;
 
+use js_sys::Date;
 use dicom_core::Tag;
 use wasm_bindgen::prelude::*;
 
@@ -139,7 +140,8 @@ fn read_dicom(bytes: Uint8Array, debug_print: bool) -> DicomDataInternal {
 }
 
 fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
-
+    log_to_console("Starting volume load");
+    let start = Date::now();
     let mut result: Option<Buf3D<u16>> = None;
     let mut transform: Mat4 = Mat4::IDENTITY;
     let mut histogram: Vec<u32> = Vec::new();
@@ -158,7 +160,7 @@ fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
                 histogram[i] = histogram[i] + dicom.histogram[i];
             }
         }
-
+        
         if dicom.min < min {
             min = dicom.min
         }
@@ -172,6 +174,9 @@ fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
             result = Some(dicom.data)
         }
     }
+    let end = Date::now();
+    let elapsed = end - start;
+    log_to_console(&format!("Finished loading in {}", elapsed));
     
     let data = result.expect("No dicom data collected");
 
@@ -188,5 +193,10 @@ fn read_dicoms_internal(all_bytes: Vec<Uint8Array>) -> DicomDataInternal {
 #[wasm_bindgen]
 pub fn read_dicoms_to_grid(all_bytes: Vec<Uint8Array>) -> BrickGrid {
     let dicom = read_dicoms_internal(all_bytes);
-    BrickGrid::construct(&dicom)
+    log_to_console("Starting brick grid construction");
+    let start = Date::now();
+    let grid = BrickGrid::construct(&dicom);
+    let end = Date::now();
+    log_to_console(&format!("Brick grid construction took {}", end - start).as_str());
+    grid
 }
