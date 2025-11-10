@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build:wasm": "wasm-pack build --scope volxel dicom_preprocessor --target bundler",
+    "build:wasm:dev": "RUSTFLAGS=\"-C debuginfo=2 -C opt-level=0\" wasm-pack build --dev --scope volxel dicom_preprocessor --target bundler",
     "build:web": "tsc --build && vite build",
     "build": "pnpm build:wasm && pnpm build:web",
     "preview": "vite preview"

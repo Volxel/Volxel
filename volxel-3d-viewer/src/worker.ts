@@ -13,6 +13,10 @@ export {}
 wasm.init()
 function buildFromBytesAndReturn(bytes: Uint8Array[]) {
     const grid = wasm.read_dicoms_to_grid(bytes);
+    buildFromGridAndReturn(grid);
+}
+
+function buildFromGridAndReturn(grid: wasm.BrickGrid) {
     const indirection = grid.indirection_data();
     const atlas = grid.atlas_data();
     const transform = grid.transform();
@@ -52,35 +56,23 @@ function buildFromBytesAndReturn(bytes: Uint8Array[]) {
         transfer: [indirection.buffer, atlas.buffer, transform.buffer, histogram.buffer, histogramGradient.buffer, ...rangeMipmaps.map(range => range.mipmap.buffer), range.buffer]
     })
 }
+
 function buildFromZipBytesAndReturn(zipBytes: Uint8Array) {
-    let zipResult: wasm.ZipReadResult;
+    let result: wasm.ZipResult;
     try {
-        zipResult = wasm.read_zip_to_bytes(zipBytes);
+        result = wasm.read_zip_to_grid(zipBytes);
     } catch (e) {
-        const error = e as wasm.ZipReadError;
-        const type = error.error_type();
-        let typeMessage: string;
-        switch (type) {
-            case wasm.ZipReadErrorType.ExtractFailed: {
-                typeMessage = "Extraction failed"
-                break;
-            }
-            case wasm.ZipReadErrorType.NoFiles: {
-                typeMessage = "ZIP file empty"
-                break;
-            }
-            case wasm.ZipReadErrorType.MoreThanOneFolder: {
-                typeMessage = "More than one folder in ZIP file";
-                break;
-            }
-            default: {
-                typeMessage = "Unknown error occurred during ZIP extraction"
-            }
+        if (e instanceof Error) {
+            console.error("Received error during zip read", e.message, e.stack);
+            // TODO: For some reason firefox just outright ignores any statement where e is used directly
+            // I also cannot just print e, that print statement would get entirely ignored too...
+            throw e;
+        } else {
+            const error = e as wasm.ZipReadError;
+            throw new Error(error.message);
         }
-        const message = error.message();
-        throw new Error(`${typeMessage}${message ? ": " + message : ""}`);
     }
-    buildFromBytesAndReturn(zipResult.bytes())
+    buildFromGridAndReturn(wasm.zip_to_dicom(result));
 }
 
 function loadEnv(bytes: Uint8Array) {
