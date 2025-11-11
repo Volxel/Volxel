@@ -70,7 +70,7 @@ pub fn read_zip_to_grid(zip: Uint8Array) -> Result<ZipResult, ZipReadError> {
         }
         let mut file_bytes: Vec<u8> = Vec::new();
         f.read_to_end(&mut file_bytes).unwrap();
-        let mut dicom = read_dicom(unsafe { Uint8Array::view(file_bytes.as_slice()) }, false);
+        let mut dicom = read_dicom(Uint8Array::from(file_bytes.as_slice()),false);
 
         // I just assume every dicom object has the same transform
         transform = dicom.transform;
