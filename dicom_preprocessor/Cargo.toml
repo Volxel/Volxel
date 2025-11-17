@@ -28,7 +28,7 @@ glam = "0.30.8"
 bytemuck = "1.24.0"
 half = "2.7.1" # TODO: Remove this once f16 is stable in Rust
 zip = { version = "6.0.0", default-features = false, features = ["bzip2", "deflate", "lzma", "deflate64", "ppmd", "zstd"] }
-image = { version = "0.25.8", features = ["exr", "hdr"]}
+image = { version = "0.25.9", features = ["exr", "hdr"]}
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
